@@ -27,4 +27,5 @@ pnpm build
 `{ success, data, message, error }` 响应解包；登录和刷新使用 `data.accessToken`、
 `data.refreshToken`，令牌只保存在当前页面内存。Native 当前没有 `/auth/me` 或监控快照接口，
 监控页面通过 `/monitor/serverInfo`、`/monitor/cacheInfo` 和 `/monitor/onlineUsers` 组合读取，
-Native 未提供的 CPU、磁盘和网络指标会明确显示为不可用。
+Native 未提供的 CPU、磁盘和网络指标会明确显示为不可用。强制下线当前会话后，前端会清理
+身份状态并返回登录页；相关联调需要使用 `VITE_ENABLE_MOCK=false`。
