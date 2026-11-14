@@ -23,5 +23,8 @@ pnpm test:run
 pnpm build
 ```
 
-当前首阶段包含登录、受保护管理壳和运行监控工作台。访问令牌只保存在内存，刷新会话通过
-`HttpOnly` Cookie 请求 Native API。
+当前首阶段包含登录、受保护管理壳和运行监控工作台。前端按 Native 的统一
+`{ success, data, message, error }` 响应解包；登录和刷新使用 `data.accessToken`、
+`data.refreshToken`，令牌只保存在当前页面内存。Native 当前没有 `/auth/me` 或监控快照接口，
+监控页面通过 `/monitor/serverInfo`、`/monitor/cacheInfo` 和 `/monitor/onlineUsers` 组合读取，
+Native 未提供的 CPU、磁盘和网络指标会明确显示为不可用。

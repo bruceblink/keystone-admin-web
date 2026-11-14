@@ -1,15 +1,17 @@
 import type { MonitorStatus } from './types'
 
-export function formatPercent(value: number): string {
-  return `${Math.round(value)}%`
+export function formatPercent(value: number | null | undefined): string {
+  return value == null ? '—' : `${Math.round(value)}%`
 }
 
-export function formatBytes(value: number): string {
+export function formatBytes(value: number | null | undefined): string {
+  if (value == null) return '—'
   if (value < 1024) return `${value} MB`
   return `${(value / 1024).toFixed(1)} GB`
 }
 
-export function formatRate(value: number): string {
+export function formatRate(value: number | null | undefined): string {
+  if (value == null) return '—'
   return value >= 1024 ? `${(value / 1024).toFixed(1)} MB/s` : `${value} KB/s`
 }
 

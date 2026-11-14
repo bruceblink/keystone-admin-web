@@ -98,23 +98,26 @@ React 19.3 是当前 React 主版本；Vite 8 的官方文档要求 Node.js 20.1
 前端只暴露 `src/shared/api` 中的领域接口。页面不能直接拼接 URL 或读取原始响应。Native
 API 的 `/api/v1` 前缀、UUID 字符串、分页结构、错误分类和 XLSX 响应由适配器统一转换。
 
-建议 Native API 在前端实施前固定以下最终约定：
+当前前端已按 Native API 的实际约定实现以下入口：
 
-1. 访问令牌只用于短期 API 请求；刷新令牌通过 `HttpOnly; Secure; SameSite=Lax` Cookie
-   发送，浏览器请求使用 `credentials: include`。
+1. Native 统一返回 `{ success, data, message, error }`。登录和刷新令牌位于 `data`，刷新请求
+   发送 `refreshToken` 与 `clientId`。当前前端只在页面内存保存令牌，页面刷新后需要重新登录；
+   如果 Native 后续提供安全 Cookie 会话，再由 API Client 单独适配。
 2. 登录、刷新、退出、MFA 和权限错误使用稳定错误码、HTTP 状态和字段结构。
 3. API 返回的 UUID 一律使用规范字符串，前端不按整数或排序值处理 UUID。
 4. XLSX 上传只接受 `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
    和 `.xlsx` 文件名；下载响应明确设置文件名。
-5. SSE 监控流返回快照时间、状态和数据完整性；断线时服务端保持最后一次快照可读，前端显示
-   stale 或 offline，而不是清空工作区。
+5. 运行监控通过 `/monitor/serverInfo`、`/monitor/cacheInfo` 和 `/monitor/onlineUsers` 组合
+   读取。Native 未提供的 CPU、磁盘和网络指标使用 `null`，前端显示为不可用并将状态标为
+   `PARTIAL`，不使用模拟数值冒充服务端指标。
 
 前端的 `API Client` 只做入口校验、错误映射、超时和取消。权限和数据范围以 Native API
 返回为准。前端隐藏按钮不能视为授权控制。
 
 ### 令牌处理
 
-- access token 只保存在内存中的 Zustand session store，页面刷新后通过 refresh Cookie 恢复。
+- access token 和 refresh token 只保存在当前页面内存中的 session store；Native 当前返回
+  refresh token 响应字段，页面刷新后需要重新登录。
 - 不把 refresh token、access token、密码、MFA secret 或 API Key 写入 localStorage、IndexedDB、URL 或日志。
 - 同一时间只允许一个 refresh 请求；其他 401 请求等待同一个 refresh 结果。
 - refresh 失败后清理内存状态，转到登录页，并保留用户可读的“会话已失效”原因。

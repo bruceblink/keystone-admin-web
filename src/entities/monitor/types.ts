@@ -4,7 +4,7 @@ export type MonitorStatus = (typeof monitorStatuses)[number]
 
 export type TrendPoint = {
   timestamp: string
-  cpu: number
+  cpu: number | null
   memory: number
 }
 
@@ -13,25 +13,25 @@ export type MonitorSnapshot = {
   capturedAt: string
   source: string
   node: string
-  cpu: number
-  memory: number
+  cpu: number | null
+  memory: number | null
   beam: {
-    processes: number
-    reductions: number
-    runQueue: number
+    processes: number | null
+    reductions: number | null
+    runQueue: number | null
   }
   disk: {
-    used: number
-    total: number
+    used: number | null
+    total: number | null
   }
   network: {
-    inbound: number
-    outbound: number
+    inbound: number | null
+    outbound: number | null
   }
   ets: {
-    tables: number
-    entries: number
-    memory: number
+    tables: number | null
+    entries: number | null
+    memory: number | null
   }
   sessions: SessionSummary[]
   trend: TrendPoint[]
