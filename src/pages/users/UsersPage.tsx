@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, Upload, UsersRound } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
+import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
+import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { UserFormModal } from './UserFormModal'
@@ -18,6 +20,7 @@ const emptyFilters: UserFilters = { username: '', displayName: '' }
 
 export function UsersPage() {
   const queryClient = useQueryClient()
+  const stepUp = useMfaStepUp()
   const [formFilters, setFormFilters] = useState<UserFilters>(emptyFilters)
   const [filters, setFilters] = useState<UserFilters>(emptyFilters)
   const [page, setPage] = useState(1)
@@ -30,7 +33,7 @@ export function UsersPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
   const importMutation = useMutation({
-    mutationFn: (file: File) => apiClient.importUsers(file),
+    mutationFn: (file: File) => stepUp.run(() => apiClient.importUsers(file)),
     onSuccess: async (result) => {
       setImportResult(result)
       await queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -42,7 +45,7 @@ export function UsersPage() {
     staleTime: 10_000,
   })
   const saveMutation = useMutation({
-    mutationFn: ({ id, input }: { id?: string; input: NativeUserWriteInput }) => id ? apiClient.updateUser(id, input) : apiClient.createUser(input),
+    mutationFn: ({ id, input }: { id?: string; input: NativeUserWriteInput }) => stepUp.run(() => id ? apiClient.updateUser(id, input) : apiClient.createUser(input)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['users'] })
       setModalMode(null)
@@ -50,7 +53,7 @@ export function UsersPage() {
     },
   })
   const deleteMutation = useMutation({
-    mutationFn: (ids: string[]) => apiClient.deleteUsers(ids),
+    mutationFn: (ids: string[]) => stepUp.run(() => apiClient.deleteUsers(ids)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['users'] })
       setSelectedIds([])
@@ -280,6 +283,7 @@ export function UsersPage() {
       />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="用户" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={submitDelete} />
       <UserFormModal open={modalMode !== null} mode={modalMode ?? 'create'} user={editingUser} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitUser} />
+      <MfaStepUpModal {...stepUp.modal} />
     </div>
   )
 }

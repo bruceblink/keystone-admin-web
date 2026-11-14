@@ -54,6 +54,45 @@ describe('Native API client', () => {
     expect(calls[1]?.init?.body).toContain('"refreshToken":"refresh-1"')
   })
 
+  it('按 Native step-up 契约创建挑战并只替换短时 AAL2 access token', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) return ok(token)
+      if (url.endsWith('/auth/mfa/step-up')) {
+        expect(init?.method).toBe('POST')
+        expect(init?.body).toBe('{}')
+        return response({ success: true, data: {
+          challengeId: 'challenge-1', purpose: 'STEP_UP', clientId: 'web', sessionId: 'session-1', expiresAt: '2026-11-14T03:00:00Z',
+        }, message: 'OK', error: null }, 201)
+      }
+      if (url.endsWith('/auth/mfa/step-up/verify')) {
+        expect(init?.method).toBe('POST')
+        expect(init?.body).toBe(JSON.stringify({ challengeId: 'challenge-1', code: '123456' }))
+        expect((init?.headers as Headers).get('Authorization')).toBe('Bearer access-1')
+        return ok({ accessToken: 'aal2-access', expiresIn: 300, authenticationLevel: 'AAL2', amr: 'otp' })
+      }
+      if (url.endsWith('/api-keys')) {
+        expect((init?.headers as Headers).get('Authorization')).toBe('Bearer aal2-access')
+        return ok({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', name: 'deploy', prefix: 'dep', apiKey: 'ks_live_once', scopes: ['api-key:create'], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiClient.login('operator', 'secret')
+    const challenge = await apiClient.beginMfaStepUp()
+    expect(challenge).toEqual({ challengeId: 'challenge-1', clientId: 'web', expiresAt: '2026-11-14T03:00:00Z' })
+    const result = await apiClient.verifyMfaStepUp(challenge.challengeId, '123456')
+    expect(result).toMatchObject({ accessToken: 'aal2-access', authenticationLevel: 'AAL2', amr: 'otp' })
+    await expect(apiClient.issueApiKey({ name: 'deploy', scopes: ['api-key:create'] })).resolves.toMatchObject({ apiKey: 'ks_live_once' })
+  })
+
+  it('不把 API Key 的 step-up 拒绝错误替换为 Mock 成功', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({ success: false, data: null, message: 'recent MFA step-up is required', error: { code: 'permission_denied' } }, 403)))
+
+    await expect(apiClient.issueApiKey({ name: 'deploy', scopes: ['api-key:create'] })).rejects.toMatchObject({ status: 403, code: 'permission_denied' })
+  })
+
   it('使用 Native 监控接口组装真实可用指标并标记缺失指标', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const url = String(input)

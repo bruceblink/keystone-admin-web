@@ -35,6 +35,21 @@ export const nativeTokenSchema = z.object({
   clientId: z.string(),
 })
 
+/** Native step-up challenge；只保存当前会话绑定的短期验证请求元数据。 */
+export const nativeMfaStepUpChallengeSchema = z.object({
+  challengeId: z.string().min(1),
+  clientId: z.string().min(1),
+  expiresAt: z.string().min(1),
+})
+
+/** Native step-up 只返回短时 AAL2 access token，不返回 refresh token。 */
+export const nativeMfaStepUpResultSchema = z.object({
+  accessToken: z.string().min(1),
+  expiresIn: z.number().positive(),
+  authenticationLevel: z.literal('AAL2'),
+  amr: z.enum(['otp', 'recovery']),
+})
+
 export const apiEnvelopeSchema = z.object({
   success: z.boolean(),
   data: z.unknown().nullable(),
@@ -379,6 +394,8 @@ export const monitorSnapshotSchema = z.object({
 })
 
 export type User = z.infer<typeof userSchema>
+export type NativeMfaStepUpChallenge = z.infer<typeof nativeMfaStepUpChallengeSchema>
+export type NativeMfaStepUpResult = z.infer<typeof nativeMfaStepUpResultSchema>
 export type NativeUser = z.infer<typeof nativeUserSchema>
 export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
 export type NativeUserImportFailure = z.infer<typeof nativeUserImportFailureSchema>

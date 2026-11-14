@@ -31,8 +31,12 @@ import {
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
+  nativeMfaStepUpChallengeSchema,
+  nativeMfaStepUpResultSchema,
   userSchema,
   type NativeUsersPage,
+  type NativeMfaStepUpChallenge,
+  type NativeMfaStepUpResult,
   type NativeUser,
   type NativeUserWriteInput,
   type NativeBatchDeleteResult,
@@ -235,6 +239,25 @@ export const apiClient = {
     }
   },
 
+  /** 创建绑定当前人类会话的短期 MFA step-up 请求；TOTP 不在客户端持久化。 */
+  async beginMfaStepUp(contextHash?: string): Promise<NativeMfaStepUpChallenge> {
+    const body = contextHash ? { contextHash } : {}
+    return nativeMfaStepUpChallengeSchema.parse(await request<unknown>('/auth/mfa/step-up', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }))
+  },
+
+  /** 验证 TOTP 或恢复码，并仅替换内存中的短时 AAL2 access token。 */
+  async verifyMfaStepUp(challengeId: string, code: string): Promise<NativeMfaStepUpResult> {
+    const result = nativeMfaStepUpResultSchema.parse(await request<unknown>('/auth/mfa/step-up/verify', {
+      method: 'POST',
+      body: JSON.stringify({ challengeId, code }),
+    }))
+    accessToken = result.accessToken
+    return result
+  },
+
   async getMonitorSnapshot(): Promise<MonitorSnapshot> {
     try {
       const [server, cache, online] = await Promise.all([
@@ -298,6 +321,7 @@ export const apiClient = {
         body: JSON.stringify(input),
       }))
     } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
       if (!mockFallbackEnabled()) throw error
       return nativeUserSchema.parse({
         id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', username: input.username ?? 'new-user',
@@ -316,6 +340,7 @@ export const apiClient = {
         body: JSON.stringify(input),
       }))
     } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
       if (!mockFallbackEnabled()) throw error
       return nativeUserSchema.parse({
         id, username: input.username ?? 'operator', displayName: input.displayName,
@@ -447,6 +472,7 @@ export const apiClient = {
     try {
       return nativeRoleSchema.parse(await request<unknown>('/roles', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
       if (!mockFallbackEnabled()) throw error
       return nativeRoleSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: input.code ?? 'new-role', name: input.name, enabled: input.enabled ?? true, dataScope: 'ALL', deptScope: null, permissions: [] })
     }
@@ -456,6 +482,7 @@ export const apiClient = {
     try {
       return nativeRoleSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
       if (!mockFallbackEnabled()) throw error
       const role = createMockRoles().find((item) => item.id === id)
       return nativeRoleSchema.parse({ ...(role ?? createMockRoles()[0]), ...input, id })
@@ -613,6 +640,7 @@ export const apiClient = {
     try {
       return nativeIssuedApiKeySchema.parse(await request<unknown>('/api-keys', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
       if (!mockFallbackEnabled()) throw error
       return nativeIssuedApiKeySchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', name: input.name, prefix: 'demo', apiKey: 'ks_live_demo_once', scopes: input.scopes, expiresAt: input.expiresAt ?? null, revokedAt: null, lastUsedAt: null, createdAt: new Date().toISOString() })
     }
@@ -622,6 +650,7 @@ export const apiClient = {
     try {
       return nativeIssuedApiKeySchema.parse(await request<unknown>(`/api-keys/${encodeURIComponent(id)}/rotate`, { method: 'POST' }))
     } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
       if (!mockFallbackEnabled()) throw error
       return nativeIssuedApiKeySchema.parse({ id, name: 'Rotated key', prefix: 'demo', apiKey: 'ks_live_rotated_once', scopes: [], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: new Date().toISOString() })
     }

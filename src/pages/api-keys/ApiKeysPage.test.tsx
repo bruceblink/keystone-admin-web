@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiKeysPage } from './ApiKeysPage'
-import { apiClient } from '../../shared/api/client'
+import { ApiError, apiClient } from '../../shared/api/client'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -40,5 +40,31 @@ describe('ApiKeysPage', () => {
 
     await waitFor(() => expect(revokeApiKey).toHaveBeenCalledWith(key.id))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('API Key 签发收到 step-up 要求后验证并重试原操作', async () => {
+    vi.spyOn(apiClient, 'listApiKeys').mockResolvedValue([])
+    const issueApiKey = vi.spyOn(apiClient, 'issueApiKey')
+      .mockRejectedValueOnce(new ApiError('recent MFA step-up is required', 403, 'permission_denied'))
+      .mockResolvedValueOnce({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', name: 'deploy', prefix: 'dep', apiKey: 'ks_live_once', scopes: ['api-key:create'], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' })
+    const beginMfaStepUp = vi.spyOn(apiClient, 'beginMfaStepUp').mockResolvedValue({ challengeId: 'challenge-1', clientId: 'web', expiresAt: '2026-11-14T03:00:00Z' })
+    const verifyMfaStepUp = vi.spyOn(apiClient, 'verifyMfaStepUp').mockResolvedValue({ accessToken: 'aal2-access', expiresIn: 300, authenticationLevel: 'AAL2', amr: 'otp' })
+    renderPage()
+
+    await screen.findByText('没有匹配的 API Key')
+    fireEvent.click(screen.getByRole('button', { name: '签发 API Key' }))
+    const issueDialog = screen.getByRole('dialog', { name: '签发 API Key' })
+    fireEvent.change(within(issueDialog).getByLabelText('密钥名称 *'), { target: { value: 'deploy' } })
+    fireEvent.change(within(issueDialog).getByLabelText('授权范围 *'), { target: { value: 'api-key:create' } })
+    fireEvent.click(within(issueDialog).getByRole('button', { name: '签发密钥' }))
+
+    const stepUpDialog = await screen.findByRole('dialog', { name: '需要 MFA 二次验证' })
+    expect(beginMfaStepUp).toHaveBeenCalledOnce()
+    fireEvent.change(within(stepUpDialog).getByLabelText('验证码或恢复码 *'), { target: { value: '123456' } })
+    fireEvent.click(within(stepUpDialog).getByRole('button', { name: '验证并继续' }))
+
+    await waitFor(() => expect(verifyMfaStepUp).toHaveBeenCalledWith('challenge-1', '123456'))
+    await waitFor(() => expect(issueApiKey).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('ks_live_once')).toBeInTheDocument()
   })
 })

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
+import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
+import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeRole, NativeRoleWriteInput } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { RoleFormModal } from './RoleFormModal'
@@ -11,6 +13,7 @@ const emptyFilters: RoleFilters = { keyword: '' }
 
 export function RolesPage() {
   const queryClient = useQueryClient()
+  const stepUp = useMfaStepUp()
   const [formFilters, setFormFilters] = useState<RoleFilters>(emptyFilters)
   const [filters, setFilters] = useState<RoleFilters>(emptyFilters)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
@@ -21,11 +24,11 @@ export function RolesPage() {
   const [exportError, setExportError] = useState<string | null>(null)
   const query = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
   const saveMutation = useMutation({
-    mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => id ? apiClient.updateRole(id, input) : apiClient.createRole(input),
+    mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => stepUp.run(() => id ? apiClient.updateRole(id, input) : apiClient.createRole(input)),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['roles'] }); setModalMode(null); setEditingRole(null) },
   })
   const deleteMutation = useMutation({
-    mutationFn: (ids: string[]) => apiClient.deleteRoles(ids),
+    mutationFn: (ids: string[]) => stepUp.run(() => apiClient.deleteRoles(ids)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['roles'] })
       setSelectedIds([])
@@ -112,6 +115,7 @@ export function RolesPage() {
       </Card> : null}
       <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitRole} />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
+      <MfaStepUpModal {...stepUp.modal} />
     </div>
   )
 }

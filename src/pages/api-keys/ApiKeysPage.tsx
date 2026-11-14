@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { KeyRound, RefreshCw, Search, ShieldAlert } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
+import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
+import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeApiKey, NativeIssuedApiKey } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { ApiKeyIssueModal } from './ApiKeyIssueModal'
@@ -15,11 +17,12 @@ export function ApiKeysPage() {
   const [issueOpen, setIssueOpen] = useState(false)
   const [issuedKey, setIssuedKey] = useState<NativeIssuedApiKey | null>(null)
   const [revokingKey, setRevokingKey] = useState<NativeApiKey | null>(null)
+  const stepUp = useMfaStepUp()
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['api-keys'], queryFn: () => apiClient.listApiKeys(), staleTime: 10_000 })
-  const issueMutation = useMutation({ mutationFn: apiClient.issueApiKey, onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setIssuedKey(key); setIssueOpen(false) } })
-  const rotateMutation = useMutation({ mutationFn: apiClient.rotateApiKey, onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setIssuedKey(key) } })
-  const revokeMutation = useMutation({ mutationFn: (id: string) => apiClient.revokeApiKey(id), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setRevokingKey(null) } })
+  const issueMutation = useMutation({ mutationFn: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => stepUp.run(() => apiClient.issueApiKey(input)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setIssuedKey(key); setIssueOpen(false) } })
+  const rotateMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.rotateApiKey(id)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setIssuedKey(key) } })
+  const revokeMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.revokeApiKey(id)), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setRevokingKey(null) } })
   const keys = useMemo(() => {
     const normalized = applied.keyword.toLocaleLowerCase()
     return (query.data ?? []).filter((key) => {
@@ -71,6 +74,7 @@ export function ApiKeysPage() {
       </Card> : null}
       <ApiKeyIssueModal open={issueOpen} pending={issueMutation.isPending} error={issueMutation.error instanceof Error ? issueMutation.error.message : null} onClose={() => setIssueOpen(false)} onSubmit={(input) => issueMutation.mutateAsync(input).then(() => undefined)} />
       <DeleteConfirmModal open={revokingKey !== null} resourceLabel="API Key" count={1} pending={revokeMutation.isPending} error={revokeMutation.error instanceof Error ? revokeMutation.error.message : null} onClose={() => { if (!revokeMutation.isPending) setRevokingKey(null) }} onConfirm={() => { if (revokingKey) void revokeMutation.mutateAsync(revokingKey.id).catch(() => undefined) }} />
+      <MfaStepUpModal {...stepUp.modal} />
     </div>
   )
 }
