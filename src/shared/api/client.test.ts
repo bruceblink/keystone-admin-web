@@ -420,6 +420,24 @@ describe('Native API client', () => {
     expect(fetchMock.mock.calls[3]?.[0]).toBe('/api/v1/jobs?jobIds=job-a%2Cjob-b')
   })
 
+  it('按 Native 契约发送部门、菜单和岗位单项删除请求', async () => {
+    const id = '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce'
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(init?.method).toBe('DELETE')
+      return ok({ deleted: true })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.deleteDepartment(id)).resolves.toEqual({ deleted: true })
+    await expect(apiClient.deleteMenu(id)).resolves.toEqual({ deleted: true })
+    await expect(apiClient.deletePost(id)).resolves.toEqual({ deleted: true })
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+      `/api/v1/departments/${id}`,
+      `/api/v1/menus/${id}`,
+      `/api/v1/posts/${id}`,
+    ])
+  })
+
   it('调用 Native 在线会话撤销接口并透传错误分类', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok({ loggedOut: true }))

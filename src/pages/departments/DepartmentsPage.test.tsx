@@ -35,4 +35,19 @@ describe('DepartmentsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '保存组织' }))
     await waitFor(() => expect(createDepartment).toHaveBeenCalledWith({ code: 'OPS', name: '运营部', parentId: null, sortOrder: 1, enabled: true }))
   })
+
+  it('确认后删除组织', async () => {
+    const department = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([department])
+    const deleteDepartment = vi.spyOn(apiClient, 'deleteDepartment').mockResolvedValue({ deleted: true })
+    renderPage()
+
+    await screen.findByText('运营部')
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('删除后不可恢复')
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(deleteDepartment).toHaveBeenCalledWith(department.id))
+  })
 })

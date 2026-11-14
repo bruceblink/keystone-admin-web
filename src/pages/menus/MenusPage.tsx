@@ -3,7 +3,7 @@ import { ListTree, RefreshCw, Search, ShieldAlert } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeMenu, NativeMenuNode, NativeMenuWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { MenuFormModal } from './MenuFormModal'
 
 type MenuRow = NativeMenuNode & { level: number }
@@ -13,11 +13,19 @@ export function MenusPage() {
   const [appliedKeyword, setAppliedKeyword] = useState('')
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingMenu, setEditingMenu] = useState<NativeMenu | null>(null)
+  const [deletingMenu, setDeletingMenu] = useState<NativeMenu | null>(null)
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['menus'], queryFn: () => apiClient.listMenus(), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeMenuWriteInput }) => id ? apiClient.updateMenu(id, input) : apiClient.createMenu(input),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['menus'] }); setModalMode(null); setEditingMenu(null) },
+  })
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiClient.deleteMenu(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['menus'] })
+      setDeletingMenu(null)
+    },
   })
   const rows = useMemo(() => {
     const allRows = flattenMenus(query.data ?? [])
@@ -41,6 +49,8 @@ export function MenusPage() {
   function openEdit(menu: NativeMenu) { saveMutation.reset(); setEditingMenu(menu); setModalMode('edit') }
   function closeModal() { if (saveMutation.isPending) return; setModalMode(null); setEditingMenu(null) }
   async function submitMenu(input: NativeMenuWriteInput) { await saveMutation.mutateAsync({ id: editingMenu?.id, input }) }
+  function openDelete(menu: NativeMenu) { deleteMutation.reset(); setDeletingMenu(menu) }
+  function closeDelete() { if (!deleteMutation.isPending) setDeletingMenu(null) }
 
   return (
     <div className="menus-page">
@@ -64,16 +74,17 @@ export function MenusPage() {
       {query.isError && !query.data ? <MenuError message={query.error instanceof Error ? query.error.message : '菜单结构读取失败'} onRetry={() => void query.refetch()} /> : null}
       {query.data ? <Card className="menus-table-card">
         <CardHeader title="菜单目录" description={`共 ${rows.length.toLocaleString('zh-CN')} 个菜单节点`} action={<Badge tone="info">Native API</Badge>} />
-        {rows.length > 0 ? <div className="menus-table-wrap"><table className="menus-table"><thead><tr><th scope="col">菜单名称</th><th scope="col">编码</th><th scope="col">路由</th><th scope="col">权限标识</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <MenuRowView key={row.menu.id} row={row} onEdit={openEdit} />)}</tbody></table></div> : <div className="menus-empty" role="status"><span className="menus-empty-icon"><ListTree size={20} /></span><strong>没有匹配的菜单</strong><p>调整筛选条件后重试，或清空筛选条件查看完整菜单。</p></div>}
+        {rows.length > 0 ? <div className="menus-table-wrap"><table className="menus-table"><thead><tr><th scope="col">菜单名称</th><th scope="col">编码</th><th scope="col">路由</th><th scope="col">权限标识</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <MenuRowView key={row.menu.id} row={row} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="menus-empty" role="status"><span className="menus-empty-icon"><ListTree size={20} /></span><strong>没有匹配的菜单</strong><p>调整筛选条件后重试，或清空筛选条件查看完整菜单。</p></div>}
       </Card> : null}
       <MenuFormModal open={modalMode !== null} mode={modalMode ?? 'create'} menu={editingMenu} menus={flattenMenus(query.data ?? []).map((row) => row.menu)} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitMenu} />
+      <DeleteConfirmModal open={deletingMenu !== null} resourceLabel="菜单" count={1} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => { if (deletingMenu) void deleteMutation.mutateAsync(deletingMenu.id).catch(() => undefined) }} />
     </div>
   )
 }
 
-function MenuRowView({ row, onEdit }: { row: MenuRow; onEdit: (menu: NativeMenu) => void }) {
+function MenuRowView({ row, pending, onEdit, onDelete }: { row: MenuRow; pending: boolean; onEdit: (menu: NativeMenu) => void; onDelete: (menu: NativeMenu) => void }) {
   const { menu } = row
-  return <tr><td><div className="menu-cell" style={{ paddingLeft: `${row.level * 22}px` }}><span className="menu-marker"><ListTree size={15} /></span><strong>{menu.name}</strong></div></td><td className="menu-code">{menu.code}</td><td className="menu-path">{menu.path || '—'}</td><td className="menu-permission">{menu.permission || '—'}</td><td><Badge tone="neutral">{menu.menuType}</Badge></td><td><Badge tone={menu.enabled ? 'success' : 'warning'}>{menu.enabled ? '启用' : '停用'}</Badge></td><td><Button variant="ghost" size="sm" onClick={() => onEdit(menu)}>编辑</Button></td></tr>
+  return <tr><td><div className="menu-cell" style={{ paddingLeft: `${row.level * 22}px` }}><span className="menu-marker"><ListTree size={15} /></span><strong>{menu.name}</strong></div></td><td className="menu-code">{menu.code}</td><td className="menu-path">{menu.path || '—'}</td><td className="menu-permission">{menu.permission || '—'}</td><td><Badge tone="neutral">{menu.menuType}</Badge></td><td><Badge tone={menu.enabled ? 'success' : 'warning'}>{menu.enabled ? '启用' : '停用'}</Badge></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={() => onEdit(menu)} disabled={pending}>编辑</Button><Button variant="ghost" size="sm" onClick={() => onDelete(menu)} disabled={pending}>删除</Button></div></td></tr>
 }
 
 function flattenMenus(nodes: NativeMenuNode[]): MenuRow[] {

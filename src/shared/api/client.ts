@@ -458,6 +458,16 @@ export const apiClient = {
     }
   },
 
+  async deleteDepartment(id: string): Promise<NativeDeleteResult> {
+    try {
+      return nativeDeleteResultSchema.parse(await request<unknown>(`/departments/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { deleted: true }
+    }
+  },
+
   async listPosts(): Promise<NativePost[]> {
     try {
       return nativePostsSchema.parse(await request<unknown>('/posts'))
@@ -505,6 +515,16 @@ export const apiClient = {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!mockFallbackEnabled()) throw error
       return { blob: new Blob(['mock xlsx workbook'], { type: XLSX_MIME_TYPE }), filename: 'posts.xlsx' }
+    }
+  },
+
+  async deleteMenu(id: string): Promise<NativeDeleteResult> {
+    try {
+      return nativeDeleteResultSchema.parse(await request<unknown>(`/menus/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { deleted: true }
     }
   },
 

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MenusPage } from './MenusPage'
@@ -24,5 +24,20 @@ describe('MenusPage', () => {
     expect(await screen.findByText('系统管理')).toBeInTheDocument()
     expect(screen.getByText('用户管理')).toBeInTheDocument()
     expect(screen.getByText('user:read')).toBeInTheDocument()
+  })
+
+  it('确认后删除菜单', async () => {
+    const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu, children: [] }])
+    const deleteMenu = vi.spyOn(apiClient, 'deleteMenu').mockResolvedValue({ deleted: true })
+    renderPage()
+
+    await screen.findByText('系统管理')
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('删除后不可恢复')
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(deleteMenu).toHaveBeenCalledWith(menu.id))
   })
 })

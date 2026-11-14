@@ -46,4 +46,19 @@ describe('PostsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }))
     await waitFor(() => expect(exportPosts).toHaveBeenCalledOnce())
   })
+
+  it('确认后删除岗位', async () => {
+    const post = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listPosts').mockResolvedValue([post])
+    const deletePost = vi.spyOn(apiClient, 'deletePost').mockResolvedValue({ deleted: true })
+    renderPage()
+
+    await screen.findByText('运营专员')
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('删除后不可恢复')
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(deletePost).toHaveBeenCalledWith(post.id))
+  })
 })

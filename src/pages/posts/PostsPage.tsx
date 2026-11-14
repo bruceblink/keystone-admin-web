@@ -3,7 +3,7 @@ import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, BriefcaseBusine
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativePost, NativePostWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { PostFormModal } from './PostFormModal'
 
 const PAGE_SIZE = 20
@@ -19,6 +19,7 @@ export function PostsPage() {
   const [editingPost, setEditingPost] = useState<NativePost | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [deletingPost, setDeletingPost] = useState<NativePost | null>(null)
   const query = useQuery({ queryKey: ['posts'], queryFn: () => apiClient.listPosts(), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativePostWriteInput }) => id ? apiClient.updatePost(id, input) : apiClient.createPost(input),
@@ -26,6 +27,13 @@ export function PostsPage() {
       await queryClient.invalidateQueries({ queryKey: ['posts'] })
       setModalMode(null)
       setEditingPost(null)
+    },
+  })
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiClient.deletePost(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['posts'] })
+      setDeletingPost(null)
     },
   })
 
@@ -96,6 +104,9 @@ export function PostsPage() {
     }
   }
 
+  function openDelete(post: NativePost) { deleteMutation.reset(); setDeletingPost(post) }
+  function closeDelete() { if (!deleteMutation.isPending) setDeletingPost(null) }
+
   return (
     <div className="posts-page">
       <div className="page-heading">
@@ -125,17 +136,18 @@ export function PostsPage() {
       {query.isError && !query.data ? <PostError message={query.error instanceof Error ? query.error.message : '岗位列表读取失败'} onRetry={() => void query.refetch()} /> : null}
       {query.data ? <Card className="posts-table-card">
         <CardHeader title="岗位列表" description={`共 ${filteredPosts.length.toLocaleString('zh-CN')} 个匹配岗位`} action={<Badge tone="info">Native API</Badge>} />
-        {visiblePosts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{visiblePosts.map((post) => <PostRow key={post.id} post={post} onEdit={openEdit} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
+        {visiblePosts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{visiblePosts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
         <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div>
       </Card> : null}
 
       <PostFormModal open={modalMode !== null} mode={modalMode ?? 'create'} post={editingPost} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitPost} />
+      <DeleteConfirmModal open={deletingPost !== null} resourceLabel="岗位" count={1} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => { if (deletingPost) void deleteMutation.mutateAsync(deletingPost.id).catch(() => undefined) }} />
     </div>
   )
 }
 
-function PostRow({ post, onEdit }: { post: NativePost; onEdit: (post: NativePost) => void }) {
-  return <tr><td><div className="post-cell"><span className="post-cell-icon"><BriefcaseBusiness size={15} /></span><div><strong>{post.name}</strong><small>{post.code}</small></div></div></td><td><code className="post-code">{post.code}</code></td><td>{post.sortOrder}</td><td><Badge tone={post.enabled ? 'success' : 'warning'}>{post.enabled ? '启用' : '停用'}</Badge></td><td><Button variant="ghost" size="sm" onClick={() => onEdit(post)}><Pencil size={14} /> 编辑</Button></td></tr>
+function PostRow({ post, pending, onEdit, onDelete }: { post: NativePost; pending: boolean; onEdit: (post: NativePost) => void; onDelete: (post: NativePost) => void }) {
+  return <tr><td><div className="post-cell"><span className="post-cell-icon"><BriefcaseBusiness size={15} /></span><div><strong>{post.name}</strong><small>{post.code}</small></div></div></td><td><code className="post-code">{post.code}</code></td><td>{post.sortOrder}</td><td><Badge tone={post.enabled ? 'success' : 'warning'}>{post.enabled ? '启用' : '停用'}</Badge></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={() => onEdit(post)} disabled={pending}><Pencil size={14} /> 编辑</Button><Button variant="ghost" size="sm" onClick={() => onDelete(post)} disabled={pending}>删除</Button></div></td></tr>
 }
 
 function PostError({ message, onRetry }: { message: string; onRetry: () => void }) {
