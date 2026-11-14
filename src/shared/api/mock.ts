@@ -1,5 +1,5 @@
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { NativeOperationLogsPage, NativeUsersPage, User } from './schemas'
+import type { NativeDepartment, NativeOperationLogsPage, NativeRole, NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -87,4 +87,35 @@ export function createMockOperationLogsPage(page = 1, size = 20): NativeOperatio
     size,
     total: 1,
   }
+}
+
+export function createMockRoles(): NativeRole[] {
+  return [
+    {
+      id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
+      code: 'admin',
+      name: '系统管理员',
+      enabled: true,
+      dataScope: 'ALL',
+      deptScope: '全部组织',
+      permissions: ['user:read', 'role:read', 'department:read'],
+    },
+    {
+      id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a',
+      code: 'auditor',
+      name: '审计员',
+      enabled: true,
+      dataScope: 'DEPARTMENT',
+      deptScope: '审计部',
+      permissions: ['audit:read', 'login-log:read'],
+    },
+  ]
+}
+
+export function createMockDepartments(): NativeDepartment[] {
+  return [
+    { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'HQ', name: '总部', sortOrder: 1, enabled: true },
+    { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'OPS', name: '运营部', sortOrder: 1, enabled: true },
+    { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', parentId: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'AUDIT', name: '审计部', sortOrder: 2, enabled: true },
+  ]
 }

@@ -104,6 +104,30 @@ export const nativeUsersPageSchema = z.object({
   total: z.number().int().nonnegative(),
 })
 
+/** Native 角色查询接口返回的权限摘要；写操作使用独立的 MFA 保护入口。 */
+export const nativeRoleSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  name: z.string(),
+  enabled: z.boolean(),
+  dataScope: z.string(),
+  deptScope: z.string().nullable(),
+  permissions: z.array(z.string()),
+})
+
+/** Native 组织结构节点；parentId 为空表示根部门。 */
+export const nativeDepartmentSchema = z.object({
+  id: z.string().uuid(),
+  parentId: z.string().uuid().nullable(),
+  code: z.string(),
+  name: z.string(),
+  sortOrder: z.number().int(),
+  enabled: z.boolean(),
+})
+
+export const nativeRolesSchema = z.array(nativeRoleSchema)
+export const nativeDepartmentsSchema = z.array(nativeDepartmentSchema)
+
 /** Native 操作审计记录；详情字段只用于查询展示，不在前端执行解析或写入。 */
 export const nativeOperationLogSchema = z.object({
   id: z.string().uuid(),
@@ -154,5 +178,7 @@ export const monitorSnapshotSchema = z.object({
 export type User = z.infer<typeof userSchema>
 export type NativeUser = z.infer<typeof nativeUserSchema>
 export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
+export type NativeRole = z.infer<typeof nativeRoleSchema>
+export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativeOperationLog = z.infer<typeof nativeOperationLogSchema>
 export type NativeOperationLogsPage = z.infer<typeof nativeOperationLogsPageSchema>

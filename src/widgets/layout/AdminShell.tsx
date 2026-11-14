@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, Bell, ChevronDown, LayoutDashboard, LogOut, Menu, Settings2, ShieldCheck, UsersRound, X } from 'lucide-react'
+import { Activity, Bell, Building2, ChevronDown, LayoutDashboard, LogOut, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useSessionStore } from '../../shared/state/session'
 import { Button } from '../../shared/ui'
@@ -8,6 +8,8 @@ const navItems = [
   { to: '/monitor', label: '运行监控', icon: Activity },
   { to: '/dashboard', label: '总览仪表盘', icon: LayoutDashboard },
   { to: '/users', label: '用户与权限', icon: UsersRound },
+  { to: '/roles', label: '角色管理', icon: UserRoundCog },
+  { to: '/departments', label: '组织结构', icon: Building2 },
   { to: '/audit/operations', label: '操作审计', icon: ShieldCheck },
 ]
 

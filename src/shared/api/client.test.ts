@@ -119,6 +119,27 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
+  it('读取 Native 角色和组织结构数组契约', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/roles')) return ok([{
+        id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'admin', name: '系统管理员', enabled: true,
+        dataScope: 'ALL', deptScope: '全部组织', permissions: ['user:read'],
+      }])
+      if (url.endsWith('/departments')) return ok([{
+        id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'HQ', name: '总部', sortOrder: 1, enabled: true,
+      }])
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const roles = await apiClient.listRoles()
+    const departments = await apiClient.listDepartments()
+    expect(roles[0]).toMatchObject({ code: 'admin', dataScope: 'ALL' })
+    expect(departments[0]).toMatchObject({ code: 'HQ', parentId: null })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('调用 Native 在线会话撤销接口并透传错误分类', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok({ loggedOut: true }))

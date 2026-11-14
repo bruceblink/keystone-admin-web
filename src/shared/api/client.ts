@@ -5,15 +5,19 @@ import {
   nativeCacheInfoSchema,
   nativeUsersPageSchema,
   nativeOperationLogsPageSchema,
+  nativeDepartmentsSchema,
+  nativeRolesSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
   userSchema,
   type NativeUsersPage,
   type NativeOperationLogsPage,
+  type NativeDepartment,
+  type NativeRole,
   type User,
 } from './schemas'
-import { createMockLogin, createMockMonitorSnapshot, createMockOperationLogsPage, createMockUsersPage } from './mock'
+import { createMockDepartments, createMockLogin, createMockMonitorSnapshot, createMockOperationLogsPage, createMockRoles, createMockUsersPage } from './mock'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
 
 const API_BASE = '/api/v1'
@@ -243,6 +247,24 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockOperationLogsPage(page, size)
+    }
+  },
+
+  async listRoles(): Promise<NativeRole[]> {
+    try {
+      return nativeRolesSchema.parse(await request<unknown>('/roles'))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockRoles()
+    }
+  },
+
+  async listDepartments(): Promise<NativeDepartment[]> {
+    try {
+      return nativeDepartmentsSchema.parse(await request<unknown>('/departments'))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockDepartments()
     }
   },
 

@@ -5,6 +5,8 @@ import { LoginPage } from '../pages/login/LoginPage'
 import { MonitorPage } from '../pages/monitor/MonitorPage'
 import { UsersPage } from '../pages/users/UsersPage'
 import { OperationsAuditPage } from '../pages/audit/OperationsAuditPage'
+import { DepartmentsPage } from '../pages/departments/DepartmentsPage'
+import { RolesPage } from '../pages/roles/RolesPage'
 import { useSessionStore } from '../shared/state/session'
 import { Spinner } from '../shared/ui'
 
@@ -34,6 +36,8 @@ export function App() {
           <Route index element={<Navigate to="/monitor" replace />} />
           <Route path="/monitor" element={<MonitorPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/roles" element={<RolesPage />} />
+          <Route path="/departments" element={<DepartmentsPage />} />
           <Route path="/audit/operations" element={<OperationsAuditPage />} />
           <Route path="*" element={<MonitorPage />} />
         </Route>
