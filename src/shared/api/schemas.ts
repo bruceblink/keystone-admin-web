@@ -42,6 +42,9 @@ export const nativeMfaStepUpChallengeSchema = z.object({
   expiresAt: z.string().min(1),
 })
 
+/** Native 登录二次认证请求；挑战只绑定短时登录验证状态。 */
+export const nativeMfaLoginChallengeSchema = nativeMfaStepUpChallengeSchema
+
 /** Native step-up 只返回短时 AAL2 access token，不返回 refresh token。 */
 export const nativeMfaStepUpResultSchema = z.object({
   accessToken: z.string().min(1),
@@ -395,6 +398,7 @@ export const monitorSnapshotSchema = z.object({
 
 export type User = z.infer<typeof userSchema>
 export type NativeMfaStepUpChallenge = z.infer<typeof nativeMfaStepUpChallengeSchema>
+export type NativeMfaLoginChallenge = z.infer<typeof nativeMfaLoginChallengeSchema>
 export type NativeMfaStepUpResult = z.infer<typeof nativeMfaStepUpResultSchema>
 export type NativeUser = z.infer<typeof nativeUserSchema>
 export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>

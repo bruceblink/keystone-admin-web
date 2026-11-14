@@ -32,10 +32,12 @@ import {
   nativeServerInfoSchema,
   nativeTokenSchema,
   nativeMfaStepUpChallengeSchema,
+  nativeMfaLoginChallengeSchema,
   nativeMfaStepUpResultSchema,
   userSchema,
   type NativeUsersPage,
   type NativeMfaStepUpChallenge,
+  type NativeMfaLoginChallenge,
   type NativeMfaStepUpResult,
   type NativeUser,
   type NativeUserWriteInput,
@@ -85,7 +87,7 @@ function unwrap<T>(body: unknown, status: number): T {
   const envelope = apiEnvelopeSchema.safeParse(body)
   if (!envelope.success) return body as T
   if (!envelope.data.success) {
-    throw new ApiError(envelope.data.message, status, envelope.data.error?.code)
+    throw new ApiError(envelope.data.message, status, envelope.data.error?.code, envelope.data.data)
   }
   return envelope.data.data as T
 }
@@ -119,7 +121,8 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
     const envelope = apiEnvelopeSchema.safeParse(body)
     const message = envelope.success ? envelope.data.message : `请求失败（${response.status}）`
     const code = envelope.success ? envelope.data.error?.code : undefined
-    throw new ApiError(message, response.status, code)
+    const data = envelope.success ? envelope.data.data : undefined
+    throw new ApiError(message, response.status, code, data)
   }
 
   if (response.status === 204) return undefined as T
@@ -147,7 +150,8 @@ async function requestFile(path: string, init: RequestInit = {}, retry = true): 
     const envelope = apiEnvelopeSchema.safeParse(body)
     const message = envelope.success ? envelope.data.message : `请求失败（${response.status}）`
     const code = envelope.success ? envelope.data.error?.code : undefined
-    throw new ApiError(message, response.status, code)
+    const data = envelope.success ? envelope.data.data : undefined
+    throw new ApiError(message, response.status, code, data)
   }
   return response
 }
@@ -200,6 +204,12 @@ function mockXlsx(filename: string): { blob: Blob; filename: string } {
   return { blob: new Blob(['mock xlsx workbook'], { type: XLSX_MIME_TYPE }), filename }
 }
 
+export function getMfaLoginChallenge(error: unknown): NativeMfaLoginChallenge | null {
+  if (!(error instanceof ApiError) || error.status !== 401 || error.message !== 'MFA_REQUIRED') return null
+  const challenge = nativeMfaLoginChallengeSchema.safeParse(error.data)
+  return challenge.success ? challenge.data : null
+}
+
 export const apiClient = {
   async login(username: string, password: string): Promise<{ accessToken: string; user: User }> {
     try {
@@ -210,9 +220,19 @@ export const apiClient = {
       const user = applyToken(token)
       return { accessToken: token.accessToken, user }
     } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
       if (!mockFallbackEnabled()) throw error
       return mockUserResult()
     }
+  },
+
+  async verifyMfaLogin(username: string, challengeId: string, clientId: string, code: string): Promise<{ accessToken: string; user: User }> {
+    const token = nativeTokenSchema.parse(await request<unknown>('/auth/mfa/verify', {
+      method: 'POST',
+      body: JSON.stringify({ username, challengeId, clientId, code }),
+    }, false))
+    const user = applyToken(token)
+    return { accessToken: token.accessToken, user }
   },
 
   async restoreSession(): Promise<User | null> {
