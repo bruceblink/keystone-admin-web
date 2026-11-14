@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeRole, NativeRoleWriteInput } from '../../shared/api/schemas'
@@ -17,6 +17,8 @@ export function RolesPage() {
   const [editingRole, setEditingRole] = useState<NativeRole | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const query = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => id ? apiClient.updateRole(id, input) : apiClient.createRole(input),
@@ -63,6 +65,24 @@ export function RolesPage() {
   function openDelete() { deleteMutation.reset(); setDeleteOpen(true) }
   function closeDelete() { if (!deleteMutation.isPending) setDeleteOpen(false) }
 
+  async function exportRoles() {
+    setExportError(null)
+    setExporting(true)
+    try {
+      const result = await apiClient.exportRoles()
+      const url = URL.createObjectURL(result.blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = result.filename
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : '角色导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="roles-page">
       <div className="page-heading">
@@ -71,9 +91,10 @@ export function RolesPage() {
           <h1>角色管理</h1>
           <p className="page-description">查询角色状态、数据范围和权限数量。新增和编辑在模态框中完成。</p>
         </div>
-        <div className="heading-actions"><Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除角色（{selectedIds.length}）</Button><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增角色</Button><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
+        <div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void exportRoles()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button><Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除角色（{selectedIds.length}）</Button><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增角色</Button><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
       </div>
 
+      {exportError ? <div className="error-panel roles-error" role="alert"><ShieldAlert size={19} /><div><strong>角色导出失败</strong><p>{exportError}</p></div></div> : null}
       {deleteMutation.error ? <div className="error-panel roles-error" role="alert"><ShieldAlert size={19} /><div><strong>角色删除失败</strong><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : '请求失败'}</p></div></div> : null}
 
       <Card className="roles-filter-card">

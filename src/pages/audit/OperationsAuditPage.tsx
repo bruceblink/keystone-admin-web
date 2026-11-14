@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ClipboardList, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { ClipboardList, Download, RefreshCw, Search, ShieldAlert } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeOperationLog } from '../../shared/api/schemas'
@@ -26,6 +26,8 @@ export function OperationsAuditPage() {
   const [formFilters, setFormFilters] = useState<OperationFilters>(emptyFilters)
   const [filters, setFilters] = useState<OperationFilters>(emptyFilters)
   const [page, setPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const query = useQuery({
     queryKey: ['operation-logs', filters, page],
     queryFn: () => apiClient.listOperationLogs({ ...filters, page, size: PAGE_SIZE }),
@@ -60,6 +62,24 @@ export function OperationsAuditPage() {
     void query.refetch()
   }
 
+  async function exportLogs() {
+    setExportError(null)
+    setExporting(true)
+    try {
+      const result = await apiClient.exportOperationLogs(filters)
+      const url = URL.createObjectURL(result.blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = result.filename
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : '操作审计导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="audit-page">
       <div className="page-heading">
@@ -69,12 +89,16 @@ export function OperationsAuditPage() {
           <p className="page-description">查询管理操作、执行主体和资源变更记录，支持按条件定位审计事件。</p>
         </div>
         <div className="heading-actions">
+          <Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}>
+            <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
+          </Button>
           <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
             <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
           </Button>
         </div>
       </div>
 
+      {exportError ? <div className="error-panel audit-error" role="alert"><ShieldAlert size={19} /><div><strong>操作审计导出失败</strong><p>{exportError}</p></div></div> : null}
       <Card className="audit-filter-card">
         <form className="audit-filter-form" onSubmit={submitFilters}>
           <label>

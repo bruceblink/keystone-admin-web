@@ -59,4 +59,18 @@ describe('OperationsAuditPage', () => {
     expect(screen.getByText('权限不足')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
   })
+
+  it('按当前筛选条件导出操作审计 XLSX', async () => {
+    const exportOperationLogs = vi.spyOn(apiClient, 'exportOperationLogs').mockResolvedValue({ blob: new Blob(['xlsx']), filename: 'operation-logs.xlsx' })
+    vi.spyOn(apiClient, 'listOperationLogs').mockResolvedValue({ ...logPage, items: [], total: 0 })
+    renderPage()
+    await screen.findByText('没有匹配的操作记录')
+    fireEvent.change(screen.getByLabelText('资源类型'), { target: { value: 'user' } })
+    fireEvent.click(screen.getByRole('button', { name: /查询/ }))
+    await waitFor(() => expect(apiClient.listOperationLogs).toHaveBeenLastCalledWith({ actor: '', action: '', resource: 'user', page: 1, size: 20 }))
+    const exportButton = screen.getByRole('button', { name: '导出 Excel' })
+    await waitFor(() => expect(exportButton).not.toBeDisabled())
+    fireEvent.click(exportButton)
+    await waitFor(() => expect(exportOperationLogs).toHaveBeenCalledWith({ actor: '', action: '', resource: 'user' }))
+  })
 })

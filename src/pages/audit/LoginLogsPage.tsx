@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FileClock, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { Download, FileClock, RefreshCw, Search, ShieldAlert } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeLoginLog } from '../../shared/api/schemas'
@@ -20,6 +20,8 @@ export function LoginLogsPage() {
   const [formFilters, setFormFilters] = useState<LoginFilters>(emptyFilters)
   const [filters, setFilters] = useState<LoginFilters>(emptyFilters)
   const [page, setPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const query = useQuery({ queryKey: ['login-logs', filters, page], queryFn: () => apiClient.listLoginLogs({ ...filters, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const logs = query.data?.items ?? []
   const total = query.data?.total ?? 0
@@ -38,8 +40,27 @@ export function LoginLogsPage() {
     setPage(1)
   }
 
+  async function exportLogs() {
+    setExportError(null)
+    setExporting(true)
+    try {
+      const result = await apiClient.exportLoginLogs(filters)
+      const url = URL.createObjectURL(result.blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = result.filename
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : '登录日志导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return <div className="audit-page">
-    <div className="page-heading"><div><p className="eyebrow">AUDIT / LOGIN</p><h1>登录日志</h1><p className="page-description">查询登录成功、失败和会话建立记录，定位身份认证问题。</p></div><div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div></div>
+    <div className="page-heading"><div><p className="eyebrow">AUDIT / LOGIN</p><h1>登录日志</h1><p className="page-description">查询登录成功、失败和会话建立记录，定位身份认证问题。</p></div><div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div></div>
+    {exportError ? <div className="error-panel audit-error" role="alert"><ShieldAlert size={19} /><div><strong>登录日志导出失败</strong><p>{exportError}</p></div></div> : null}
     <Card className="audit-filter-card"><form className="audit-filter-form" onSubmit={submit}><label><span>用户名</span><input value={formFilters.username} onChange={(event) => setFormFilters((current) => ({ ...current, username: event.target.value }))} placeholder="按用户名筛选" autoComplete="off" /></label><label><span>登录状态</span><input value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))} placeholder="例如 SUCCESS、FAILURE" autoComplete="off" /></label><div className="audit-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
     {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取登录日志" /></div> : null}
     {query.isError && !query.data ? <LogError message={query.error instanceof Error ? query.error.message : '登录日志读取失败'} onRetry={() => void query.refetch()} /> : null}

@@ -192,6 +192,10 @@ function mockUserResult() {
   return result
 }
 
+function mockXlsx(filename: string): { blob: Blob; filename: string } {
+  return { blob: new Blob(['mock xlsx workbook'], { type: XLSX_MIME_TYPE }), filename }
+}
+
 export const apiClient = {
   async login(username: string, password: string): Promise<{ accessToken: string; user: User }> {
     try {
@@ -359,6 +363,21 @@ export const apiClient = {
     }
   },
 
+  async exportOperationLogs(filters: { actor?: string; action?: string; resource?: string } = {}): Promise<{ blob: Blob; filename: string }> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+      if (value?.trim()) params.set(key, value.trim())
+    }
+    const query = params.toString()
+    try {
+      return await readXlsxResponse(await requestFile(`/operation-logs/export${query ? `?${query}` : ''}`))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return mockXlsx('operation-logs.xlsx')
+    }
+  },
+
   async listLoginLogs(filters: { username?: string; status?: string; page?: number; size?: number } = {}): Promise<NativeLoginLogsPage> {
     const page = filters.page ?? 1
     const size = filters.size ?? 20
@@ -373,6 +392,21 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockLoginLogsPage(page, size)
+    }
+  },
+
+  async exportLoginLogs(filters: { username?: string; status?: string } = {}): Promise<{ blob: Blob; filename: string }> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+      if (value?.trim()) params.set(key, value.trim())
+    }
+    const query = params.toString()
+    try {
+      return await readXlsxResponse(await requestFile(`/login-logs/export${query ? `?${query}` : ''}`))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return mockXlsx('login-logs.xlsx')
     }
   },
 
@@ -396,6 +430,16 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockRoles()
+    }
+  },
+
+  async exportRoles(): Promise<{ blob: Blob; filename: string }> {
+    try {
+      return await readXlsxResponse(await requestFile('/roles/export'))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return mockXlsx('roles.xlsx')
     }
   },
 
@@ -515,7 +559,7 @@ export const apiClient = {
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!mockFallbackEnabled()) throw error
-      return { blob: new Blob(['mock xlsx workbook'], { type: XLSX_MIME_TYPE }), filename: 'posts.xlsx' }
+      return mockXlsx('posts.xlsx')
     }
   },
 

@@ -52,4 +52,13 @@ describe('RolesPage', () => {
     await waitFor(() => expect(deleteRoles).toHaveBeenCalledWith([role.id]))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+
+  it('提供角色 XLSX 导出操作', async () => {
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    const exportRoles = vi.spyOn(apiClient, 'exportRoles').mockResolvedValue({ blob: new Blob(['xlsx']), filename: 'roles.xlsx' })
+    renderPage()
+    await screen.findByText('没有匹配的角色')
+    fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }))
+    await waitFor(() => expect(exportRoles).toHaveBeenCalledOnce())
+  })
 })

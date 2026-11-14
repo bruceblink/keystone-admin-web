@@ -233,6 +233,28 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(5)
   })
 
+  it('读取角色和审计日志 XLSX 导出并透传筛选条件', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/roles/export')) return new Response('roles-xlsx', { status: 200, headers: { 'Content-Type': XLSX_MIME_TYPE, 'Content-Disposition': 'attachment; filename=roles.xlsx' } })
+      if (url.includes('/login-logs/export?')) {
+        expect(url).toBe('/api/v1/login-logs/export?username=operator&status=FAILURE')
+        return new Response('login-xlsx', { status: 200, headers: { 'Content-Type': XLSX_MIME_TYPE, 'Content-Disposition': 'attachment; filename=login-logs.xlsx' } })
+      }
+      if (url.includes('/operation-logs/export?')) {
+        expect(url).toBe('/api/v1/operation-logs/export?actor=operator&action=DELETE&resource=user')
+        return new Response('operation-xlsx', { status: 200, headers: { 'Content-Type': XLSX_MIME_TYPE, 'Content-Disposition': 'attachment; filename=operation-logs.xlsx' } })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect((await apiClient.exportRoles()).filename).toBe('roles.xlsx')
+    expect((await apiClient.exportLoginLogs({ username: ' operator ', status: 'FAILURE' })).filename).toBe('login-logs.xlsx')
+    expect((await apiClient.exportOperationLogs({ actor: ' operator ', action: 'DELETE', resource: 'user' })).filename).toBe('operation-logs.xlsx')
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('保留岗位接口的权限错误，不使用开发 Mock 替换', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => response({ success: false, data: null, message: 'permission denied', error: { code: 'permission_denied' } }, 403)))
 

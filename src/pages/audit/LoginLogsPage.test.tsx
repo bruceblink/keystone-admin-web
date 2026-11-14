@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LoginLogsPage } from './LoginLogsPage'
@@ -18,5 +18,20 @@ describe('LoginLogsPage', () => {
     expect(await screen.findByText('登录成功')).toBeInTheDocument()
     expect(screen.getByText('SUCCESS')).toBeInTheDocument()
     expect(screen.getByText('127.0.0.1')).toBeInTheDocument()
+  })
+
+  it('按当前筛选条件导出登录日志 XLSX', async () => {
+    const listLoginLogs = vi.spyOn(apiClient, 'listLoginLogs').mockResolvedValue({ items: [], page: 1, size: 20, total: 0 })
+    const exportLoginLogs = vi.spyOn(apiClient, 'exportLoginLogs').mockResolvedValue({ blob: new Blob(['xlsx']), filename: 'login-logs.xlsx' })
+    renderPage()
+    await screen.findByText('没有匹配的登录记录')
+    fireEvent.change(screen.getByLabelText('用户名'), { target: { value: 'operator' } })
+    fireEvent.change(screen.getByLabelText('登录状态'), { target: { value: 'FAILURE' } })
+    fireEvent.click(screen.getByRole('button', { name: /查询/ }))
+    await waitFor(() => expect(listLoginLogs).toHaveBeenLastCalledWith({ username: 'operator', status: 'FAILURE', page: 1, size: 20 }))
+    const exportButton = screen.getByRole('button', { name: '导出 Excel' })
+    await waitFor(() => expect(exportButton).not.toBeDisabled())
+    fireEvent.click(exportButton)
+    await waitFor(() => expect(exportLoginLogs).toHaveBeenCalledWith({ username: 'operator', status: 'FAILURE' }))
   })
 })
