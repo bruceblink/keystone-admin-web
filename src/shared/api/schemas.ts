@@ -361,6 +361,10 @@ export type NativeUserWriteInput = {
 }
 export type NativeRoleWriteInput = { code?: string; name: string; enabled?: boolean }
 export type NativeDepartmentWriteInput = { code: string; name: string; parentId?: string | null; sortOrder?: number; enabled?: boolean }
+export type NativeSystemConfigWriteInput = { key?: string; value: string; description?: string | null; enabled?: boolean }
+export type NativeDictionaryTypeWriteInput = { code?: string; name: string; enabled?: boolean }
+export type NativeDictionaryItemWriteInput = { value?: string; label: string; sortOrder?: number; enabled?: boolean }
+export type NativeNoticeWriteInput = { title: string; content: string; noticeType: string; enabled?: boolean }
 export type NativeRole = z.infer<typeof nativeRoleSchema>
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativeOperationLog = z.infer<typeof nativeOperationLogSchema>

@@ -16,9 +16,13 @@ import {
   nativeApiKeysSchema,
   nativeIssuedApiKeySchema,
   nativeSystemConfigsSchema,
+  nativeSystemConfigSchema,
   nativeDictionaryTypesSchema,
+  nativeDictionaryTypeSchema,
   nativeDictionaryItemsSchema,
+  nativeDictionaryItemSchema,
   nativeNoticesSchema,
+  nativeNoticeSchema,
   nativeRolesSchema,
   nativeRoleSchema,
   nativeOnlineUsersSchema,
@@ -44,6 +48,10 @@ import {
   type NativeRole,
   type NativeRoleWriteInput,
   type NativeDepartmentWriteInput,
+  type NativeSystemConfigWriteInput,
+  type NativeDictionaryTypeWriteInput,
+  type NativeDictionaryItemWriteInput,
+  type NativeNoticeWriteInput,
   type User,
 } from './schemas'
 import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockJobs, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockRoles, createMockSystemConfigs, createMockUsersPage } from './mock'
@@ -474,6 +482,24 @@ export const apiClient = {
     }
   },
 
+  async createSystemConfig(input: NativeSystemConfigWriteInput): Promise<NativeSystemConfig> {
+    try {
+      return nativeSystemConfigSchema.parse(await request<unknown>('/configs', { method: 'POST', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeSystemConfigSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', key: input.key ?? 'new.config', value: input.value, description: input.description ?? null, enabled: input.enabled ?? true, updatedAt: new Date().toISOString() })
+    }
+  },
+
+  async updateSystemConfig(key: string, input: NativeSystemConfigWriteInput): Promise<NativeSystemConfig> {
+    try {
+      return nativeSystemConfigSchema.parse(await request<unknown>(`/configs/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeSystemConfigSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', key, value: input.value, description: input.description ?? null, enabled: input.enabled ?? true, updatedAt: new Date().toISOString() })
+    }
+  },
+
   async listDictionaryTypes(): Promise<NativeDictionaryType[]> {
     try {
       return nativeDictionaryTypesSchema.parse(await request<unknown>('/dictionaries'))
@@ -493,12 +519,75 @@ export const apiClient = {
     }
   },
 
+  async createDictionaryType(input: NativeDictionaryTypeWriteInput): Promise<NativeDictionaryType> {
+    try {
+      return nativeDictionaryTypeSchema.parse(await request<unknown>('/dictionaries', { method: 'POST', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeDictionaryTypeSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: input.code ?? 'new_type', name: input.name, enabled: input.enabled ?? true })
+    }
+  },
+
+  async updateDictionaryType(code: string, input: NativeDictionaryTypeWriteInput): Promise<NativeDictionaryType> {
+    try {
+      return nativeDictionaryTypeSchema.parse(await request<unknown>(`/dictionaries/types/${encodeURIComponent(code)}`, { method: 'PUT', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeDictionaryTypeSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code, name: input.name, enabled: input.enabled ?? true })
+    }
+  },
+
+  async createDictionaryItem(typeCode: string, input: NativeDictionaryItemWriteInput): Promise<NativeDictionaryItem> {
+    try {
+      return nativeDictionaryItemSchema.parse(await request<unknown>(`/dictionaries/${encodeURIComponent(typeCode)}/items`, { method: 'POST', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeDictionaryItemSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518f2f', typeCode, value: input.value ?? 'new_value', label: input.label, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true })
+    }
+  },
+
+  async updateDictionaryItem(id: string, input: NativeDictionaryItemWriteInput): Promise<NativeDictionaryItem> {
+    try {
+      return nativeDictionaryItemSchema.parse(await request<unknown>(`/dictionaries/items/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeDictionaryItemSchema.parse({ id, typeCode: 'custom', value: input.value ?? 'value', label: input.label, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true })
+    }
+  },
+
   async listNotices(): Promise<NativeNotice[]> {
     try {
       return nativeNoticesSchema.parse(await request<unknown>('/notices/manage'))
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockNotices()
+    }
+  },
+
+  async createNotice(input: NativeNoticeWriteInput): Promise<NativeNotice> {
+    try {
+      return nativeNoticeSchema.parse(await request<unknown>('/notices', { method: 'POST', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeNoticeSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', title: input.title, content: input.content, noticeType: input.noticeType, published: false, enabled: input.enabled ?? true, publishAt: null, createdBy: 'operator', createdAt: new Date().toISOString() })
+    }
+  },
+
+  async updateNotice(id: string, input: NativeNoticeWriteInput): Promise<NativeNotice> {
+    try {
+      return nativeNoticeSchema.parse(await request<unknown>(`/notices/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeNoticeSchema.parse({ id, title: input.title, content: input.content, noticeType: input.noticeType, published: false, enabled: input.enabled ?? true, publishAt: null, createdBy: 'operator', createdAt: new Date().toISOString() })
+    }
+  },
+
+  async publishNotice(id: string, published: boolean): Promise<NativeNotice> {
+    try {
+      return nativeNoticeSchema.parse(await request<unknown>(`/notices/${encodeURIComponent(id)}/publish`, { method: 'POST', body: JSON.stringify({ published }) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeNoticeSchema.parse({ id, title: '公告', content: '', noticeType: 'announcement', published, enabled: true, publishAt: published ? new Date().toISOString() : null, createdBy: 'operator', createdAt: new Date().toISOString() })
     }
   },
 
