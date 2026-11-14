@@ -5,6 +5,9 @@ import {
   nativeCacheInfoSchema,
   nativeUsersPageSchema,
   nativeOperationLogsPageSchema,
+  nativeLoginLogsPageSchema,
+  nativeJobsSchema,
+  nativeJobLogsPageSchema,
   nativeDepartmentsSchema,
   nativeMenusSchema,
   nativeApiKeysSchema,
@@ -15,13 +18,16 @@ import {
   userSchema,
   type NativeUsersPage,
   type NativeOperationLogsPage,
+  type NativeLoginLogsPage,
+  type NativeJob,
+  type NativeJobLogsPage,
   type NativeDepartment,
   type NativeMenuNode,
   type NativeApiKey,
   type NativeRole,
   type User,
 } from './schemas'
-import { createMockApiKeys, createMockDepartments, createMockLogin, createMockMenus, createMockMonitorSnapshot, createMockOperationLogsPage, createMockRoles, createMockUsersPage } from './mock'
+import { createMockApiKeys, createMockDepartments, createMockJobs, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockOperationLogsPage, createMockRoles, createMockUsersPage } from './mock'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
 
 const API_BASE = '/api/v1'
@@ -251,6 +257,46 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockOperationLogsPage(page, size)
+    }
+  },
+
+  async listLoginLogs(filters: { username?: string; status?: string; page?: number; size?: number } = {}): Promise<NativeLoginLogsPage> {
+    const page = filters.page ?? 1
+    const size = filters.size ?? 20
+    const params = new URLSearchParams({ page: String(page), size: String(size) })
+    const username = filters.username?.trim()
+    const status = filters.status?.trim()
+    if (username) params.set('username', username)
+    if (status) params.set('status', status)
+
+    try {
+      return nativeLoginLogsPageSchema.parse(await request<unknown>(`/login-logs?${params.toString()}`))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockLoginLogsPage(page, size)
+    }
+  },
+
+  async listJobs(): Promise<NativeJob[]> {
+    try {
+      return nativeJobsSchema.parse(await request<unknown>('/jobs'))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockJobs()
+    }
+  },
+
+  async listJobLogs(filters: { jobId?: string; page?: number; size?: number } = {}): Promise<NativeJobLogsPage> {
+    const page = filters.page ?? 1
+    const size = filters.size ?? 20
+    const params = new URLSearchParams({ page: String(page), size: String(size) })
+    if (filters.jobId?.trim()) params.set('jobId', filters.jobId.trim())
+
+    try {
+      return nativeJobLogsPageSchema.parse(await request<unknown>(`/jobs/logs?${params.toString()}`))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return { items: [], page, size, total: 0 }
     }
   },
 

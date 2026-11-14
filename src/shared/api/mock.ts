@@ -1,5 +1,5 @@
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { NativeApiKey, NativeDepartment, NativeMenuNode, NativeOperationLogsPage, NativeRole, NativeUsersPage, User } from './schemas'
+import type { NativeApiKey, NativeDepartment, NativeJob, NativeLoginLogsPage, NativeMenuNode, NativeOperationLogsPage, NativeRole, NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -87,6 +87,26 @@ export function createMockOperationLogsPage(page = 1, size = 20): NativeOperatio
     size,
     total: 1,
   }
+}
+
+export function createMockLoginLogsPage(page = 1, size = 20): NativeLoginLogsPage {
+  return {
+    items: [{
+      id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', username: mockUser.username, status: 'SUCCESS',
+      ipAddress: '127.0.0.1', message: '登录成功', userAgent: 'Codex Browser', loginAt: new Date().toISOString(),
+    }],
+    page,
+    size,
+    total: 1,
+  }
+}
+
+export function createMockJobs(): NativeJob[] {
+  return [{
+    id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM',
+    invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false,
+    enabled: true, remark: '开发环境示例任务', lastStatus: 'SUCCESS', lastRunAt: new Date().toISOString(),
+  }]
 }
 
 export function createMockRoles(): NativeRole[] {

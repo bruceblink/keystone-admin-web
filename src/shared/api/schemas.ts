@@ -188,6 +188,69 @@ export const nativeOperationLogsPageSchema = z.object({
   total: z.number().int().nonnegative(),
 })
 
+/** Native 登录日志记录；消息只用于审计展示，前端不执行任何解析。 */
+export const nativeLoginLogSchema = z.object({
+  id: z.string().uuid(),
+  username: z.string(),
+  status: z.string(),
+  ipAddress: z.string().nullable(),
+  message: z.string().nullable(),
+  userAgent: z.string().nullable(),
+  loginAt: z.string().nullable(),
+})
+
+export const nativeLoginLogsPageSchema = z.object({
+  items: z.array(nativeLoginLogSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
+
+/** Native 计划任务查询记录；执行和删除由独立写操作流程负责。 */
+export const nativeJobSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  name: z.string(),
+  group: z.string(),
+  invokeTarget: z.string(),
+  jobParams: z.string().nullable(),
+  cron: z.string(),
+  concurrent: z.boolean(),
+  enabled: z.boolean(),
+  remark: z.string().nullable(),
+  lastStatus: z.string().nullable(),
+  lastRunAt: z.string().nullable(),
+})
+
+export const nativeJobsSchema = z.array(nativeJobSchema)
+
+/** Native 任务执行日志分页记录。异常详情只读展示，不在前端执行。 */
+export const nativeJobLogSchema = z.object({
+  id: z.string().uuid(),
+  jobId: z.string().uuid(),
+  jobCode: z.string(),
+  jobName: z.string(),
+  jobGroup: z.string(),
+  invokeTarget: z.string(),
+  jobParams: z.string().nullable(),
+  cron: z.string(),
+  triggerType: z.number().int(),
+  status: z.number().int(),
+  jobMessage: z.string().nullable(),
+  exceptionInfo: z.string().nullable(),
+  startedAt: z.string().nullable(),
+  finishedAt: z.string().nullable(),
+  durationMs: z.number().nullable(),
+  createdAt: z.string().nullable(),
+})
+
+export const nativeJobLogsPageSchema = z.object({
+  items: z.array(nativeJobLogSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
+
 export const monitorSnapshotSchema = z.object({
   status: z.enum(['LIVE', 'STALE', 'OFFLINE', 'PARTIAL']),
   capturedAt: z.string(),
@@ -224,4 +287,9 @@ export type NativeRole = z.infer<typeof nativeRoleSchema>
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativeOperationLog = z.infer<typeof nativeOperationLogSchema>
 export type NativeOperationLogsPage = z.infer<typeof nativeOperationLogsPageSchema>
+export type NativeLoginLog = z.infer<typeof nativeLoginLogSchema>
+export type NativeLoginLogsPage = z.infer<typeof nativeLoginLogsPageSchema>
+export type NativeJob = z.infer<typeof nativeJobSchema>
+export type NativeJobLog = z.infer<typeof nativeJobLogSchema>
+export type NativeJobLogsPage = z.infer<typeof nativeJobLogsPageSchema>
 export type NativeApiKey = z.infer<typeof nativeApiKeySchema>

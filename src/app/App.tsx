@@ -9,6 +9,8 @@ import { DepartmentsPage } from '../pages/departments/DepartmentsPage'
 import { RolesPage } from '../pages/roles/RolesPage'
 import { MenusPage } from '../pages/menus/MenusPage'
 import { ApiKeysPage } from '../pages/api-keys/ApiKeysPage'
+import { LoginLogsPage } from '../pages/audit/LoginLogsPage'
+import { JobsPage } from '../pages/jobs/JobsPage'
 import { useSessionStore } from '../shared/state/session'
 import { Spinner } from '../shared/ui'
 
@@ -43,6 +45,8 @@ export function App() {
           <Route path="/menus" element={<MenusPage />} />
           <Route path="/api-keys" element={<ApiKeysPage />} />
           <Route path="/audit/operations" element={<OperationsAuditPage />} />
+          <Route path="/audit/login" element={<LoginLogsPage />} />
+          <Route path="/jobs" element={<JobsPage />} />
           <Route path="*" element={<MonitorPage />} />
         </Route>
       </Route>

@@ -1,0 +1,57 @@
+import { useMemo, useState } from 'react'
+import { FileClock, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '../../shared/api/client'
+import type { NativeLoginLog } from '../../shared/api/schemas'
+import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+
+const PAGE_SIZE = 20
+type LoginFilters = { username: string; status: string }
+const emptyFilters: LoginFilters = { username: '', status: '' }
+
+function formatTime(value: string | null) {
+  // 将 Native 返回的 ISO 时间转换为本地管理台格式；无效值保留原文便于排查。
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
+}
+
+export function LoginLogsPage() {
+  const [formFilters, setFormFilters] = useState<LoginFilters>(emptyFilters)
+  const [filters, setFilters] = useState<LoginFilters>(emptyFilters)
+  const [page, setPage] = useState(1)
+  const query = useQuery({ queryKey: ['login-logs', filters, page], queryFn: () => apiClient.listLoginLogs({ ...filters, page, size: PAGE_SIZE }), staleTime: 10_000 })
+  const logs = query.data?.items ?? []
+  const total = query.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const description = useMemo(() => query.isLoading ? '正在读取 Native API' : query.isError ? '读取失败，请检查服务连接' : `共 ${total.toLocaleString('zh-CN')} 条登录记录`, [query.isError, query.isLoading, total])
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFilters({ username: formFilters.username.trim(), status: formFilters.status.trim() })
+    setPage(1)
+  }
+
+  function reset() {
+    setFormFilters(emptyFilters)
+    setFilters(emptyFilters)
+    setPage(1)
+  }
+
+  return <div className="audit-page">
+    <div className="page-heading"><div><p className="eyebrow">AUDIT / LOGIN</p><h1>登录日志</h1><p className="page-description">查询登录成功、失败和会话建立记录，定位身份认证问题。</p></div><div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div></div>
+    <Card className="audit-filter-card"><form className="audit-filter-form" onSubmit={submit}><label><span>用户名</span><input value={formFilters.username} onChange={(event) => setFormFilters((current) => ({ ...current, username: event.target.value }))} placeholder="按用户名筛选" autoComplete="off" /></label><label><span>登录状态</span><input value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))} placeholder="例如 SUCCESS、FAILURE" autoComplete="off" /></label><div className="audit-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
+    {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取登录日志" /></div> : null}
+    {query.isError && !query.data ? <LogError message={query.error instanceof Error ? query.error.message : '登录日志读取失败'} onRetry={() => void query.refetch()} /> : null}
+    {query.data ? <Card className="audit-table-card"><CardHeader title="登录记录" description={description} action={<Badge tone="info">Native API</Badge>} />{logs.length > 0 ? <div className="audit-table-wrap"><table className="audit-table"><thead><tr><th scope="col">时间</th><th scope="col">用户名</th><th scope="col">状态</th><th scope="col">来源地址</th><th scope="col">说明</th><th scope="col">客户端</th></tr></thead><tbody>{logs.map((log) => <LoginRow key={log.id} log={log} />)}</tbody></table></div> : <div className="audit-empty" role="status"><span className="audit-empty-icon"><FileClock size={20} /></span><strong>没有匹配的登录记录</strong><p>调整筛选条件后重试。</p></div>}<div className="audit-pagination"><span>第 {query.data.page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((current) => current - 1)}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setPage((current) => current + 1)}>下一页</Button></div></div></Card> : null}
+  </div>
+}
+
+function LoginRow({ log }: { log: NativeLoginLog }) {
+  const success = log.status.toUpperCase() === 'SUCCESS'
+  return <tr><td className="audit-time">{formatTime(log.loginAt)}</td><td className="audit-actor">{log.username}</td><td><Badge tone={success ? 'success' : 'danger'}>{log.status}</Badge></td><td>{log.ipAddress ?? '—'}</td><td className="audit-detail" title={log.message ?? undefined}>{log.message ?? '—'}</td><td className="audit-detail" title={log.userAgent ?? undefined}>{log.userAgent ?? '—'}</td></tr>
+}
+
+function LogError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <div className="error-panel audit-error" role="alert"><ShieldAlert size={19} /><div><strong>无法读取登录日志</strong><p>{message}</p></div><Button variant="secondary" size="sm" onClick={onRetry}>重试</Button></div>
+}
