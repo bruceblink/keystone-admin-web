@@ -104,6 +104,24 @@ export const nativeUsersPageSchema = z.object({
   total: z.number().int().nonnegative(),
 })
 
+/** Native 操作审计记录；详情字段只用于查询展示，不在前端执行解析或写入。 */
+export const nativeOperationLogSchema = z.object({
+  id: z.string().uuid(),
+  actorUsername: z.string(),
+  action: z.string(),
+  resource: z.string(),
+  resourceId: z.string().nullable(),
+  detail: z.string().nullable(),
+  createdAt: z.string().nullable(),
+})
+
+export const nativeOperationLogsPageSchema = z.object({
+  items: z.array(nativeOperationLogSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
+
 export const monitorSnapshotSchema = z.object({
   status: z.enum(['LIVE', 'STALE', 'OFFLINE', 'PARTIAL']),
   capturedAt: z.string(),
@@ -136,3 +154,5 @@ export const monitorSnapshotSchema = z.object({
 export type User = z.infer<typeof userSchema>
 export type NativeUser = z.infer<typeof nativeUserSchema>
 export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
+export type NativeOperationLog = z.infer<typeof nativeOperationLogSchema>
+export type NativeOperationLogsPage = z.infer<typeof nativeOperationLogsPageSchema>

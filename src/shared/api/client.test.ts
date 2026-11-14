@@ -98,6 +98,27 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
+  it('按 Native 操作审计契约发送筛选和分页参数', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/operation-logs?page=2&size=20&actor=operator&action=UPDATE&resource=user')
+      return ok({
+        items: [{
+          id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', actorUsername: 'operator', action: 'UPDATE',
+          resource: 'user', resourceId: 'a3a4b5c6-d7e8-4f90-8123-456789abcdef', detail: '更新用户资料',
+          createdAt: '2026-11-14T02:00:00Z',
+        }],
+        page: 2, size: 20, total: 21,
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await apiClient.listOperationLogs({ page: 2, actor: ' operator ', action: 'UPDATE', resource: 'user' })
+
+    expect(result).toMatchObject({ page: 2, size: 20, total: 21 })
+    expect(result.items[0]).toMatchObject({ actorUsername: 'operator', resource: 'user', action: 'UPDATE' })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it('调用 Native 在线会话撤销接口并透传错误分类', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok({ loggedOut: true }))

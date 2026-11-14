@@ -4,6 +4,7 @@ import { AdminShell } from '../widgets/layout/AdminShell'
 import { LoginPage } from '../pages/login/LoginPage'
 import { MonitorPage } from '../pages/monitor/MonitorPage'
 import { UsersPage } from '../pages/users/UsersPage'
+import { OperationsAuditPage } from '../pages/audit/OperationsAuditPage'
 import { useSessionStore } from '../shared/state/session'
 import { Spinner } from '../shared/ui'
 
@@ -33,6 +34,7 @@ export function App() {
           <Route index element={<Navigate to="/monitor" replace />} />
           <Route path="/monitor" element={<MonitorPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/audit/operations" element={<OperationsAuditPage />} />
           <Route path="*" element={<MonitorPage />} />
         </Route>
       </Route>

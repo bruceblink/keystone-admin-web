@@ -1,5 +1,5 @@
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { NativeUsersPage, User } from './schemas'
+import type { NativeOperationLogsPage, NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -65,6 +65,23 @@ export function createMockUsersPage(page = 1, size = 20): NativeUsersPage {
       loginAt: null,
       remark: null,
       roles: [mockUser.role],
+    }],
+    page,
+    size,
+    total: 1,
+  }
+}
+
+export function createMockOperationLogsPage(page = 1, size = 20): NativeOperationLogsPage {
+  return {
+    items: [{
+      id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
+      actorUsername: mockUser.username,
+      action: 'LOGIN',
+      resource: 'auth',
+      resourceId: null,
+      detail: '登录成功',
+      createdAt: new Date().toISOString(),
     }],
     page,
     size,

@@ -4,14 +4,16 @@ import {
   monitorSnapshotSchema,
   nativeCacheInfoSchema,
   nativeUsersPageSchema,
+  nativeOperationLogsPageSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
   userSchema,
   type NativeUsersPage,
+  type NativeOperationLogsPage,
   type User,
 } from './schemas'
-import { createMockLogin, createMockMonitorSnapshot, createMockUsersPage } from './mock'
+import { createMockLogin, createMockMonitorSnapshot, createMockOperationLogsPage, createMockUsersPage } from './mock'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
 
 const API_BASE = '/api/v1'
@@ -222,6 +224,25 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockUsersPage(page, size)
+    }
+  },
+
+  async listOperationLogs(filters: { actor?: string; action?: string; resource?: string; page?: number; size?: number } = {}): Promise<NativeOperationLogsPage> {
+    const page = filters.page ?? 1
+    const size = filters.size ?? 20
+    const params = new URLSearchParams({ page: String(page), size: String(size) })
+    const actor = filters.actor?.trim()
+    const action = filters.action?.trim()
+    const resource = filters.resource?.trim()
+    if (actor) params.set('actor', actor)
+    if (action) params.set('action', action)
+    if (resource) params.set('resource', resource)
+
+    try {
+      return nativeOperationLogsPageSchema.parse(await request<unknown>(`/operation-logs?${params.toString()}`))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockOperationLogsPage(page, size)
     }
   },
 
