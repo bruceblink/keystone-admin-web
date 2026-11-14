@@ -12,7 +12,9 @@ import {
   nativeDepartmentsSchema,
   nativeDepartmentSchema,
   nativeMenusSchema,
+  nativeMenuNodeSchema,
   nativeApiKeysSchema,
+  nativeIssuedApiKeySchema,
   nativeSystemConfigsSchema,
   nativeDictionaryTypesSchema,
   nativeDictionaryItemsSchema,
@@ -32,7 +34,9 @@ import {
   type NativeJobLogsPage,
   type NativeDepartment,
   type NativeMenuNode,
+  type NativeMenuWriteInput,
   type NativeApiKey,
+  type NativeIssuedApiKey,
   type NativeSystemConfig,
   type NativeDictionaryType,
   type NativeDictionaryItem,
@@ -416,12 +420,48 @@ export const apiClient = {
     }
   },
 
+  async createMenu(input: NativeMenuWriteInput): Promise<NativeMenuNode['menu']> {
+    try {
+      return nativeMenuNodeSchema.parse({ menu: await request<unknown>('/menus', { method: 'POST', body: JSON.stringify(input) }), children: [] }).menu
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeMenuNodeSchema.parse({ menu: { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', parentId: input.parentId ?? null, code: input.code, name: input.name, path: input.path ?? null, component: input.component ?? null, menuType: input.menuType, permission: input.permission ?? null, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true }, children: [] }).menu
+    }
+  },
+
+  async updateMenu(id: string, input: NativeMenuWriteInput): Promise<NativeMenuNode['menu']> {
+    try {
+      return nativeMenuNodeSchema.parse({ menu: await request<unknown>(`/menus/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }), children: [] }).menu
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeMenuNodeSchema.parse({ menu: { id, parentId: input.parentId ?? null, code: input.code, name: input.name, path: input.path ?? null, component: input.component ?? null, menuType: input.menuType, permission: input.permission ?? null, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true }, children: [] }).menu
+    }
+  },
+
   async listApiKeys(): Promise<NativeApiKey[]> {
     try {
       return nativeApiKeysSchema.parse(await request<unknown>('/api-keys'))
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockApiKeys()
+    }
+  },
+
+  async issueApiKey(input: { name: string; scopes: string[]; expiresAt?: string | null }): Promise<NativeIssuedApiKey> {
+    try {
+      return nativeIssuedApiKeySchema.parse(await request<unknown>('/api-keys', { method: 'POST', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeIssuedApiKeySchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', name: input.name, prefix: 'demo', apiKey: 'ks_live_demo_once', scopes: input.scopes, expiresAt: input.expiresAt ?? null, revokedAt: null, lastUsedAt: null, createdAt: new Date().toISOString() })
+    }
+  },
+
+  async rotateApiKey(id: string): Promise<NativeIssuedApiKey> {
+    try {
+      return nativeIssuedApiKeySchema.parse(await request<unknown>(`/api-keys/${encodeURIComponent(id)}/rotate`, { method: 'POST' }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeIssuedApiKeySchema.parse({ id, name: 'Rotated key', prefix: 'demo', apiKey: 'ks_live_rotated_once', scopes: [], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: new Date().toISOString() })
     }
   },
 

@@ -156,6 +156,19 @@ export const nativeMenuNodeSchema: z.ZodType<NativeMenuNode> = z.lazy(() => z.ob
 
 export const nativeMenusSchema = z.array(nativeMenuNodeSchema)
 
+/** 菜单写入字段；后端会按权限和数据范围再次核验。 */
+export type NativeMenuWriteInput = {
+  parentId?: string | null
+  code: string
+  name: string
+  path?: string | null
+  component?: string | null
+  menuType: string
+  permission?: string | null
+  sortOrder?: number
+  enabled?: boolean
+}
+
 /** Native API Key 列表只返回脱敏元数据，永远不接受明文 apiKey 字段。 */
 export const nativeApiKeySchema = z.object({
   id: z.string().uuid(),
@@ -169,6 +182,9 @@ export const nativeApiKeySchema = z.object({
 })
 
 export const nativeApiKeysSchema = z.array(nativeApiKeySchema)
+
+/** API Key 签发或轮换返回值；apiKey 只允许在签发响应中存在一次。 */
+export const nativeIssuedApiKeySchema = nativeApiKeySchema.extend({ apiKey: z.string().min(1) })
 
 /** Native 系统配置记录；敏感配置的值仍由后端按权限返回。 */
 export const nativeSystemConfigSchema = z.object({
@@ -355,6 +371,7 @@ export type NativeJob = z.infer<typeof nativeJobSchema>
 export type NativeJobLog = z.infer<typeof nativeJobLogSchema>
 export type NativeJobLogsPage = z.infer<typeof nativeJobLogsPageSchema>
 export type NativeApiKey = z.infer<typeof nativeApiKeySchema>
+export type NativeIssuedApiKey = z.infer<typeof nativeIssuedApiKeySchema>
 export type NativeSystemConfig = z.infer<typeof nativeSystemConfigSchema>
 export type NativeDictionaryType = z.infer<typeof nativeDictionaryTypeSchema>
 export type NativeDictionaryItem = z.infer<typeof nativeDictionaryItemSchema>
