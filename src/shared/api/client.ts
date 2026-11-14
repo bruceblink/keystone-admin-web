@@ -3,13 +3,15 @@ import {
   loginResponseSchema,
   monitorSnapshotSchema,
   nativeCacheInfoSchema,
+  nativeUsersPageSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
   userSchema,
+  type NativeUsersPage,
   type User,
 } from './schemas'
-import { createMockLogin, createMockMonitorSnapshot } from './mock'
+import { createMockLogin, createMockMonitorSnapshot, createMockUsersPage } from './mock'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
 
 const API_BASE = '/api/v1'
@@ -203,6 +205,23 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return monitorSnapshotSchema.parse(createMockMonitorSnapshot())
+    }
+  },
+
+  async listUsers(filters: { username?: string; displayName?: string; page?: number; size?: number } = {}): Promise<NativeUsersPage> {
+    const page = filters.page ?? 1
+    const size = filters.size ?? 20
+    const params = new URLSearchParams({ page: String(page), size: String(size) })
+    const username = filters.username?.trim()
+    const displayName = filters.displayName?.trim()
+    if (username) params.set('username', username)
+    if (displayName) params.set('displayName', displayName)
+
+    try {
+      return nativeUsersPageSchema.parse(await request<unknown>(`/users?${params.toString()}`))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockUsersPage(page, size)
     }
   },
 

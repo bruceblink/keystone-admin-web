@@ -1,5 +1,5 @@
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { User } from './schemas'
+import type { NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -46,4 +46,28 @@ export function createMockMonitorSnapshot(): MonitorSnapshot {
 
 export function createMockLogin() {
   return { accessToken: `dev-token-${Date.now()}`, user: mockUser }
+}
+
+export function createMockUsersPage(page = 1, size = 20): NativeUsersPage {
+  return {
+    items: [{
+      id: mockUser.id,
+      username: mockUser.username,
+      displayName: mockUser.displayName,
+      deptId: null,
+      postId: null,
+      enabled: true,
+      email: null,
+      phoneNumber: null,
+      sex: null,
+      avatar: null,
+      loginIp: null,
+      loginAt: null,
+      remark: null,
+      roles: [mockUser.role],
+    }],
+    page,
+    size,
+    total: 1,
+  }
 }

@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AdminShell } from '../widgets/layout/AdminShell'
 import { LoginPage } from '../pages/login/LoginPage'
 import { MonitorPage } from '../pages/monitor/MonitorPage'
+import { UsersPage } from '../pages/users/UsersPage'
 import { useSessionStore } from '../shared/state/session'
 import { Spinner } from '../shared/ui'
 
@@ -31,6 +32,7 @@ export function App() {
         <Route element={<ProtectedLayout />}>
           <Route index element={<Navigate to="/monitor" replace />} />
           <Route path="/monitor" element={<MonitorPage />} />
+          <Route path="/users" element={<UsersPage />} />
           <Route path="*" element={<MonitorPage />} />
         </Route>
       </Route>

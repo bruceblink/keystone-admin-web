@@ -79,6 +79,31 @@ export const nativeOnlineUsersSchema = z.object({
   total: z.number(),
 })
 
+/** Native 用户管理接口返回的公开字段；凭据和权限版本不会从此接口返回。 */
+export const nativeUserSchema = z.object({
+  id: z.string().uuid(),
+  username: z.string(),
+  displayName: z.string(),
+  deptId: z.string().nullable(),
+  postId: z.string().nullable(),
+  enabled: z.boolean(),
+  email: z.string().nullable(),
+  phoneNumber: z.string().nullable(),
+  sex: z.number().int().nullable(),
+  avatar: z.string().nullable(),
+  loginIp: z.string().nullable(),
+  loginAt: z.string().nullable(),
+  remark: z.string().nullable(),
+  roles: z.array(z.string()),
+})
+
+export const nativeUsersPageSchema = z.object({
+  items: z.array(nativeUserSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
+
 export const monitorSnapshotSchema = z.object({
   status: z.enum(['LIVE', 'STALE', 'OFFLINE', 'PARTIAL']),
   capturedAt: z.string(),
@@ -109,3 +134,5 @@ export const monitorSnapshotSchema = z.object({
 })
 
 export type User = z.infer<typeof userSchema>
+export type NativeUser = z.infer<typeof nativeUserSchema>
+export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>

@@ -77,6 +77,27 @@ describe('Native API client', () => {
     expect(snapshot.disk.total).toBeNull()
   })
 
+  it('按 Native 用户列表契约发送筛选和分页参数', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/users?page=2&size=20&username=operator&displayName=%E8%BF%90%E7%BB%B4')
+      return ok({
+        items: [{
+          id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', username: 'operator', displayName: '平台运维员',
+          deptId: null, postId: null, enabled: true, email: null, phoneNumber: null, sex: null,
+          avatar: null, loginIp: null, loginAt: null, remark: null, roles: ['系统管理员'],
+        }],
+        page: 2, size: 20, total: 21,
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await apiClient.listUsers({ page: 2, username: ' operator ', displayName: '运维' })
+
+    expect(result).toMatchObject({ page: 2, size: 20, total: 21 })
+    expect(result.items[0]).toMatchObject({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', username: 'operator', enabled: true })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it('调用 Native 在线会话撤销接口并透传错误分类', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok({ loggedOut: true }))
