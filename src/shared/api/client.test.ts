@@ -423,6 +423,23 @@ describe('Native API client', () => {
     expect(fetchMock.mock.calls[3]?.[0]).toBe('/api/v1/jobs?jobIds=job-a%2Cjob-b')
   })
 
+  it('按 Native 契约发送配置和字典删除请求', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(init?.method).toBe('DELETE')
+      return ok({ deleted: true })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.deleteSystemConfig('security.session.ttl')).resolves.toEqual({ deleted: true })
+    await expect(apiClient.deleteDictionaryType('user_status')).resolves.toEqual({ deleted: true })
+    await expect(apiClient.deleteDictionaryItem('item-1')).resolves.toEqual({ deleted: true })
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+      '/api/v1/configs/security.session.ttl',
+      '/api/v1/dictionaries/types/user_status',
+      '/api/v1/dictionaries/items/item-1',
+    ])
+  })
+
   it('按 Native 契约发送部门、菜单和岗位单项删除请求', async () => {
     const id = '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce'
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
