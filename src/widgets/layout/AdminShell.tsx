@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, Bell, Building2, ChevronDown, FileClock, KeyRound, LayoutDashboard, ListChecks, ListTree, LogOut, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
+import { Activity, Bell, BookOpen, Building2, ChevronDown, FileClock, KeyRound, LayoutDashboard, ListChecks, ListTree, LogOut, Megaphone, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useSessionStore } from '../../shared/state/session'
 import { Button } from '../../shared/ui'
@@ -15,6 +15,9 @@ const navItems = [
   { to: '/audit/operations', label: '操作审计', icon: ShieldCheck },
   { to: '/audit/login', label: '登录日志', icon: FileClock },
   { to: '/jobs', label: '定时任务', icon: ListChecks },
+  { to: '/configs', label: '系统配置', icon: Settings2 },
+  { to: '/dictionaries', label: '字典管理', icon: BookOpen },
+  { to: '/notices', label: '通知公告', icon: Megaphone },
 ]
 
 export function AdminShell() {

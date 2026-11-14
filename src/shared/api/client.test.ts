@@ -187,6 +187,31 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
+  it('读取 Native 配置、字典和管理公告契约', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/configs')) return ok([{
+        id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', key: 'security.session.ttl', value: '300',
+        description: '访问令牌有效期', enabled: true, updatedAt: '2026-11-14T02:00:00Z',
+      }])
+      if (url.endsWith('/dictionaries')) return ok([{ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'user_status', name: '用户状态', enabled: true }])
+      if (url.endsWith('/dictionaries/user_status/items')) return ok([{ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', typeCode: 'user_status', value: 'enabled', label: '启用', sortOrder: 1, enabled: true }])
+      if (url.endsWith('/notices/manage')) return ok([{ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '维护通知', content: '内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }])
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const configs = await apiClient.listSystemConfigs()
+    const types = await apiClient.listDictionaryTypes()
+    const items = await apiClient.listDictionaryItems('user_status')
+    const notices = await apiClient.listNotices()
+    expect(configs[0]).toMatchObject({ key: 'security.session.ttl', enabled: true })
+    expect(types[0]).toMatchObject({ code: 'user_status', name: '用户状态' })
+    expect(items[0]).toMatchObject({ typeCode: 'user_status', value: 'enabled' })
+    expect(notices[0]).toMatchObject({ title: '维护通知', published: true })
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
   it('调用 Native 在线会话撤销接口并透传错误分类', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok({ loggedOut: true }))

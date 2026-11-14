@@ -170,6 +170,51 @@ export const nativeApiKeySchema = z.object({
 
 export const nativeApiKeysSchema = z.array(nativeApiKeySchema)
 
+/** Native 系统配置记录；敏感配置的值仍由后端按权限返回。 */
+export const nativeSystemConfigSchema = z.object({
+  id: z.string().uuid(),
+  key: z.string(),
+  value: z.string().nullable(),
+  description: z.string().nullable(),
+  enabled: z.boolean(),
+  updatedAt: z.string().nullable(),
+})
+
+/** Native 字典类型和字典项；条目通过类型编码单独查询。 */
+export const nativeDictionaryTypeSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  name: z.string(),
+  enabled: z.boolean(),
+})
+
+export const nativeDictionaryItemSchema = z.object({
+  id: z.string().uuid(),
+  typeCode: z.string(),
+  value: z.string(),
+  label: z.string(),
+  sortOrder: z.number().int(),
+  enabled: z.boolean(),
+})
+
+/** Native 管理公告；内容仅用于只读详情摘要。 */
+export const nativeNoticeSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  content: z.string(),
+  noticeType: z.string(),
+  published: z.boolean(),
+  enabled: z.boolean(),
+  publishAt: z.string().nullable(),
+  createdBy: z.string(),
+  createdAt: z.string().nullable(),
+})
+
+export const nativeSystemConfigsSchema = z.array(nativeSystemConfigSchema)
+export const nativeDictionaryTypesSchema = z.array(nativeDictionaryTypeSchema)
+export const nativeDictionaryItemsSchema = z.array(nativeDictionaryItemSchema)
+export const nativeNoticesSchema = z.array(nativeNoticeSchema)
+
 /** Native 操作审计记录；详情字段只用于查询展示，不在前端执行解析或写入。 */
 export const nativeOperationLogSchema = z.object({
   id: z.string().uuid(),
@@ -293,3 +338,7 @@ export type NativeJob = z.infer<typeof nativeJobSchema>
 export type NativeJobLog = z.infer<typeof nativeJobLogSchema>
 export type NativeJobLogsPage = z.infer<typeof nativeJobLogsPageSchema>
 export type NativeApiKey = z.infer<typeof nativeApiKeySchema>
+export type NativeSystemConfig = z.infer<typeof nativeSystemConfigSchema>
+export type NativeDictionaryType = z.infer<typeof nativeDictionaryTypeSchema>
+export type NativeDictionaryItem = z.infer<typeof nativeDictionaryItemSchema>
+export type NativeNotice = z.infer<typeof nativeNoticeSchema>

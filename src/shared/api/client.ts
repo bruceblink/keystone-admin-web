@@ -11,6 +11,10 @@ import {
   nativeDepartmentsSchema,
   nativeMenusSchema,
   nativeApiKeysSchema,
+  nativeSystemConfigsSchema,
+  nativeDictionaryTypesSchema,
+  nativeDictionaryItemsSchema,
+  nativeNoticesSchema,
   nativeRolesSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
@@ -24,10 +28,14 @@ import {
   type NativeDepartment,
   type NativeMenuNode,
   type NativeApiKey,
+  type NativeSystemConfig,
+  type NativeDictionaryType,
+  type NativeDictionaryItem,
+  type NativeNotice,
   type NativeRole,
   type User,
 } from './schemas'
-import { createMockApiKeys, createMockDepartments, createMockJobs, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockOperationLogsPage, createMockRoles, createMockUsersPage } from './mock'
+import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockJobs, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockRoles, createMockSystemConfigs, createMockUsersPage } from './mock'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
 
 const API_BASE = '/api/v1'
@@ -333,6 +341,43 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockApiKeys()
+    }
+  },
+
+  async listSystemConfigs(): Promise<NativeSystemConfig[]> {
+    try {
+      return nativeSystemConfigsSchema.parse(await request<unknown>('/configs'))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockSystemConfigs()
+    }
+  },
+
+  async listDictionaryTypes(): Promise<NativeDictionaryType[]> {
+    try {
+      return nativeDictionaryTypesSchema.parse(await request<unknown>('/dictionaries'))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockDictionaryTypes()
+    }
+  },
+
+  async listDictionaryItems(typeCode: string): Promise<NativeDictionaryItem[]> {
+    const encodedTypeCode = encodeURIComponent(typeCode)
+    try {
+      return nativeDictionaryItemsSchema.parse(await request<unknown>(`/dictionaries/${encodedTypeCode}/items`))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockDictionaryItems(typeCode)
+    }
+  },
+
+  async listNotices(): Promise<NativeNotice[]> {
+    try {
+      return nativeNoticesSchema.parse(await request<unknown>('/notices/manage'))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockNotices()
     }
   },
 

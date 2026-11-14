@@ -1,5 +1,5 @@
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { NativeApiKey, NativeDepartment, NativeJob, NativeLoginLogsPage, NativeMenuNode, NativeOperationLogsPage, NativeRole, NativeUsersPage, User } from './schemas'
+import type { NativeApiKey, NativeDepartment, NativeDictionaryItem, NativeDictionaryType, NativeJob, NativeLoginLogsPage, NativeMenuNode, NativeNotice, NativeOperationLogsPage, NativeRole, NativeSystemConfig, NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -161,5 +161,34 @@ export function createMockApiKeys(): NativeApiKey[] {
     id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', name: '本地开发客户端', prefix: 'dev_7x2m',
     scopes: ['user:read', 'monitor:read'], expiresAt: null, revokedAt: null,
     lastUsedAt: new Date().toISOString(), createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+  }]
+}
+
+export function createMockSystemConfigs(): NativeSystemConfig[] {
+  return [{
+    id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', key: 'security.session.ttl', value: '300',
+    description: '访问令牌有效期（秒）', enabled: true, updatedAt: new Date().toISOString(),
+  }]
+}
+
+export function createMockDictionaryTypes(): NativeDictionaryType[] {
+  return [
+    { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'notice_type', name: '公告类型', enabled: true },
+    { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: 'user_status', name: '用户状态', enabled: true },
+  ]
+}
+
+export function createMockDictionaryItems(typeCode: string): NativeDictionaryItem[] {
+  if (typeCode === 'user_status') return [
+    { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', typeCode, value: 'enabled', label: '启用', sortOrder: 1, enabled: true },
+    { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', typeCode, value: 'disabled', label: '停用', sortOrder: 2, enabled: true },
+  ]
+  return [{ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', typeCode, value: 'announcement', label: '通知', sortOrder: 1, enabled: true }]
+}
+
+export function createMockNotices(): NativeNotice[] {
+  return [{
+    id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '平台维护通知', content: '开发环境示例公告', noticeType: 'announcement',
+    published: true, enabled: true, publishAt: new Date().toISOString(), createdBy: 'operator', createdAt: new Date().toISOString(),
   }]
 }
