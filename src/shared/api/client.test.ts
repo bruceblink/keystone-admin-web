@@ -418,7 +418,7 @@ describe('Native API client', () => {
         expect(body).toEqual({ enabled: false })
         return ok({ ...baseJob, enabled: false })
       }
-      if (url.endsWith(`/jobs/${id}/run`)) {
+      if (url.endsWith(`/jobs/${id}/trigger`)) {
         expect(init?.method).toBe('POST')
         return ok({ triggered: true })
       }

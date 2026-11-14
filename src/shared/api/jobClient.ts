@@ -59,7 +59,7 @@ export const jobApi = {
 
   async triggerJob(request: ApiRequest, fallback: MockFallback, id: string): Promise<NativeJobTriggerResult> {
     try {
-      return nativeJobTriggerResultSchema.parse(await request<unknown>(`/jobs/${encodeURIComponent(id)}/run`, { method: 'POST' }))
+      return nativeJobTriggerResultSchema.parse(await request<unknown>(`/jobs/${encodeURIComponent(id)}/trigger`, { method: 'POST' }))
     } catch (error) {
       if (!fallback()) throw error
       return triggerMockJob(id)
