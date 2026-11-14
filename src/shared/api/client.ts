@@ -7,6 +7,7 @@ import {
   nativeUserSchema,
   nativeBatchDeleteResultSchema,
   nativeDeleteResultSchema,
+  nativeApiKeyRevokeResultSchema,
   nativeOperationLogsPageSchema,
   nativeLoginLogsPageSchema,
   nativeDepartmentsSchema,
@@ -579,6 +580,16 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return nativeIssuedApiKeySchema.parse({ id, name: 'Rotated key', prefix: 'demo', apiKey: 'ks_live_rotated_once', scopes: [], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: new Date().toISOString() })
+    }
+  },
+
+  async revokeApiKey(id: string): Promise<{ revoked: boolean }> {
+    try {
+      return nativeApiKeyRevokeResultSchema.parse(await request<unknown>(`/api-keys/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { revoked: true }
     }
   },
 

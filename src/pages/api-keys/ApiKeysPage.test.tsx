@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiKeysPage } from './ApiKeysPage'
@@ -25,5 +25,20 @@ describe('ApiKeysPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /查询/ }))
     expect(screen.getByText('旧客户端')).toBeInTheDocument()
     expect(screen.queryByText('CLI')).not.toBeInTheDocument()
+  })
+
+  it('通过确认模态框撤销有效 API Key', async () => {
+    const key = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', name: 'CLI', prefix: 'cli_1234', scopes: ['user:read'], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' }
+    vi.spyOn(apiClient, 'listApiKeys').mockResolvedValue([key])
+    const revokeApiKey = vi.spyOn(apiClient, 'revokeApiKey').mockResolvedValue({ revoked: true })
+    renderPage()
+
+    expect(await screen.findByText('CLI')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('删除后不可恢复')
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(revokeApiKey).toHaveBeenCalledWith(key.id))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 })

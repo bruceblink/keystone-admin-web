@@ -123,6 +123,7 @@ export const nativeBatchDeleteResultSchema = z.object({
 })
 
 export const nativeDeleteResultSchema = z.object({ deleted: z.boolean() })
+export const nativeApiKeyRevokeResultSchema = z.object({ revoked: z.boolean() })
 
 /** Native 角色查询接口返回的权限摘要；写操作使用独立的 MFA 保护入口。 */
 export const nativeRoleSchema = z.object({
@@ -383,6 +384,7 @@ export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
 export type NativeUserImportFailure = z.infer<typeof nativeUserImportFailureSchema>
 export type NativeUserImportResult = z.infer<typeof nativeUserImportResultSchema>
 export type NativeBatchDeleteResult = z.infer<typeof nativeBatchDeleteResultSchema>
+export type NativeApiKeyRevokeResult = z.infer<typeof nativeApiKeyRevokeResultSchema>
 export type NativeDeleteResult = z.infer<typeof nativeDeleteResultSchema>
 export type NativeUserWriteInput = {
   username?: string

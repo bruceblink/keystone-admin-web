@@ -299,6 +299,7 @@ describe('Native API client', () => {
       if (url.includes('/menus/')) return ok(menu)
       if (url.endsWith('/api-keys')) return ok({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: body.name, prefix: 'cli_1234', apiKey: 'ks_live_secret_once', scopes: body.scopes, expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' })
       if (url.includes('/api-keys/') && url.endsWith('/rotate')) return ok({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: 'CLI', prefix: 'cli_5678', apiKey: 'ks_live_rotated_once', scopes: ['user:read'], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' })
+      if (url.includes('/api-keys/') && init?.method === 'DELETE') return ok({ revoked: true })
       throw new Error(`unexpected request: ${url}`)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -307,10 +308,12 @@ describe('Native API client', () => {
     const updated = await apiClient.updateMenu(created.id, { code: 'audit', name: '审计中心', menuType: 'MENU' })
     const issued = await apiClient.issueApiKey({ name: 'CLI', scopes: ['user:read'] })
     const rotated = await apiClient.rotateApiKey(issued.id)
+    const revoked = await apiClient.revokeApiKey(issued.id)
     expect(updated.name).toBe('审计中心')
     expect(issued.apiKey).toBe('ks_live_secret_once')
     expect(rotated.apiKey).toBe('ks_live_rotated_once')
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(revoked).toEqual({ revoked: true })
+    expect(fetchMock).toHaveBeenCalledTimes(5)
   })
 
   it('读取 Native 登录日志和任务执行日志分页契约', async () => {
