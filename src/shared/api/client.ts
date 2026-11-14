@@ -10,6 +10,7 @@ import {
   nativeJobsSchema,
   nativeJobLogsPageSchema,
   nativeDepartmentsSchema,
+  nativeDepartmentSchema,
   nativeMenusSchema,
   nativeApiKeysSchema,
   nativeSystemConfigsSchema,
@@ -17,6 +18,7 @@ import {
   nativeDictionaryItemsSchema,
   nativeNoticesSchema,
   nativeRolesSchema,
+  nativeRoleSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
@@ -36,6 +38,8 @@ import {
   type NativeDictionaryItem,
   type NativeNotice,
   type NativeRole,
+  type NativeRoleWriteInput,
+  type NativeDepartmentWriteInput,
   type User,
 } from './schemas'
 import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockJobs, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockRoles, createMockSystemConfigs, createMockUsersPage } from './mock'
@@ -356,12 +360,50 @@ export const apiClient = {
     }
   },
 
+  async createRole(input: NativeRoleWriteInput): Promise<NativeRole> {
+    try {
+      return nativeRoleSchema.parse(await request<unknown>('/roles', { method: 'POST', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeRoleSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: input.code ?? 'new-role', name: input.name, enabled: input.enabled ?? true, dataScope: 'ALL', deptScope: null, permissions: [] })
+    }
+  },
+
+  async updateRole(id: string, input: NativeRoleWriteInput): Promise<NativeRole> {
+    try {
+      return nativeRoleSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      const role = createMockRoles().find((item) => item.id === id)
+      return nativeRoleSchema.parse({ ...(role ?? createMockRoles()[0]), ...input, id })
+    }
+  },
+
   async listDepartments(): Promise<NativeDepartment[]> {
     try {
       return nativeDepartmentsSchema.parse(await request<unknown>('/departments'))
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockDepartments()
+    }
+  },
+
+  async createDepartment(input: NativeDepartmentWriteInput): Promise<NativeDepartment> {
+    try {
+      return nativeDepartmentSchema.parse(await request<unknown>('/departments', { method: 'POST', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeDepartmentSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: input.code, name: input.name, parentId: input.parentId ?? null, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true })
+    }
+  },
+
+  async updateDepartment(id: string, input: NativeDepartmentWriteInput): Promise<NativeDepartment> {
+    try {
+      return nativeDepartmentSchema.parse(await request<unknown>(`/departments/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      const department = createMockDepartments().find((item) => item.id === id)
+      return nativeDepartmentSchema.parse({ ...(department ?? createMockDepartments()[0]), ...input, id })
     }
   },
 

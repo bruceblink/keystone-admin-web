@@ -167,6 +167,25 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('发送 Native 角色和组织新增/编辑请求体', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      const body = JSON.parse(String(init?.body))
+      if (url.endsWith('/roles')) return ok({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: body.code, name: body.name, enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] })
+      if (url.endsWith('/roles/2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce')) return ok({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'admin', name: body.name, enabled: body.enabled, dataScope: 'ALL', deptScope: null, permissions: [] })
+      if (url.endsWith('/departments')) return ok({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: body.parentId, code: body.code, name: body.name, sortOrder: body.sortOrder, enabled: true })
+      expect(url).toBe('/api/v1/departments/8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a')
+      return ok({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: body.parentId, code: 'OPS', name: body.name, sortOrder: body.sortOrder, enabled: body.enabled })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiClient.createRole({ code: 'auditor', name: '审计员', enabled: true })
+    await apiClient.updateRole('2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', { name: '管理员', enabled: false })
+    await apiClient.createDepartment({ code: 'OPS', name: '运营部', parentId: null, sortOrder: 1, enabled: true })
+    await apiClient.updateDepartment('8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', { code: 'OPS', name: '运营中心', parentId: null, sortOrder: 2, enabled: true })
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
   it('读取 Native 菜单树和脱敏 API Key 元数据', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)

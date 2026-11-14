@@ -1,16 +1,24 @@
 import { useMemo, useState } from 'react'
-import { Building2, RefreshCw, Search, ShieldAlert } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { Building2, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
-import type { NativeDepartment } from '../../shared/api/schemas'
+import type { NativeDepartment, NativeDepartmentWriteInput } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { DepartmentFormModal } from './DepartmentFormModal'
 
 type DepartmentRow = NativeDepartment & { level: number }
 
 export function DepartmentsPage() {
+  const queryClient = useQueryClient()
   const [keyword, setKeyword] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
+  const [editingDepartment, setEditingDepartment] = useState<NativeDepartment | null>(null)
   const query = useQuery({ queryKey: ['departments'], queryFn: () => apiClient.listDepartments(), staleTime: 10_000 })
+  const saveMutation = useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: NativeDepartmentWriteInput }) => id ? apiClient.updateDepartment(id, input) : apiClient.createDepartment(input),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['departments'] }); setModalMode(null); setEditingDepartment(null) },
+  })
   const rows = useMemo(() => {
     const allRows = flattenDepartments(query.data ?? [])
     const normalized = appliedKeyword.toLocaleLowerCase()
@@ -32,6 +40,10 @@ export function DepartmentsPage() {
   function refresh() {
     void query.refetch()
   }
+  function openCreate() { saveMutation.reset(); setEditingDepartment(null); setModalMode('create') }
+  function openEdit(department: NativeDepartment) { saveMutation.reset(); setEditingDepartment(department); setModalMode('edit') }
+  function closeModal() { if (saveMutation.isPending) return; setModalMode(null); setEditingDepartment(null) }
+  async function submitDepartment(input: NativeDepartmentWriteInput) { try { await saveMutation.mutateAsync({ id: editingDepartment?.id, input }) } catch { /* 模态框保留错误和用户输入。 */ } }
 
   return (
     <div className="departments-page">
@@ -39,9 +51,9 @@ export function DepartmentsPage() {
         <div>
           <p className="eyebrow">ORGANIZATION / STRUCTURE</p>
           <h1>组织结构</h1>
-          <p className="page-description">按层级查看部门、组织编码和启用状态，组织调整将在后续模态框流程中完成。</p>
+          <p className="page-description">按层级查看部门、组织编码和启用状态。新增和编辑在模态框中完成。</p>
         </div>
-        <div className="heading-actions"><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新结构</Button></div>
+        <div className="heading-actions"><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增组织</Button><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新结构</Button></div>
       </div>
 
       <Card className="departments-filter-card">
@@ -55,14 +67,15 @@ export function DepartmentsPage() {
       {query.isError && !query.data ? <DepartmentError message={query.error instanceof Error ? query.error.message : '组织结构读取失败'} onRetry={refresh} /> : null}
       {query.data ? <Card className="departments-table-card">
         <CardHeader title="组织结构" description={`共 ${rows.length.toLocaleString('zh-CN')} 个组织节点`} action={<Badge tone="info">Native API</Badge>} />
-        {rows.length > 0 ? <div className="departments-table-wrap"><table className="departments-table"><thead><tr><th scope="col">组织名称</th><th scope="col">组织编码</th><th scope="col">排序</th><th scope="col">状态</th></tr></thead><tbody>{rows.map((row) => <DepartmentRow key={row.id} row={row} />)}</tbody></table></div> : <div className="departments-empty" role="status"><span className="departments-empty-icon"><Building2 size={20} /></span><strong>没有匹配的组织</strong><p>调整筛选条件后重试，或清空筛选条件查看完整组织结构。</p></div>}
+        {rows.length > 0 ? <div className="departments-table-wrap"><table className="departments-table"><thead><tr><th scope="col">组织名称</th><th scope="col">组织编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <DepartmentRow key={row.id} row={row} onEdit={openEdit} />)}</tbody></table></div> : <div className="departments-empty" role="status"><span className="departments-empty-icon"><Building2 size={20} /></span><strong>没有匹配的组织</strong><p>调整筛选条件后重试，或清空筛选条件查看完整组织结构。</p></div>}
       </Card> : null}
+      <DepartmentFormModal open={modalMode !== null} mode={modalMode ?? 'create'} department={editingDepartment} departments={query.data ?? []} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitDepartment} />
     </div>
   )
 }
 
-function DepartmentRow({ row }: { row: DepartmentRow }) {
-  return <tr><td><div className="department-cell" style={{ paddingLeft: `${row.level * 22}px` }}><span className="department-marker"><Building2 size={15} /></span><strong>{row.name}</strong></div></td><td className="department-code">{row.code}</td><td>{row.sortOrder}</td><td><Badge tone={row.enabled ? 'success' : 'warning'}>{row.enabled ? '启用' : '停用'}</Badge></td></tr>
+function DepartmentRow({ row, onEdit }: { row: DepartmentRow; onEdit: (department: NativeDepartment) => void }) {
+  return <tr><td><div className="department-cell" style={{ paddingLeft: `${row.level * 22}px` }}><span className="department-marker"><Building2 size={15} /></span><strong>{row.name}</strong></div></td><td className="department-code">{row.code}</td><td>{row.sortOrder}</td><td><Badge tone={row.enabled ? 'success' : 'warning'}>{row.enabled ? '启用' : '停用'}</Badge></td><td><Button variant="ghost" size="sm" onClick={() => onEdit(row)}><Pencil size={14} /> 编辑</Button></td></tr>
 }
 
 // 先按父子关系构建稳定顺序，避免接口返回顺序改变时页面跳动。
