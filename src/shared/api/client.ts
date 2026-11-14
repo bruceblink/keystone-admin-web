@@ -17,6 +17,7 @@ const CLIENT_ID = 'web'
 let accessToken: string | null = null
 let refreshToken: string | null = null
 let currentUser: User | null = null
+let currentSessionId: string | null = null
 let refreshPromise: Promise<string | null> | null = null
 
 export class ApiError extends Error {
@@ -84,6 +85,7 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
 function applyToken(token: ReturnType<typeof nativeTokenSchema.parse>): User {
   accessToken = token.accessToken
   refreshToken = token.refreshToken
+  currentSessionId = token.sessionId
   currentUser = userSchema.parse({
     username: token.username,
     displayName: token.displayName,
@@ -108,6 +110,7 @@ async function refreshAccessToken(): Promise<string | null> {
       accessToken = null
       refreshToken = null
       currentUser = null
+      currentSessionId = null
       return null
     })
     .finally(() => {
@@ -121,6 +124,7 @@ function mockUserResult() {
   accessToken = result.accessToken
   refreshToken = null
   currentUser = result.user
+  currentSessionId = null
   return result
 }
 
@@ -159,6 +163,7 @@ export const apiClient = {
       accessToken = null
       refreshToken = null
       currentUser = null
+      currentSessionId = null
     }
   },
 
@@ -201,7 +206,15 @@ export const apiClient = {
     }
   },
 
-  async revokeOnlineSession(sessionId: string): Promise<void> {
+  async revokeOnlineSession(sessionId: string): Promise<{ currentSessionRevoked: boolean }> {
     await request(`/monitor/onlineUser/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
+    const currentSessionRevoked = currentSessionId === sessionId
+    if (currentSessionRevoked) {
+      accessToken = null
+      refreshToken = null
+      currentUser = null
+      currentSessionId = null
+    }
+    return { currentSessionRevoked }
   },
 }

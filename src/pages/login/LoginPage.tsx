@@ -56,7 +56,7 @@ export function LoginPage() {
               {isSubmitting ? <Spinner label="正在验证" /> : <><span>登录 Native API</span><ArrowRight size={17} /></>}
             </Button>
           </form>
-          <p className="login-footnote"><KeyRound size={14} /> 访问令牌仅保存在当前页面内存，刷新后通过安全 Cookie 恢复。</p>
+          <p className="login-footnote"><KeyRound size={14} /> 访问令牌只保存在当前页面内存，页面刷新后需要重新登录。</p>
         </Card>
       </div>
     </main>

@@ -83,13 +83,28 @@ describe('Native API client', () => {
       .mockResolvedValueOnce(response({ success: false, data: null, message: 'data scope denied', error: { code: 'data_scope_denied' } }, 403))
     vi.stubGlobal('fetch', fetchMock)
 
-    await apiClient.revokeOnlineSession('session-1')
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/monitor/onlineUser/session-1')
+    const result = await apiClient.revokeOnlineSession('session-2')
+    expect(result.currentSessionRevoked).toBe(false)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/monitor/onlineUser/session-2')
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('DELETE')
 
-    await expect(apiClient.revokeOnlineSession('session-2')).rejects.toMatchObject({
+    await expect(apiClient.revokeOnlineSession('session-3')).rejects.toMatchObject({
       status: 403,
       code: 'data_scope_denied',
     } satisfies Partial<ApiError>)
+  })
+
+  it('撤销当前会话后清理内存令牌并要求重新登录', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok(token))
+      .mockResolvedValueOnce(ok({ loggedOut: true }))
+      .mockResolvedValueOnce(response(null, 401))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiClient.login('operator', 'secret')
+    const result = await apiClient.revokeOnlineSession('session-1')
+
+    expect(result.currentSessionRevoked).toBe(true)
+    expect(await apiClient.restoreSession()).toBeNull()
   })
 })

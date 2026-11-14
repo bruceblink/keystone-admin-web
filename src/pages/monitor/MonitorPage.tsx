@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, ArrowDownToLine, ArrowUpFromLine, CircleHelp, Database, HardDrive, Layers3, MemoryStick, RefreshCw, Server, ShieldAlert, Signal, UserRound, Wifi } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
+import { useSessionStore } from '../../shared/state/session'
 import { formatDateTime, formatPercent, formatRate, statusMessage, statusTone } from '../../entities/monitor/format'
 import type { SessionSummary } from '../../entities/monitor/types'
 import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
@@ -12,6 +13,7 @@ const statusLabels = { LIVE: 'LIVE', STALE: 'STALE', OFFLINE: 'OFFLINE', PARTIAL
 export function MonitorPage() {
   const [selectedSession, setSelectedSession] = useState<SessionSummary | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const clearSession = useSessionStore((state) => state.clearSession)
   const query = useQuery({ queryKey: ['monitor', 'snapshot'], queryFn: apiClient.getMonitorSnapshot, refetchInterval: 15_000, staleTime: 10_000 })
   const snapshot = query.data
   const computedStatus = snapshot?.status ?? (query.isError ? 'OFFLINE' : 'STALE')
@@ -32,9 +34,13 @@ export function MonitorPage() {
 
   async function forceLogout(session: SessionSummary) {
     try {
-      await apiClient.revokeOnlineSession(session.id)
-      setNotice(`已完成下线：${session.user}`)
+      const result = await apiClient.revokeOnlineSession(session.id)
       setSelectedSession(null)
+      if (result.currentSessionRevoked) {
+        clearSession('当前会话已下线，请重新登录')
+        return
+      }
+      setNotice(`已完成下线：${session.user}`)
       void query.refetch()
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '下线请求失败')

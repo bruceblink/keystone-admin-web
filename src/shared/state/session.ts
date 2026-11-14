@@ -9,6 +9,7 @@ type SessionState = {
   login: (username: string, password: string) => Promise<void>
   restore: () => Promise<void>
   logout: () => Promise<void>
+  clearSession: (message: string) => void
   clearMessage: () => void
 }
 
@@ -28,5 +29,6 @@ export const useSessionStore = create<SessionState>((set) => ({
     await apiClient.logout()
     set({ user: null, message: '会话已退出' })
   },
+  clearSession: (message) => set({ user: null, message }),
   clearMessage: () => set({ message: null }),
 }))
