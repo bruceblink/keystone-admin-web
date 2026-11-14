@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, ArrowDownToLine, ArrowUpFromLine, CircleHelp, Database, HardDrive, Layers3, MemoryStick, RefreshCw, Server, ShieldAlert, Signal, UserRound, Wifi } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
+import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
+import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import { useSessionStore } from '../../shared/state/session'
 import { formatDateTime, formatPercent, formatRate, statusMessage, statusTone } from '../../entities/monitor/format'
 import type { SessionSummary } from '../../entities/monitor/types'
@@ -13,6 +15,7 @@ const statusLabels = { LIVE: 'LIVE', STALE: 'STALE', OFFLINE: 'OFFLINE', PARTIAL
 export function MonitorPage() {
   const [selectedSession, setSelectedSession] = useState<SessionSummary | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const stepUp = useMfaStepUp()
   const clearSession = useSessionStore((state) => state.clearSession)
   const query = useQuery({ queryKey: ['monitor', 'snapshot'], queryFn: apiClient.getMonitorSnapshot, refetchInterval: 15_000, staleTime: 10_000 })
   const snapshot = query.data
@@ -34,7 +37,7 @@ export function MonitorPage() {
 
   async function forceLogout(session: SessionSummary) {
     try {
-      const result = await apiClient.revokeOnlineSession(session.id)
+      const result = await stepUp.run(() => apiClient.revokeOnlineSession(session.id))
       setSelectedSession(null)
       if (result.currentSessionRevoked) {
         clearSession('当前会话已下线，请重新登录')
@@ -79,6 +82,7 @@ export function MonitorPage() {
         </div>
       </> : null}
       {selectedSession ? <SessionSheet session={selectedSession} onClose={() => setSelectedSession(null)} onForceLogout={forceLogout} /> : null}
+      <MfaStepUpModal {...stepUp.modal} />
     </div>
   )
 }
