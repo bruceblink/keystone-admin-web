@@ -30,7 +30,7 @@ function filenameFromContentDisposition(value: string | null): string | null {
   }
 }
 
-async function readXlsxResponse(response: Response): Promise<{ blob: Blob; filename: string }> {
+export async function readXlsxResponse(response: Response): Promise<{ blob: Blob; filename: string }> {
   const contentType = response.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase()
   if (contentType !== XLSX_MIME_TYPE) throw new ApiError('Native API 返回的文件类型不是 .xlsx', 502, 'invalid_response')
   const filename = filenameFromContentDisposition(response.headers.get('Content-Disposition'))

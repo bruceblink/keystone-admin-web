@@ -10,6 +10,7 @@ const MonitorPage = lazy(() => import('../pages/monitor/MonitorPage').then(({ Mo
 const UsersPage = lazy(() => import('../pages/users/UsersPage').then(({ UsersPage }) => ({ default: UsersPage })))
 const OperationsAuditPage = lazy(() => import('../pages/audit/OperationsAuditPage').then(({ OperationsAuditPage }) => ({ default: OperationsAuditPage })))
 const DepartmentsPage = lazy(() => import('../pages/departments/DepartmentsPage').then(({ DepartmentsPage }) => ({ default: DepartmentsPage })))
+const PostsPage = lazy(() => import('../pages/posts/PostsPage').then(({ PostsPage }) => ({ default: PostsPage })))
 const RolesPage = lazy(() => import('../pages/roles/RolesPage').then(({ RolesPage }) => ({ default: RolesPage })))
 const MenusPage = lazy(() => import('../pages/menus/MenusPage').then(({ MenusPage }) => ({ default: MenusPage })))
 const ApiKeysPage = lazy(() => import('../pages/api-keys/ApiKeysPage').then(({ ApiKeysPage }) => ({ default: ApiKeysPage })))
@@ -48,6 +49,7 @@ export function App() {
             <Route path="/users" element={<UsersPage />} />
             <Route path="/roles" element={<RolesPage />} />
             <Route path="/departments" element={<DepartmentsPage />} />
+            <Route path="/posts" element={<PostsPage />} />
             <Route path="/menus" element={<MenusPage />} />
             <Route path="/api-keys" element={<ApiKeysPage />} />
             <Route path="/audit/operations" element={<OperationsAuditPage />} />

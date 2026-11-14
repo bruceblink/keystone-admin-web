@@ -6,10 +6,13 @@ import {
   nativeUsersPageSchema,
   nativeUserSchema,
   nativeBatchDeleteResultSchema,
+  nativeDeleteResultSchema,
   nativeOperationLogsPageSchema,
   nativeLoginLogsPageSchema,
   nativeDepartmentsSchema,
   nativeDepartmentSchema,
+  nativePostsSchema,
+  nativePostSchema,
   nativeMenusSchema,
   nativeMenuNodeSchema,
   nativeApiKeysSchema,
@@ -32,10 +35,13 @@ import {
   type NativeUser,
   type NativeUserWriteInput,
   type NativeBatchDeleteResult,
+  type NativeDeleteResult,
   type NativeOperationLogsPage,
   type NativeLoginLogsPage,
   type NativeJobWriteInput,
   type NativeDepartment,
+  type NativePost,
+  type NativePostWriteInput,
   type NativeMenuNode,
   type NativeMenuWriteInput,
   type NativeApiKey,
@@ -53,10 +59,10 @@ import {
   type NativeNoticeWriteInput,
   type User,
 } from './schemas'
-import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockRoles, createMockSystemConfigs, createMockUsersPage } from './mock'
+import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockPosts, createMockPost, createMockRoles, createMockSystemConfigs, createMockUsersPage, deleteMockPost, updateMockPost } from './mock'
 import { jobApi } from './jobClient'
 import { ApiError } from './errors'
-import { createUserFileClient, XLSX_MIME_TYPE } from './userFileClient'
+import { createUserFileClient, readXlsxResponse, XLSX_MIME_TYPE } from './userFileClient'
 export { ApiError } from './errors'
 export { isXlsxFilename, XLSX_MIME_TYPE } from './userFileClient'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
@@ -436,6 +442,56 @@ export const apiClient = {
       if (!mockFallbackEnabled()) throw error
       const department = createMockDepartments().find((item) => item.id === id)
       return nativeDepartmentSchema.parse({ ...(department ?? createMockDepartments()[0]), ...input, id })
+    }
+  },
+
+  async listPosts(): Promise<NativePost[]> {
+    try {
+      return nativePostsSchema.parse(await request<unknown>('/posts'))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return createMockPosts()
+    }
+  },
+
+  async createPost(input: NativePostWriteInput): Promise<NativePost> {
+    try {
+      return nativePostSchema.parse(await request<unknown>('/posts', { method: 'POST', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return createMockPost(input)
+    }
+  },
+
+  async updatePost(id: string, input: NativePostWriteInput): Promise<NativePost> {
+    try {
+      return nativePostSchema.parse(await request<unknown>(`/posts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return updateMockPost(id, input)
+    }
+  },
+
+  async deletePost(id: string): Promise<NativeDeleteResult> {
+    try {
+      return nativeDeleteResultSchema.parse(await request<unknown>(`/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return deleteMockPost(id)
+    }
+  },
+
+  async exportPosts(): Promise<{ blob: Blob; filename: string }> {
+    try {
+      return await readXlsxResponse(await requestFile('/posts/export'))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { blob: new Blob(['mock xlsx workbook'], { type: XLSX_MIME_TYPE }), filename: 'posts.xlsx' }
     }
   },
 

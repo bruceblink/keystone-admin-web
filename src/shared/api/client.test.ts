@@ -210,6 +210,35 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('读取并维护 Native 岗位，同时严格校验岗位导出文件', async () => {
+    const post = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true }
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/posts/export')) return new Response('xlsx', { status: 200, headers: { 'Content-Type': XLSX_MIME_TYPE, 'Content-Disposition': 'attachment; filename=posts.xlsx' } })
+      if (url.endsWith('/posts') && !init?.method) return ok([post])
+      if (url.endsWith('/posts') && init?.method === 'POST') return ok({ ...post, code: 'new-post', name: '新岗位' })
+      if (url.endsWith('/posts/' + post.id) && init?.method === 'PUT') return ok({ ...post, name: '更新岗位', enabled: false })
+      if (url.endsWith('/posts/' + post.id) && init?.method === 'DELETE') return ok({ deleted: true })
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await apiClient.listPosts()).toEqual([post])
+    expect(await apiClient.createPost({ code: 'new-post', name: '新岗位', sortOrder: 2 })).toMatchObject({ name: '新岗位' })
+    expect(await apiClient.updatePost(post.id, { name: '更新岗位', enabled: false })).toMatchObject({ enabled: false })
+    expect(await apiClient.deletePost(post.id)).toEqual({ deleted: true })
+    const exported = await apiClient.exportPosts()
+    expect(exported.filename).toBe('posts.xlsx')
+    expect(exported.blob.type).toBe(XLSX_MIME_TYPE)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+  })
+
+  it('保留岗位接口的权限错误，不使用开发 Mock 替换', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({ success: false, data: null, message: 'permission denied', error: { code: 'permission_denied' } }, 403)))
+
+    await expect(apiClient.listPosts()).rejects.toMatchObject({ status: 403, code: 'permission_denied' })
+  })
+
   it('发送 Native 角色和组织新增/编辑请求体', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)

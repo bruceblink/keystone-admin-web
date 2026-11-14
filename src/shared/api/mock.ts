@@ -1,5 +1,5 @@
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { NativeApiKey, NativeDepartment, NativeDictionaryItem, NativeDictionaryItemWriteInput, NativeDictionaryType, NativeDictionaryTypeWriteInput, NativeJob, NativeJobTriggerResult, NativeJobWriteInput, NativeLoginLogsPage, NativeMenuNode, NativeNotice, NativeNoticeWriteInput, NativeOperationLogsPage, NativeRole, NativeSystemConfig, NativeSystemConfigWriteInput, NativeUsersPage, User } from './schemas'
+import type { NativeApiKey, NativeDepartment, NativeDictionaryItem, NativeDictionaryItemWriteInput, NativeDictionaryType, NativeDictionaryTypeWriteInput, NativeJob, NativeJobTriggerResult, NativeJobWriteInput, NativeLoginLogsPage, NativeMenuNode, NativeNotice, NativeNoticeWriteInput, NativeOperationLogsPage, NativePost, NativePostWriteInput, NativeRole, NativeSystemConfig, NativeSystemConfigWriteInput, NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -19,6 +19,7 @@ let mockSystemConfigs: NativeSystemConfig[] | null = null
 let mockDictionaryTypes: NativeDictionaryType[] | null = null
 let mockNotices: NativeNotice[] | null = null
 let mockJobs: NativeJob[] | null = null
+let mockPosts: NativePost[] | null = null
 const mockDictionaryItems = new Map<string, NativeDictionaryItem[]>()
 
 function nextMockId(): string {
@@ -203,6 +204,37 @@ export function createMockDepartments(): NativeDepartment[] {
     { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'OPS', name: '运营部', sortOrder: 1, enabled: true },
     { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', parentId: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'AUDIT', name: '审计部', sortOrder: 2, enabled: true },
   ]
+}
+
+export function createMockPosts(): NativePost[] {
+  mockPosts ??= [
+    { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true },
+    { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'auditor', name: '审计专员', sortOrder: 2, enabled: true },
+  ]
+  return mockPosts.map(clone)
+}
+
+export function createMockPost(input: NativePostWriteInput): NativePost {
+  createMockPosts()
+  const post: NativePost = { id: nextMockId(), code: input.code ?? 'new-post', name: input.name, sortOrder: input.sortOrder ?? 0, enabled: input.enabled ?? true }
+  mockPosts?.push(post)
+  return clone(post)
+}
+
+export function updateMockPost(id: string, input: NativePostWriteInput): NativePost {
+  const posts = createMockPosts()
+  const index = posts.findIndex((post) => post.id === id)
+  const current = index >= 0 ? posts[index] : { id, code: input.code ?? 'post', name: input.name, sortOrder: 0, enabled: true }
+  const post: NativePost = { ...current, name: input.name, sortOrder: input.sortOrder ?? current.sortOrder, enabled: input.enabled ?? current.enabled }
+  if (mockPosts && index >= 0) mockPosts[index] = post
+  return clone(post)
+}
+
+export function deleteMockPost(id: string): { deleted: boolean } {
+  createMockPosts()
+  const before = mockPosts?.length ?? 0
+  mockPosts = mockPosts?.filter((post) => post.id !== id) ?? []
+  return { deleted: before !== mockPosts.length }
 }
 
 export function createMockMenus(): NativeMenuNode[] {

@@ -122,6 +122,8 @@ export const nativeBatchDeleteResultSchema = z.object({
   deleted: z.number().int().nonnegative(),
 })
 
+export const nativeDeleteResultSchema = z.object({ deleted: z.boolean() })
+
 /** Native 角色查询接口返回的权限摘要；写操作使用独立的 MFA 保护入口。 */
 export const nativeRoleSchema = z.object({
   id: z.string().uuid(),
@@ -145,6 +147,17 @@ export const nativeDepartmentSchema = z.object({
 
 export const nativeRolesSchema = z.array(nativeRoleSchema)
 export const nativeDepartmentsSchema = z.array(nativeDepartmentSchema)
+
+/** Native 岗位记录；岗位编码用于业务引用，排序和状态由管理页面维护。 */
+export const nativePostSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  name: z.string(),
+  sortOrder: z.number().int(),
+  enabled: z.boolean(),
+})
+
+export const nativePostsSchema = z.array(nativePostSchema)
 
 /** Native 菜单树节点；菜单详情和子节点保持原始层级，页面只读展示。 */
 export const nativeMenuSchema = z.object({
@@ -370,6 +383,7 @@ export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
 export type NativeUserImportFailure = z.infer<typeof nativeUserImportFailureSchema>
 export type NativeUserImportResult = z.infer<typeof nativeUserImportResultSchema>
 export type NativeBatchDeleteResult = z.infer<typeof nativeBatchDeleteResultSchema>
+export type NativeDeleteResult = z.infer<typeof nativeDeleteResultSchema>
 export type NativeUserWriteInput = {
   username?: string
   password?: string
@@ -393,6 +407,8 @@ export type NativeDictionaryItemWriteInput = { value?: string; label: string; so
 export type NativeNoticeWriteInput = { title: string; content: string; noticeType: string; enabled?: boolean }
 export type NativeRole = z.infer<typeof nativeRoleSchema>
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
+export type NativePost = z.infer<typeof nativePostSchema>
+export type NativePostWriteInput = { code?: string; name: string; sortOrder?: number; enabled?: boolean }
 export type NativeOperationLog = z.infer<typeof nativeOperationLogSchema>
 export type NativeOperationLogsPage = z.infer<typeof nativeOperationLogsPageSchema>
 export type NativeLoginLog = z.infer<typeof nativeLoginLogSchema>
