@@ -1,21 +1,23 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AdminShell } from '../widgets/layout/AdminShell'
 import { LoginPage } from '../pages/login/LoginPage'
-import { MonitorPage } from '../pages/monitor/MonitorPage'
-import { UsersPage } from '../pages/users/UsersPage'
-import { OperationsAuditPage } from '../pages/audit/OperationsAuditPage'
-import { DepartmentsPage } from '../pages/departments/DepartmentsPage'
-import { RolesPage } from '../pages/roles/RolesPage'
-import { MenusPage } from '../pages/menus/MenusPage'
-import { ApiKeysPage } from '../pages/api-keys/ApiKeysPage'
-import { LoginLogsPage } from '../pages/audit/LoginLogsPage'
-import { JobsPage } from '../pages/jobs/JobsPage'
-import { ConfigsPage } from '../pages/configs/ConfigsPage'
-import { DictionariesPage } from '../pages/dictionaries/DictionariesPage'
-import { NoticesPage } from '../pages/notices/NoticesPage'
 import { useSessionStore } from '../shared/state/session'
 import { Spinner } from '../shared/ui'
+
+// 管理页面按路由延迟加载，首屏只加载登录和管理外壳，避免所有业务页面进入同一个初始包。
+const MonitorPage = lazy(() => import('../pages/monitor/MonitorPage').then(({ MonitorPage }) => ({ default: MonitorPage })))
+const UsersPage = lazy(() => import('../pages/users/UsersPage').then(({ UsersPage }) => ({ default: UsersPage })))
+const OperationsAuditPage = lazy(() => import('../pages/audit/OperationsAuditPage').then(({ OperationsAuditPage }) => ({ default: OperationsAuditPage })))
+const DepartmentsPage = lazy(() => import('../pages/departments/DepartmentsPage').then(({ DepartmentsPage }) => ({ default: DepartmentsPage })))
+const RolesPage = lazy(() => import('../pages/roles/RolesPage').then(({ RolesPage }) => ({ default: RolesPage })))
+const MenusPage = lazy(() => import('../pages/menus/MenusPage').then(({ MenusPage }) => ({ default: MenusPage })))
+const ApiKeysPage = lazy(() => import('../pages/api-keys/ApiKeysPage').then(({ ApiKeysPage }) => ({ default: ApiKeysPage })))
+const LoginLogsPage = lazy(() => import('../pages/audit/LoginLogsPage').then(({ LoginLogsPage }) => ({ default: LoginLogsPage })))
+const JobsPage = lazy(() => import('../pages/jobs/JobsPage').then(({ JobsPage }) => ({ default: JobsPage })))
+const ConfigsPage = lazy(() => import('../pages/configs/ConfigsPage').then(({ ConfigsPage }) => ({ default: ConfigsPage })))
+const DictionariesPage = lazy(() => import('../pages/dictionaries/DictionariesPage').then(({ DictionariesPage }) => ({ default: DictionariesPage })))
+const NoticesPage = lazy(() => import('../pages/notices/NoticesPage').then(({ NoticesPage }) => ({ default: NoticesPage })))
 
 function RequireAuth() {
   const { user, isHydrated } = useSessionStore()
@@ -36,27 +38,29 @@ export function App() {
   }, [restore])
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<RequireAuth />}>
-        <Route element={<ProtectedLayout />}>
-          <Route index element={<Navigate to="/monitor" replace />} />
-          <Route path="/monitor" element={<MonitorPage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/roles" element={<RolesPage />} />
-          <Route path="/departments" element={<DepartmentsPage />} />
-          <Route path="/menus" element={<MenusPage />} />
-          <Route path="/api-keys" element={<ApiKeysPage />} />
-          <Route path="/audit/operations" element={<OperationsAuditPage />} />
-          <Route path="/audit/login" element={<LoginLogsPage />} />
-          <Route path="/jobs" element={<JobsPage />} />
-          <Route path="/configs" element={<ConfigsPage />} />
-          <Route path="/dictionaries" element={<DictionariesPage />} />
-          <Route path="/notices" element={<NoticesPage />} />
-          <Route path="*" element={<MonitorPage />} />
+    <Suspense fallback={<div className="page-center"><Spinner label="正在加载管理页面" /></div>}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<RequireAuth />}>
+          <Route element={<ProtectedLayout />}>
+            <Route index element={<Navigate to="/monitor" replace />} />
+            <Route path="/monitor" element={<MonitorPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/roles" element={<RolesPage />} />
+            <Route path="/departments" element={<DepartmentsPage />} />
+            <Route path="/menus" element={<MenusPage />} />
+            <Route path="/api-keys" element={<ApiKeysPage />} />
+            <Route path="/audit/operations" element={<OperationsAuditPage />} />
+            <Route path="/audit/login" element={<LoginLogsPage />} />
+            <Route path="/jobs" element={<JobsPage />} />
+            <Route path="/configs" element={<ConfigsPage />} />
+            <Route path="/dictionaries" element={<DictionariesPage />} />
+            <Route path="/notices" element={<NoticesPage />} />
+            <Route path="*" element={<MonitorPage />} />
+          </Route>
         </Route>
-      </Route>
-      <Route path="*" element={<Navigate to="/monitor" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/monitor" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
