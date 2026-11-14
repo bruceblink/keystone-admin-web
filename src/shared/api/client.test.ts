@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiClient, XLSX_MIME_TYPE } from './client'
+import { ApiError, apiClient, getMfaLoginChallenge, XLSX_MIME_TYPE } from './client'
 
 const token = {
   accessToken: 'access-1',
@@ -52,6 +52,39 @@ describe('Native API client', () => {
     const restored = await apiClient.restoreSession()
     expect(restored).toEqual(loggedIn.user)
     expect(calls[1]?.init?.body).toContain('"refreshToken":"refresh-1"')
+  })
+
+  it('保留 Native 登录 MFA 挑战并按契约提交一次性验证码', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) {
+        return response({
+          success: false,
+          data: { challengeId: 'challenge-login', clientId: 'web', expiresAt: '2026-11-14T03:00:00Z' },
+          message: 'MFA_REQUIRED',
+          error: { code: 'invalid_credential' },
+        }, 401)
+      }
+      if (url.endsWith('/auth/refresh')) {
+        return response({ success: false, data: null, message: 'refresh rejected', error: { code: 'invalid_credential' } }, 401)
+      }
+      if (url.endsWith('/auth/mfa/verify')) {
+        expect(init?.method).toBe('POST')
+        expect(init?.body).toBe(JSON.stringify({ username: 'operator', challengeId: 'challenge-login', clientId: 'web', code: '123456' }))
+        return ok(token)
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    let loginError: unknown
+    try {
+      await apiClient.login('operator', 'secret')
+    } catch (error) {
+      loginError = error
+    }
+    expect(getMfaLoginChallenge(loginError)).toEqual({ challengeId: 'challenge-login', clientId: 'web', expiresAt: '2026-11-14T03:00:00Z' })
+    await expect(apiClient.verifyMfaLogin('operator', 'challenge-login', 'web', '123456')).resolves.toMatchObject({ user: { username: 'operator' } })
   })
 
   it('按 Native step-up 契约创建挑战并只替换短时 AAL2 access token', async () => {
