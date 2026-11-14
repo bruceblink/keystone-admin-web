@@ -46,6 +46,8 @@ export function App() {
           <Route element={<ProtectedLayout />}>
             <Route index element={<Navigate to="/monitor" replace />} />
             <Route path="/monitor" element={<MonitorPage />} />
+            {/* 总览入口与运行监控共用当前实时快照，避免导航项落入通配回退。 */}
+            <Route path="/dashboard" element={<MonitorPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/roles" element={<RolesPage />} />
             <Route path="/departments" element={<DepartmentsPage />} />
