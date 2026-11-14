@@ -239,6 +239,13 @@ describe('Native API client', () => {
     await expect(apiClient.listPosts()).rejects.toMatchObject({ status: 403, code: 'permission_denied' })
   })
 
+  it('开发环境下将岗位代理 5xx 回退到 Mock 快照', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'true')
+    vi.stubGlobal('fetch', vi.fn(async () => response({ success: false, data: null, message: 'proxy unavailable', error: null }, 502)))
+
+    await expect(apiClient.listPosts()).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ code: 'operator' })]))
+  })
+
   it('发送 Native 角色和组织新增/编辑请求体', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)

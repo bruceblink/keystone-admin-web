@@ -449,7 +449,7 @@ export const apiClient = {
     try {
       return nativePostsSchema.parse(await request<unknown>('/posts'))
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 0) throw error
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!mockFallbackEnabled()) throw error
       return createMockPosts()
     }
@@ -459,7 +459,7 @@ export const apiClient = {
     try {
       return nativePostSchema.parse(await request<unknown>('/posts', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 0) throw error
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!mockFallbackEnabled()) throw error
       return createMockPost(input)
     }
@@ -469,7 +469,7 @@ export const apiClient = {
     try {
       return nativePostSchema.parse(await request<unknown>(`/posts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 0) throw error
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!mockFallbackEnabled()) throw error
       return updateMockPost(id, input)
     }
@@ -479,7 +479,7 @@ export const apiClient = {
     try {
       return nativeDeleteResultSchema.parse(await request<unknown>(`/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }))
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 0) throw error
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!mockFallbackEnabled()) throw error
       return deleteMockPost(id)
     }
@@ -489,7 +489,7 @@ export const apiClient = {
     try {
       return await readXlsxResponse(await requestFile('/posts/export'))
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 0) throw error
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!mockFallbackEnabled()) throw error
       return { blob: new Blob(['mock xlsx workbook'], { type: XLSX_MIME_TYPE }), filename: 'posts.xlsx' }
     }
