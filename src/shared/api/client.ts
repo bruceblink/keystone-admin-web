@@ -6,6 +6,8 @@ import {
   nativeUsersPageSchema,
   nativeOperationLogsPageSchema,
   nativeDepartmentsSchema,
+  nativeMenusSchema,
+  nativeApiKeysSchema,
   nativeRolesSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
@@ -14,10 +16,12 @@ import {
   type NativeUsersPage,
   type NativeOperationLogsPage,
   type NativeDepartment,
+  type NativeMenuNode,
+  type NativeApiKey,
   type NativeRole,
   type User,
 } from './schemas'
-import { createMockDepartments, createMockLogin, createMockMonitorSnapshot, createMockOperationLogsPage, createMockRoles, createMockUsersPage } from './mock'
+import { createMockApiKeys, createMockDepartments, createMockLogin, createMockMenus, createMockMonitorSnapshot, createMockOperationLogsPage, createMockRoles, createMockUsersPage } from './mock'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
 
 const API_BASE = '/api/v1'
@@ -265,6 +269,24 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockDepartments()
+    }
+  },
+
+  async listMenus(): Promise<NativeMenuNode[]> {
+    try {
+      return nativeMenusSchema.parse(await request<unknown>('/menus'))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockMenus()
+    }
+  },
+
+  async listApiKeys(): Promise<NativeApiKey[]> {
+    try {
+      return nativeApiKeysSchema.parse(await request<unknown>('/api-keys'))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return createMockApiKeys()
     }
   },
 

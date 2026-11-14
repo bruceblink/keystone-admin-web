@@ -128,6 +128,48 @@ export const nativeDepartmentSchema = z.object({
 export const nativeRolesSchema = z.array(nativeRoleSchema)
 export const nativeDepartmentsSchema = z.array(nativeDepartmentSchema)
 
+/** Native 菜单树节点；菜单详情和子节点保持原始层级，页面只读展示。 */
+export const nativeMenuSchema = z.object({
+  id: z.string().uuid(),
+  parentId: z.string().uuid().nullable(),
+  code: z.string(),
+  name: z.string(),
+  path: z.string().nullable(),
+  component: z.string().nullable(),
+  menuType: z.string(),
+  permission: z.string().nullable(),
+  sortOrder: z.number().int(),
+  enabled: z.boolean(),
+})
+
+export type NativeMenu = z.infer<typeof nativeMenuSchema>
+
+export interface NativeMenuNode {
+  menu: NativeMenu
+  children: NativeMenuNode[]
+}
+
+export const nativeMenuNodeSchema: z.ZodType<NativeMenuNode> = z.lazy(() => z.object({
+  menu: nativeMenuSchema,
+  children: z.array(nativeMenuNodeSchema),
+}))
+
+export const nativeMenusSchema = z.array(nativeMenuNodeSchema)
+
+/** Native API Key 列表只返回脱敏元数据，永远不接受明文 apiKey 字段。 */
+export const nativeApiKeySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  prefix: z.string(),
+  scopes: z.array(z.string()),
+  expiresAt: z.string().nullable(),
+  revokedAt: z.string().nullable(),
+  lastUsedAt: z.string().nullable(),
+  createdAt: z.string(),
+})
+
+export const nativeApiKeysSchema = z.array(nativeApiKeySchema)
+
 /** Native 操作审计记录；详情字段只用于查询展示，不在前端执行解析或写入。 */
 export const nativeOperationLogSchema = z.object({
   id: z.string().uuid(),
@@ -182,3 +224,4 @@ export type NativeRole = z.infer<typeof nativeRoleSchema>
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativeOperationLog = z.infer<typeof nativeOperationLogSchema>
 export type NativeOperationLogsPage = z.infer<typeof nativeOperationLogsPageSchema>
+export type NativeApiKey = z.infer<typeof nativeApiKeySchema>

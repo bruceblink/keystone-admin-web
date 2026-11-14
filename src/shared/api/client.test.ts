@@ -140,6 +140,31 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('读取 Native 菜单树和脱敏 API Key 元数据', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/menus')) return ok([{
+        menu: {
+          id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理',
+          path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true,
+        }, children: [],
+      }])
+      if (url.endsWith('/api-keys')) return ok([{
+        id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: 'CLI', prefix: 'cli_1234', scopes: ['user:read'],
+        expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z',
+      }])
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const menus = await apiClient.listMenus()
+    const keys = await apiClient.listApiKeys()
+    expect(menus[0]?.menu.code).toBe('system')
+    expect(keys[0]).toMatchObject({ name: 'CLI', prefix: 'cli_1234', scopes: ['user:read'] })
+    expect(keys[0]).not.toHaveProperty('apiKey')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('调用 Native 在线会话撤销接口并透传错误分类', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok({ loggedOut: true }))

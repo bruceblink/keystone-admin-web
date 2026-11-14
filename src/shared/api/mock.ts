@@ -1,5 +1,5 @@
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { NativeDepartment, NativeOperationLogsPage, NativeRole, NativeUsersPage, User } from './schemas'
+import type { NativeApiKey, NativeDepartment, NativeMenuNode, NativeOperationLogsPage, NativeRole, NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -118,4 +118,28 @@ export function createMockDepartments(): NativeDepartment[] {
     { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'OPS', name: '运营部', sortOrder: 1, enabled: true },
     { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', parentId: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'AUDIT', name: '审计部', sortOrder: 2, enabled: true },
   ]
+}
+
+export function createMockMenus(): NativeMenuNode[] {
+  return [{
+    menu: {
+      id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理',
+      path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true,
+    },
+    children: [{
+      menu: {
+        id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'system:user', name: '用户管理',
+        path: '/users', component: 'UsersPage', menuType: 'MENU', permission: 'user:read', sortOrder: 1, enabled: true,
+      },
+      children: [],
+    }],
+  }]
+}
+
+export function createMockApiKeys(): NativeApiKey[] {
+  return [{
+    id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', name: '本地开发客户端', prefix: 'dev_7x2m',
+    scopes: ['user:read', 'monitor:read'], expiresAt: null, revokedAt: null,
+    lastUsedAt: new Date().toISOString(), createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+  }]
 }
