@@ -43,4 +43,21 @@ describe('JobsPage', () => {
     fireEvent.click(screen.getByTitle('执行 系统心跳'))
     await waitFor(() => expect(apiClient.triggerJob).toHaveBeenCalledWith(job.id))
   })
+
+  it('确认后批量删除任务', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: '2026-11-14T02:00:00Z' }
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue([job])
+    const deleteJobs = vi.spyOn(apiClient, 'deleteJobs').mockResolvedValue({ deleted: 1 })
+    renderPage()
+
+    await screen.findByText('系统心跳')
+    fireEvent.click(screen.getByLabelText('选择任务 系统心跳'))
+    fireEvent.click(screen.getByRole('button', { name: '删除任务（1）' }))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('删除后不可恢复')
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(deleteJobs).toHaveBeenCalledWith([job.id]))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
 })

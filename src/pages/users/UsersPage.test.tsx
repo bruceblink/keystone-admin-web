@@ -136,4 +136,20 @@ describe('UsersPage', () => {
     expect(within(dialog).getByRole('alert')).toHaveTextContent('不支持 .xls 或 .csv')
     expect(importUsers).not.toHaveBeenCalled()
   })
+
+  it('确认后批量删除当前页用户', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const deleteUsers = vi.spyOn(apiClient, 'deleteUsers').mockResolvedValue({ deleted: 1 })
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByLabelText('选择用户 operator'))
+    fireEvent.click(screen.getByRole('button', { name: '删除用户（1）' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText(/删除后不可恢复/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(deleteUsers).toHaveBeenCalledWith([userPage.items[0].id]))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
 })

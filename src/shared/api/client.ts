@@ -5,6 +5,7 @@ import {
   nativeCacheInfoSchema,
   nativeUsersPageSchema,
   nativeUserSchema,
+  nativeBatchDeleteResultSchema,
   nativeOperationLogsPageSchema,
   nativeLoginLogsPageSchema,
   nativeDepartmentsSchema,
@@ -30,6 +31,7 @@ import {
   type NativeUsersPage,
   type NativeUser,
   type NativeUserWriteInput,
+  type NativeBatchDeleteResult,
   type NativeOperationLogsPage,
   type NativeLoginLogsPage,
   type NativeJobWriteInput,
@@ -314,6 +316,19 @@ export const apiClient = {
     }
   },
 
+  async deleteUsers(ids: string[]): Promise<NativeBatchDeleteResult> {
+    const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+    if (uniqueIds.length === 0) throw new Error('至少选择一名用户')
+    const query = new URLSearchParams({ ids: uniqueIds.join(',') }).toString()
+    try {
+      return nativeBatchDeleteResultSchema.parse(await request<unknown>(`/users?${query}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { deleted: uniqueIds.length }
+    }
+  },
+
   importUsers: userFileApi.importUsers,
 
   exportUsers: userFileApi.exportUsers,
@@ -357,6 +372,8 @@ export const apiClient = {
   listJobs: () => jobApi.listJobs(request, mockFallbackEnabled),
 
   listJobLogs: (filters: { jobId?: string; page?: number; size?: number } = {}) => jobApi.listJobLogs(request, mockFallbackEnabled, filters),
+
+  deleteJobs: (ids: string[]) => jobApi.deleteJobs(request, mockFallbackEnabled, ids),
 
   createJob: (input: NativeJobWriteInput) => jobApi.createJob(request, mockFallbackEnabled, input),
 
@@ -582,6 +599,19 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return nativeNoticeSchema.parse({ id, title: input.title, content: input.content, noticeType: input.noticeType, published: false, enabled: input.enabled ?? true, publishAt: null, createdBy: 'operator', createdAt: new Date().toISOString() })
+    }
+  },
+
+  async deleteNotices(ids: string[]): Promise<NativeBatchDeleteResult> {
+    const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+    if (uniqueIds.length === 0) throw new Error('至少选择一条公告')
+    const query = new URLSearchParams({ notice_ids: uniqueIds.join(',') }).toString()
+    try {
+      return nativeBatchDeleteResultSchema.parse(await request<unknown>(`/notices?${query}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { deleted: uniqueIds.length }
     }
   },
 

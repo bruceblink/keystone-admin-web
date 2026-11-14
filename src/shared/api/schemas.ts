@@ -117,6 +117,11 @@ export const nativeUserImportResultSchema = z.object({
   failed: z.array(nativeUserImportFailureSchema),
 })
 
+/** Native 批量删除响应；删除数量用于页面刷新后的结果提示。 */
+export const nativeBatchDeleteResultSchema = z.object({
+  deleted: z.number().int().nonnegative(),
+})
+
 /** Native 角色查询接口返回的权限摘要；写操作使用独立的 MFA 保护入口。 */
 export const nativeRoleSchema = z.object({
   id: z.string().uuid(),
@@ -364,6 +369,7 @@ export type NativeUser = z.infer<typeof nativeUserSchema>
 export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
 export type NativeUserImportFailure = z.infer<typeof nativeUserImportFailureSchema>
 export type NativeUserImportResult = z.infer<typeof nativeUserImportResultSchema>
+export type NativeBatchDeleteResult = z.infer<typeof nativeBatchDeleteResultSchema>
 export type NativeUserWriteInput = {
   username?: string
   password?: string

@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Eye, Pencil, Play, Plus, Power, RefreshCw, Search, ShieldAlert } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeJob, NativeJobLog, NativeJobLogsPage, NativeJobWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { JobFormModal } from './JobFormModal'
 
 const PAGE_SIZE = 20
@@ -22,6 +22,8 @@ export function JobsPage() {
   const [logPage, setLogPage] = useState(1)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingJob, setEditingJob] = useState<NativeJob | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const query = useQuery({ queryKey: ['jobs'], queryFn: () => apiClient.listJobs(), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeJobWriteInput }) => id ? apiClient.updateJob(id, input) : apiClient.createJob(input),
@@ -45,6 +47,7 @@ export function JobsPage() {
       await queryClient.invalidateQueries({ queryKey: ['job-logs', id] })
     },
   })
+  const deleteMutation = useMutation({ mutationFn: (ids: string[]) => apiClient.deleteJobs(ids), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['jobs'] }); setSelectedIds([]); setDeleteOpen(false) } })
   const jobs = useMemo(() => {
     const normalized = appliedKeyword.toLocaleLowerCase()
     return (query.data ?? []).filter((job) => !normalized || `${job.code} ${job.name} ${job.group}`.toLocaleLowerCase().includes(normalized))
@@ -52,6 +55,9 @@ export function JobsPage() {
   const logsQuery = useQuery({ queryKey: ['job-logs', selectedJob?.id, logPage], queryFn: () => apiClient.listJobLogs({ jobId: selectedJob?.id, page: logPage, size: PAGE_SIZE }), enabled: Boolean(selectedJob), staleTime: 10_000 })
   const total = logsQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const allSelected = jobs.length > 0 && jobs.every((job) => selectedIds.includes(job.id))
+
+  useEffect(() => { setSelectedIds([]) }, [appliedKeyword])
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -105,23 +111,30 @@ export function JobsPage() {
     void triggerMutation.mutateAsync(job.id).catch(() => undefined)
   }
 
+  function toggleJobSelection(id: string, checked: boolean) { setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)) }
+  function toggleAllJobs(checked: boolean) { setSelectedIds(checked ? jobs.map((job) => job.id) : []) }
+  function openDelete() { deleteMutation.reset(); setDeleteOpen(true) }
+  function closeDelete() { if (!deleteMutation.isPending) setDeleteOpen(false) }
+
   const actionPending = saveMutation.isPending || statusMutation.isPending || triggerMutation.isPending
   const actionError = statusMutation.error instanceof Error ? statusMutation.error.message : triggerMutation.error instanceof Error ? triggerMutation.error.message : null
 
   return <div className="jobs-page">
-    <div className="page-heading"><div><p className="eyebrow">OPERATIONS / JOBS</p><h1>定时任务</h1><p className="page-description">查询任务配置、运行状态和执行日志。新增、编辑、启停和手动执行使用独立操作入口。</p></div><div className="heading-actions"><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增任务</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching || actionPending}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新任务</Button></div></div>
+    <div className="page-heading"><div><p className="eyebrow">OPERATIONS / JOBS</p><h1>定时任务</h1><p className="page-description">查询任务配置、运行状态和执行日志。新增、编辑、启停和手动执行使用独立操作入口。</p></div><div className="heading-actions"><Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除任务（{selectedIds.length}）</Button><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增任务</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching || actionPending}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新任务</Button></div></div>
     <Card className="jobs-filter-card"><form className="jobs-filter-form" onSubmit={submit}><label><span>任务名称、编码或分组</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="按任务名称、编码或分组筛选" autoComplete="off" /></label><div className="jobs-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
     {actionError ? <div className="error-panel jobs-error" role="alert"><ShieldAlert size={19} /><div><strong>任务操作失败</strong><p>{actionError}</p></div><Button variant="ghost" size="sm" onClick={() => { statusMutation.reset(); triggerMutation.reset() }}>关闭</Button></div> : null}
+    {deleteMutation.error ? <div className="error-panel jobs-error" role="alert"><ShieldAlert size={19} /><div><strong>任务删除失败</strong><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : '请求失败'}</p></div></div> : null}
     {query.isLoading ? <div className="loading-panel jobs-loading"><Spinner label="正在读取任务列表" /></div> : null}
     {query.isError && !query.data ? <JobError message={query.error instanceof Error ? query.error.message : '任务列表读取失败'} onRetry={() => void query.refetch()} /> : null}
-    {query.data ? <Card className="jobs-table-card"><CardHeader title="任务列表" description={`共 ${jobs.length.toLocaleString('zh-CN')} 个匹配任务`} action={<Badge tone="info">Native API</Badge>} />{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th><th scope="col">操作</th></tr></thead><tbody>{jobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} pending={actionPending} onSelect={() => selectJob(job)} onEdit={() => openEdit(job)} onToggle={() => toggleJob(job)} onRun={() => runJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}</Card> : null}
+    {query.data ? <Card className="jobs-table-card"><CardHeader title="任务列表" description={`共 ${jobs.length.toLocaleString('zh-CN')} 个匹配任务`} action={<Badge tone="info">Native API</Badge>} />{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前任务" checked={allSelected} onChange={(event) => toggleAllJobs(event.target.checked)} disabled={actionPending || deleteMutation.isPending} /></th><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th><th scope="col">操作</th></tr></thead><tbody>{jobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} selectedForDelete={selectedIds.includes(job.id)} pending={actionPending || deleteMutation.isPending} onSelect={() => selectJob(job)} onSelectForDelete={toggleJobSelection} onEdit={() => openEdit(job)} onToggle={() => toggleJob(job)} onRun={() => runJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}</Card> : null}
     {selectedJob ? <JobLogsCard job={selectedJob} query={logsQuery} page={logPage} totalPages={totalPages} onPageChange={setLogPage} /> : null}
     <JobFormModal open={modalMode !== null} mode={modalMode ?? 'create'} job={editingJob} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitJob} />
+    <DeleteConfirmModal open={deleteOpen} resourceLabel="任务" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
   </div>
 }
 
-function JobRow({ job, selected, pending, onSelect, onEdit, onToggle, onRun }: { job: NativeJob; selected: boolean; pending: boolean; onSelect: () => void; onEdit: () => void; onToggle: () => void; onRun: () => void }) {
-  return <tr className={selected ? 'jobs-row-selected' : undefined}><td><div className="job-cell"><span className="job-marker"><ClipboardList size={15} /></span><div><strong>{job.name}</strong><small>{job.code}</small></div></div></td><td>{job.group || '—'}</td><td><code className="job-cron">{job.cron}</code></td><td><Badge tone={job.enabled ? 'success' : 'neutral'}>{job.enabled ? '启用' : '停用'}</Badge>{job.lastStatus ? <span className="job-last-status">{formatJobStatus(job.lastStatus)}</span> : null}</td><td className="jobs-time">{formatTime(job.lastRunAt)}</td><td><Button variant="ghost" size="sm" onClick={onSelect} disabled={pending}><Eye size={14} /> 日志</Button></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={onEdit} disabled={pending} title={`编辑 ${job.name}`}><Pencil size={14} /> 编辑</Button><Button variant="ghost" size="sm" onClick={onToggle} disabled={pending} title={job.enabled ? `停用 ${job.name}` : `启用 ${job.name}`}><Power size={14} /> {job.enabled ? '停用' : '启用'}</Button><Button variant="ghost" size="sm" onClick={onRun} disabled={pending || !job.enabled} title={`执行 ${job.name}`}><Play size={14} /> 执行</Button></div></td></tr>
+function JobRow({ job, selected, selectedForDelete, pending, onSelect, onSelectForDelete, onEdit, onToggle, onRun }: { job: NativeJob; selected: boolean; selectedForDelete: boolean; pending: boolean; onSelect: () => void; onSelectForDelete: (id: string, checked: boolean) => void; onEdit: () => void; onToggle: () => void; onRun: () => void }) {
+  return <tr className={selected ? 'jobs-row-selected' : undefined}><td><input type="checkbox" aria-label={`选择任务 ${job.name}`} checked={selectedForDelete} onChange={(event) => onSelectForDelete(job.id, event.target.checked)} disabled={pending} /></td><td><div className="job-cell"><span className="job-marker"><ClipboardList size={15} /></span><div><strong>{job.name}</strong><small>{job.code}</small></div></div></td><td>{job.group || '—'}</td><td><code className="job-cron">{job.cron}</code></td><td><Badge tone={job.enabled ? 'success' : 'neutral'}>{job.enabled ? '启用' : '停用'}</Badge>{job.lastStatus ? <span className="job-last-status">{formatJobStatus(job.lastStatus)}</span> : null}</td><td className="jobs-time">{formatTime(job.lastRunAt)}</td><td><Button variant="ghost" size="sm" onClick={onSelect} disabled={pending}><Eye size={14} /> 日志</Button></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={onEdit} disabled={pending} title={`编辑 ${job.name}`}><Pencil size={14} /> 编辑</Button><Button variant="ghost" size="sm" onClick={onToggle} disabled={pending} title={job.enabled ? `停用 ${job.name}` : `启用 ${job.name}`}><Power size={14} /> {job.enabled ? '停用' : '启用'}</Button><Button variant="ghost" size="sm" onClick={onRun} disabled={pending || !job.enabled} title={`执行 ${job.name}`}><Play size={14} /> 执行</Button></div></td></tr>
 }
 
 function JobLogsCard({ job, query, page, totalPages, onPageChange }: { job: NativeJob; query: UseQueryResult<NativeJobLogsPage, Error>; page: number; totalPages: number; onPageChange: (page: number) => void }) {

@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, Upload, UsersRound } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
 import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { UserFormModal } from './UserFormModal'
 import { UserImportModal } from './UserImportModal'
 
@@ -27,6 +27,8 @@ export function UsersPage() {
   const [importResult, setImportResult] = useState<NativeUserImportResult | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const importMutation = useMutation({
     mutationFn: (file: File) => apiClient.importUsers(file),
     onSuccess: async (result) => {
@@ -47,9 +49,22 @@ export function UsersPage() {
       setEditingUser(null)
     },
   })
+  const deleteMutation = useMutation({
+    mutationFn: (ids: string[]) => apiClient.deleteUsers(ids),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
+      setSelectedIds([])
+      setDeleteOpen(false)
+    },
+  })
   const users = query.data?.items ?? []
   const total = query.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const allSelected = users.length > 0 && users.every((user) => selectedIds.includes(user.id))
+
+  useEffect(() => {
+    setSelectedIds([])
+  }, [filters, page])
 
   const resultDescription = useMemo(() => {
     if (query.isLoading) return '正在读取 Native API'
@@ -124,6 +139,27 @@ export function UsersPage() {
     setModalMode('edit')
   }
 
+  function toggleUser(id: string, checked: boolean) {
+    setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id))
+  }
+
+  function toggleAllUsers(checked: boolean) {
+    setSelectedIds(checked ? users.map((user) => user.id) : [])
+  }
+
+  function openDelete() {
+    deleteMutation.reset()
+    setDeleteOpen(true)
+  }
+
+  function closeDelete() {
+    if (!deleteMutation.isPending) setDeleteOpen(false)
+  }
+
+  function submitDelete() {
+    void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)
+  }
+
   function closeModal() {
     if (saveMutation.isPending) return
     setModalMode(null)
@@ -147,6 +183,7 @@ export function UsersPage() {
           <p className="page-description">查询用户身份、组织归属和授权角色。新增和编辑在模态框中完成。</p>
         </div>
         <div className="heading-actions">
+          <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除用户（{selectedIds.length}）</Button>
           <Button variant="secondary" size="sm" onClick={openImport} disabled={importMutation.isPending || exporting}><Upload size={15} />导入 Excel</Button>
           <Button variant="secondary" size="sm" onClick={() => void exportUsers()} disabled={exporting || importMutation.isPending}>
             <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
@@ -202,6 +239,7 @@ export function UsersPage() {
               <table className="users-table">
                 <thead>
                   <tr>
+                    <th scope="col"><input type="checkbox" aria-label="选择当前页用户" checked={allSelected} onChange={(event) => toggleAllUsers(event.target.checked)} disabled={deleteMutation.isPending} /></th>
                     <th scope="col">用户</th>
                     <th scope="col">UUID</th>
                     <th scope="col">部门</th>
@@ -212,7 +250,7 @@ export function UsersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => <UserRow key={user.id} user={user} onEdit={openEdit} />)}
+                  {users.map((user) => <UserRow key={user.id} user={user} selected={selectedIds.includes(user.id)} pending={deleteMutation.isPending} onSelect={toggleUser} onEdit={openEdit} />)}
                 </tbody>
               </table>
             </div>
@@ -240,14 +278,16 @@ export function UsersPage() {
         onClose={closeImport}
         onSubmit={submitImport}
       />
+      <DeleteConfirmModal open={deleteOpen} resourceLabel="用户" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={submitDelete} />
       <UserFormModal open={modalMode !== null} mode={modalMode ?? 'create'} user={editingUser} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitUser} />
     </div>
   )
 }
 
-function UserRow({ user, onEdit }: { user: NativeUser; onEdit: (user: NativeUser) => void }) {
+function UserRow({ user, selected, pending, onSelect, onEdit }: { user: NativeUser; selected: boolean; pending: boolean; onSelect: (id: string, checked: boolean) => void; onEdit: (user: NativeUser) => void }) {
   return (
     <tr>
+      <td><input type="checkbox" aria-label={`选择用户 ${user.username}`} checked={selected} onChange={(event) => onSelect(user.id, event.target.checked)} disabled={pending} /></td>
       <td>
         <div className="user-cell">
           <span className="user-cell-avatar">{user.displayName.slice(0, 1) || user.username.slice(0, 1)}</span>

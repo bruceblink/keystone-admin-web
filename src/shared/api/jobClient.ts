@@ -1,5 +1,6 @@
-import { nativeJobLogsPageSchema, nativeJobsSchema, nativeJobSchema, nativeJobTriggerResultSchema, type NativeJob, type NativeJobLogsPage, type NativeJobTriggerResult, type NativeJobWriteInput } from './schemas'
+import { nativeBatchDeleteResultSchema, nativeJobLogsPageSchema, nativeJobsSchema, nativeJobSchema, nativeJobTriggerResultSchema, type NativeBatchDeleteResult, type NativeJob, type NativeJobLogsPage, type NativeJobTriggerResult, type NativeJobWriteInput } from './schemas'
 import { createMockJob, createMockJobs, triggerMockJob, updateMockJob, updateMockJobStatus } from './mock'
+import { ApiError } from './errors'
 
 export type ApiRequest = <T>(path: string, init?: RequestInit) => Promise<T>
 export type MockFallback = () => boolean
@@ -62,6 +63,19 @@ export const jobApi = {
     } catch (error) {
       if (!fallback()) throw error
       return triggerMockJob(id)
+    }
+  },
+
+  async deleteJobs(request: ApiRequest, fallback: MockFallback, ids: string[]): Promise<NativeBatchDeleteResult> {
+    const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+    if (uniqueIds.length === 0) throw new Error('至少选择一条任务')
+    const query = new URLSearchParams({ jobIds: uniqueIds.join(',') }).toString()
+    try {
+      return nativeBatchDeleteResultSchema.parse(await request<unknown>(`/jobs?${query}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!fallback()) throw error
+      return { deleted: uniqueIds.length }
     }
   },
 }
