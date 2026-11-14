@@ -23,7 +23,11 @@ pnpm test:run
 pnpm build
 ```
 
-当前首阶段包含登录、受保护管理壳和运行监控工作台。前端按 Native 的统一
+当前首阶段包含登录、受保护管理壳、运行监控工作台和用户查询页面（基线 `f9486e1`）。用户页对接
+`GET /api/v1/users`，支持用户名、展示名筛选和分页，只提供查询能力。2026-11-14 已在 macOS Chrome
+真实窗口使用 Native 开发服务完成登录、用户列表读取和用户名筛选验收。
+
+前端按 Native 的统一
 `{ success, data, message, error }` 响应解包；登录和刷新使用 `data.accessToken`、
 `data.refreshToken`，令牌只保存在当前页面内存。Native 当前没有 `/auth/me` 或监控快照接口，
 监控页面通过 `/monitor/serverInfo`、`/monitor/cacheInfo` 和 `/monitor/onlineUsers` 组合读取，
