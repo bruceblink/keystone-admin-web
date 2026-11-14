@@ -620,6 +620,16 @@ export const apiClient = {
     }
   },
 
+  async deleteSystemConfig(key: string): Promise<NativeDeleteResult> {
+    try {
+      return nativeDeleteResultSchema.parse(await request<unknown>(`/configs/${encodeURIComponent(key)}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { deleted: true }
+    }
+  },
+
   async listDictionaryTypes(): Promise<NativeDictionaryType[]> {
     try {
       return nativeDictionaryTypesSchema.parse(await request<unknown>('/dictionaries'))
@@ -657,6 +667,16 @@ export const apiClient = {
     }
   },
 
+  async deleteDictionaryType(code: string): Promise<NativeDeleteResult> {
+    try {
+      return nativeDeleteResultSchema.parse(await request<unknown>(`/dictionaries/types/${encodeURIComponent(code)}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { deleted: true }
+    }
+  },
+
   async createDictionaryItem(typeCode: string, input: NativeDictionaryItemWriteInput): Promise<NativeDictionaryItem> {
     try {
       return nativeDictionaryItemSchema.parse(await request<unknown>(`/dictionaries/${encodeURIComponent(typeCode)}/items`, { method: 'POST', body: JSON.stringify(input) }))
@@ -672,6 +692,16 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return nativeDictionaryItemSchema.parse({ id, typeCode: 'custom', value: input.value ?? 'value', label: input.label, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true })
+    }
+  },
+
+  async deleteDictionaryItem(id: string): Promise<NativeDeleteResult> {
+    try {
+      return nativeDeleteResultSchema.parse(await request<unknown>(`/dictionaries/items/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { deleted: true }
     }
   },
 
