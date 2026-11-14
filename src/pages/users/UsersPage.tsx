@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus, RefreshCw, Search, ShieldAlert, UsersRound } from 'lucide-react'
+import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, Upload, UsersRound } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
-import type { NativeUser, NativeUserWriteInput } from '../../shared/api/schemas'
+import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
 import { UserFormModal } from './UserFormModal'
+import { UserImportModal } from './UserImportModal'
 
 const PAGE_SIZE = 20
 
@@ -22,6 +23,17 @@ export function UsersPage() {
   const [page, setPage] = useState(1)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingUser, setEditingUser] = useState<NativeUser | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importResult, setImportResult] = useState<NativeUserImportResult | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const importMutation = useMutation({
+    mutationFn: (file: File) => apiClient.importUsers(file),
+    onSuccess: async (result) => {
+      setImportResult(result)
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
   const query = useQuery({
     queryKey: ['users', filters, page],
     queryFn: () => apiClient.listUsers({ ...filters, page, size: PAGE_SIZE }),
@@ -67,6 +79,45 @@ export function UsersPage() {
     setModalMode('create')
   }
 
+  function openImport() {
+    importMutation.reset()
+    setImportResult(null)
+    setImportOpen(true)
+  }
+
+  function closeImport() {
+    if (importMutation.isPending) return
+    setImportOpen(false)
+    importMutation.reset()
+    setImportResult(null)
+  }
+
+  async function submitImport(file: File) {
+    try {
+      await importMutation.mutateAsync(file)
+    } catch {
+      // 模态框显示 mutation.error，保留文件选择和错误上下文供用户处理。
+    }
+  }
+
+  async function exportUsers() {
+    setExportError(null)
+    setExporting(true)
+    try {
+      const result = await apiClient.exportUsers(filters)
+      const url = URL.createObjectURL(result.blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = result.filename
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : '用户导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   function openEdit(user: NativeUser) {
     saveMutation.reset()
     setEditingUser(user)
@@ -96,12 +147,18 @@ export function UsersPage() {
           <p className="page-description">查询用户身份、组织归属和授权角色。新增和编辑在模态框中完成。</p>
         </div>
         <div className="heading-actions">
+          <Button variant="secondary" size="sm" onClick={openImport} disabled={importMutation.isPending || exporting}><Upload size={15} />导入 Excel</Button>
+          <Button variant="secondary" size="sm" onClick={() => void exportUsers()} disabled={exporting || importMutation.isPending}>
+            <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
+          </Button>
           <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增用户</Button>
           <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
             <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
           </Button>
         </div>
       </div>
+
+      {exportError ? <div className="error-panel users-file-error" role="alert"><ShieldAlert size={20} /><div><strong>用户导出失败</strong><p>{exportError}</p></div></div> : null}
 
       <Card className="users-filter-card">
         <form className="users-filter-form" onSubmit={submitFilters}>
@@ -175,6 +232,14 @@ export function UsersPage() {
           </div>
         </Card>
       ) : null}
+      <UserImportModal
+        open={importOpen}
+        pending={importMutation.isPending}
+        result={importResult}
+        error={importMutation.error instanceof Error ? importMutation.error.message : null}
+        onClose={closeImport}
+        onSubmit={submitImport}
+      />
       <UserFormModal open={modalMode !== null} mode={modalMode ?? 'create'} user={editingUser} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitUser} />
     </div>
   )

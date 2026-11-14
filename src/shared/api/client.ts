@@ -53,8 +53,11 @@ import {
 } from './schemas'
 import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockRoles, createMockSystemConfigs, createMockUsersPage } from './mock'
 import { jobApi } from './jobClient'
+import { ApiError } from './errors'
+import { createUserFileClient, XLSX_MIME_TYPE } from './userFileClient'
+export { ApiError } from './errors'
+export { isXlsxFilename, XLSX_MIME_TYPE } from './userFileClient'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-
 const API_BASE = '/api/v1'
 const CLIENT_ID = 'web'
 let accessToken: string | null = null
@@ -62,22 +65,9 @@ let refreshToken: string | null = null
 let currentUser: User | null = null
 let currentSessionId: string | null = null
 let refreshPromise: Promise<string | null> | null = null
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly code?: string,
-  ) {
-    super(message)
-    this.name = 'ApiError'
-  }
-}
-
 function mockFallbackEnabled(): boolean {
   return import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK !== 'false'
 }
-
 function unwrap<T>(body: unknown, status: number): T {
   const envelope = apiEnvelopeSchema.safeParse(body)
   if (!envelope.success) return body as T
@@ -86,7 +76,6 @@ function unwrap<T>(body: unknown, status: number): T {
   }
   return envelope.data.data as T
 }
-
 async function readJson(response: Response): Promise<unknown> {
   try {
     return await response.json()
@@ -94,11 +83,10 @@ async function readJson(response: Response): Promise<unknown> {
     return null
   }
 }
-
 async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  if (typeof init.body === 'string' && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
 
   let response: Response
@@ -124,7 +112,33 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   if (response.status === 204) return undefined as T
   return unwrap<T>(body, response.status)
 }
+async function requestFile(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+  const headers = new Headers(init.headers)
+  headers.set('Accept', XLSX_MIME_TYPE)
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
 
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' })
+  } catch {
+    throw new ApiError('无法连接 Native API', 0, 'network_error')
+  }
+
+  if (response.status === 401 && retry && path !== '/auth/refresh') {
+    const refreshed = await refreshAccessToken()
+    if (refreshed) return requestFile(path, init, false)
+  }
+
+  if (!response.ok) {
+    const body = await readJson(response)
+    const envelope = apiEnvelopeSchema.safeParse(body)
+    const message = envelope.success ? envelope.data.message : `请求失败（${response.status}）`
+    const code = envelope.success ? envelope.data.error?.code : undefined
+    throw new ApiError(message, response.status, code)
+  }
+  return response
+}
+const userFileApi = createUserFileClient({ request, requestFile, mockFallbackEnabled })
 function applyToken(token: ReturnType<typeof nativeTokenSchema.parse>): User {
   accessToken = token.accessToken
   refreshToken = token.refreshToken
@@ -136,7 +150,6 @@ function applyToken(token: ReturnType<typeof nativeTokenSchema.parse>): User {
   })
   return currentUser
 }
-
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null
   if (refreshPromise) return refreshPromise
@@ -161,7 +174,6 @@ async function refreshAccessToken(): Promise<string | null> {
     })
   return refreshPromise
 }
-
 function mockUserResult() {
   const result = loginResponseSchema.parse(createMockLogin())
   accessToken = result.accessToken
@@ -301,6 +313,10 @@ export const apiClient = {
       })
     }
   },
+
+  importUsers: userFileApi.importUsers,
+
+  exportUsers: userFileApi.exportUsers,
 
   async listOperationLogs(filters: { actor?: string; action?: string; resource?: string; page?: number; size?: number } = {}): Promise<NativeOperationLogsPage> {
     const page = filters.page ?? 1

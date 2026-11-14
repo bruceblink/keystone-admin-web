@@ -101,4 +101,39 @@ describe('UsersPage', () => {
 
     await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ displayName: '更新名称', password: undefined, roleCodes: null })))
   })
+
+  it('通过模态框选择 XLSX 并显示逐行导入结果', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const importUsers = vi.spyOn(apiClient, 'importUsers').mockResolvedValue({
+      total: 2,
+      success: 1,
+      failed: [{ row: 3, username: 'blocked', reason: 'permission_denied' }],
+    })
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /导入 Excel/ }))
+    const dialog = screen.getByRole('dialog', { name: '导入用户' })
+    const file = new File(['xlsx'], 'users.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    fireEvent.change(within(dialog).getByLabelText('选择 XLSX 文件'), { target: { files: [file] } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '开始导入' }))
+
+    await waitFor(() => expect(importUsers).toHaveBeenCalledWith(file))
+    expect(await within(dialog).findByRole('region', { name: '导入结果' })).toHaveTextContent('blocked')
+    expect(within(dialog).getByText('permission_denied')).toBeInTheDocument()
+  })
+
+  it('拒绝用户导入的旧式 Excel 扩展名并提供可读错误', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const importUsers = vi.spyOn(apiClient, 'importUsers')
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /导入 Excel/ }))
+    const dialog = screen.getByRole('dialog', { name: '导入用户' })
+    fireEvent.change(within(dialog).getByLabelText('选择 XLSX 文件'), { target: { files: [new File(['xls'], 'users.xls')] } })
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('不支持 .xls 或 .csv')
+    expect(importUsers).not.toHaveBeenCalled()
+  })
 })

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiClient } from './client'
+import { ApiError, apiClient, XLSX_MIME_TYPE } from './client'
 
 const token = {
   accessToken: 'access-1',
@@ -123,6 +123,49 @@ describe('Native API client', () => {
     await apiClient.createUser({ username: 'new-user', password: 'Strong-password-123!', displayName: '新用户', roleCodes: [] })
     await apiClient.updateUser('2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', { displayName: '新用户', roleCodes: null })
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('按 Native 契约提交 XLSX 用户导入并保留逐行失败结果', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe('/api/v1/users/import')
+      expect(init?.method).toBe('POST')
+      expect(init?.body).toBeInstanceOf(FormData)
+      expect((init?.body as FormData).get('file')).toBeInstanceOf(File)
+      return ok({ total: 2, success: 1, failed: [{ row: 3, username: 'blocked', reason: 'permission_denied' }] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await apiClient.importUsers(new File(['xlsx'], 'users.xlsx', { type: XLSX_MIME_TYPE }))
+
+    expect(result).toEqual({ total: 2, success: 1, failed: [{ row: 3, username: 'blocked', reason: 'permission_denied' }] })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('拒绝非 XLSX 导入并校验用户导出文件响应', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe('/api/v1/users/export?username=operator&displayName=%E8%BF%90%E7%BB%B4')
+      expect(init?.method).toBeUndefined()
+      return new Response('xlsx', {
+        status: 200,
+        headers: { 'Content-Type': XLSX_MIME_TYPE, 'Content-Disposition': 'attachment; filename=users.xlsx' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.importUsers(new File(['xls'], 'users.xls'))).rejects.toMatchObject({ status: 422, code: 'validation_failed' })
+    const result = await apiClient.exportUsers({ username: ' operator ', displayName: '运维' })
+
+    expect(result.filename).toBe('users.xlsx')
+    expect(result.blob.type).toBe(XLSX_MIME_TYPE)
+    expect(result.blob.size).toBeGreaterThan(0)
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('不把 Native 的 AAL2 或 API Key 拒绝错误替换为 Mock 成功', async () => {
+    const fetchMock = vi.fn(async () => response({ success: false, data: null, message: 'AAL2 step-up is required', error: { code: 'invalid_credential' } }, 401))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.importUsers(new File(['xlsx'], 'users.xlsx', { type: XLSX_MIME_TYPE }))).rejects.toMatchObject({ status: 401, code: 'invalid_credential' })
   })
 
   it('按 Native 操作审计契约发送筛选和分页参数', async () => {

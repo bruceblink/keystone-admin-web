@@ -104,6 +104,19 @@ export const nativeUsersPageSchema = z.object({
   total: z.number().int().nonnegative(),
 })
 
+/** Native 用户 XLSX 导入结果；失败行只包含行号、用户名和脱敏原因。 */
+export const nativeUserImportFailureSchema = z.object({
+  row: z.number().int().positive(),
+  username: z.string(),
+  reason: z.string(),
+})
+
+export const nativeUserImportResultSchema = z.object({
+  total: z.number().int().nonnegative(),
+  success: z.number().int().nonnegative(),
+  failed: z.array(nativeUserImportFailureSchema),
+})
+
 /** Native 角色查询接口返回的权限摘要；写操作使用独立的 MFA 保护入口。 */
 export const nativeRoleSchema = z.object({
   id: z.string().uuid(),
@@ -349,6 +362,8 @@ export const monitorSnapshotSchema = z.object({
 export type User = z.infer<typeof userSchema>
 export type NativeUser = z.infer<typeof nativeUserSchema>
 export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
+export type NativeUserImportFailure = z.infer<typeof nativeUserImportFailureSchema>
+export type NativeUserImportResult = z.infer<typeof nativeUserImportResultSchema>
 export type NativeUserWriteInput = {
   username?: string
   password?: string
