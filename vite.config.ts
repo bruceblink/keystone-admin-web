@@ -10,4 +10,19 @@ export default defineConfig({
       '/api': 'http://localhost:8080',
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'echarts',
+              test: /node_modules[\\/]echarts[\\/]/,
+              maxSize: 400 * 1024,
+            },
+          ],
+        },
+      },
+    },
+  },
 })
