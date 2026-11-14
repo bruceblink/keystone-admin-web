@@ -1,6 +1,6 @@
-# Keystone Native Frontend
+# Keystone Admin Web
 
-Native 后端的新管理前端项目。项目从空目录开始实现，不迁移旧版
+Keystone Native 后端的现代化管理后台前端。项目从空目录开始实现，不迁移旧版
 `keystone-frontend` 的页面、状态树或接口封装。
 
 技术选型和实现边界见 [`docs/01-technology-selection.md`](docs/01-technology-selection.md)。当前方案

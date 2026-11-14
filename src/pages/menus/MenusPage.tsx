@@ -58,7 +58,7 @@ export function MenusPage() {
         <div>
           <p className="eyebrow">ACCESS / MENUS</p>
           <h1>菜单与权限</h1>
-          <p className="page-description">查询菜单层级、路由和权限标识，写操作将在后续模态框流程中完成。</p>
+          <p className="page-description">查询菜单层级、路由和权限标识。新增和编辑在模态框中完成，删除操作需要确认。</p>
         </div>
         <div className="heading-actions"><Button size="sm" onClick={openCreate}>新增菜单</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新菜单</Button></div>
       </div>

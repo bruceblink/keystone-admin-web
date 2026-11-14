@@ -38,7 +38,6 @@ export function AdminShell() {
           <p className="nav-label">工作台</p>
           {navItems.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)} className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}><Icon size={17} /><span>{label}</span></NavLink>)}
           <p className="nav-label nav-label-spaced">系统</p>
-          <button className="nav-item nav-item-disabled" type="button" disabled><Settings2 size={17} /><span>系统设置</span><small>即将推出</small></button>
         </nav>
         <div className="sidebar-foot"><div className="status-dot"><span /> Native API 正常</div><span className="sidebar-version">v0.1.0 · dev</span></div>
       </aside>
