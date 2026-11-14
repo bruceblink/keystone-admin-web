@@ -398,11 +398,12 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
-  it('按 Native 契约发送用户、公告和任务批量删除请求并去重 ID', async () => {
+  it('按 Native 契约发送用户、角色、公告和任务批量删除请求并去重 ID', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
       expect(init?.method).toBe('DELETE')
       if (url.includes('/users?ids=')) return ok({ deleted: 2 })
+      if (url.includes('/roles?ids=')) return ok({ deleted: 2 })
       if (url.includes('/notices?notice_ids=')) return ok({ deleted: 2 })
       if (url.includes('/jobs?jobIds=')) return ok({ deleted: 2 })
       throw new Error(`unexpected request: ${url}`)
@@ -410,11 +411,13 @@ describe('Native API client', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     expect(await apiClient.deleteUsers(['user-a', 'user-a', 'user-b'])).toEqual({ deleted: 2 })
+    expect(await apiClient.deleteRoles(['role-a', 'role-a', 'role-b'])).toEqual({ deleted: 2 })
     expect(await apiClient.deleteNotices(['notice-a', 'notice-b', 'notice-b'])).toEqual({ deleted: 2 })
     expect(await apiClient.deleteJobs(['job-a', 'job-b', 'job-a'])).toEqual({ deleted: 2 })
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/users?ids=user-a%2Cuser-b')
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/notices?notice_ids=notice-a%2Cnotice-b')
-    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/v1/jobs?jobIds=job-a%2Cjob-b')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/roles?ids=role-a%2Crole-b')
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/v1/notices?notice_ids=notice-a%2Cnotice-b')
+    expect(fetchMock.mock.calls[3]?.[0]).toBe('/api/v1/jobs?jobIds=job-a%2Cjob-b')
   })
 
   it('调用 Native 在线会话撤销接口并透传错误分类', async () => {

@@ -417,6 +417,19 @@ export const apiClient = {
     }
   },
 
+  async deleteRoles(ids: string[]): Promise<NativeBatchDeleteResult> {
+    const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+    if (uniqueIds.length === 0) throw new Error('至少选择一个角色')
+    const query = new URLSearchParams({ ids: uniqueIds.join(',') }).toString()
+    try {
+      return nativeBatchDeleteResultSchema.parse(await request<unknown>(`/roles?${query}`, { method: 'DELETE' }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!mockFallbackEnabled()) throw error
+      return { deleted: uniqueIds.length }
+    }
+  },
+
   async listDepartments(): Promise<NativeDepartment[]> {
     try {
       return nativeDepartmentsSchema.parse(await request<unknown>('/departments'))

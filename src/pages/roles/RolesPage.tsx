@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pencil, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeRole, NativeRoleWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { RoleFormModal } from './RoleFormModal'
 
 type RoleFilters = { keyword: string }
@@ -15,15 +15,30 @@ export function RolesPage() {
   const [filters, setFilters] = useState<RoleFilters>(emptyFilters)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingRole, setEditingRole] = useState<NativeRole | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const query = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => id ? apiClient.updateRole(id, input) : apiClient.createRole(input),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['roles'] }); setModalMode(null); setEditingRole(null) },
   })
+  const deleteMutation = useMutation({
+    mutationFn: (ids: string[]) => apiClient.deleteRoles(ids),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['roles'] })
+      setSelectedIds([])
+      setDeleteOpen(false)
+    },
+  })
   const roles = useMemo(() => {
     const keyword = filters.keyword.toLocaleLowerCase()
     return (query.data ?? []).filter((role) => !keyword || `${role.code} ${role.name}`.toLocaleLowerCase().includes(keyword))
   }, [filters.keyword, query.data])
+  const allSelected = roles.length > 0 && roles.every((role) => selectedIds.includes(role.id))
+
+  useEffect(() => {
+    setSelectedIds([])
+  }, [filters])
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -43,6 +58,10 @@ export function RolesPage() {
   function openEdit(role: NativeRole) { saveMutation.reset(); setEditingRole(role); setModalMode('edit') }
   function closeModal() { if (saveMutation.isPending) return; setModalMode(null); setEditingRole(null) }
   async function submitRole(input: NativeRoleWriteInput) { try { await saveMutation.mutateAsync({ id: editingRole?.id, input }) } catch { /* 模态框保留错误和用户输入。 */ } }
+  function toggleRole(id: string, checked: boolean) { setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)) }
+  function toggleAllRoles(checked: boolean) { setSelectedIds(checked ? roles.map((role) => role.id) : []) }
+  function openDelete() { deleteMutation.reset(); setDeleteOpen(true) }
+  function closeDelete() { if (!deleteMutation.isPending) setDeleteOpen(false) }
 
   return (
     <div className="roles-page">
@@ -52,8 +71,10 @@ export function RolesPage() {
           <h1>角色管理</h1>
           <p className="page-description">查询角色状态、数据范围和权限数量。新增和编辑在模态框中完成。</p>
         </div>
-        <div className="heading-actions"><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增角色</Button><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
+        <div className="heading-actions"><Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除角色（{selectedIds.length}）</Button><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增角色</Button><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
       </div>
+
+      {deleteMutation.error ? <div className="error-panel roles-error" role="alert"><ShieldAlert size={19} /><div><strong>角色删除失败</strong><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : '请求失败'}</p></div></div> : null}
 
       <Card className="roles-filter-card">
         <form className="roles-filter-form" onSubmit={submitFilters}>
@@ -66,15 +87,16 @@ export function RolesPage() {
       {query.isError && !query.data ? <RoleError message={query.error instanceof Error ? query.error.message : '角色列表读取失败'} onRetry={refresh} /> : null}
       {query.data ? <Card className="roles-table-card">
         <CardHeader title="角色列表" description={`共 ${roles.length.toLocaleString('zh-CN')} 个匹配角色`} action={<Badge tone="info">Native API</Badge>} />
-        {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} onEdit={openEdit} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
+        {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending} onSelect={toggleRole} onEdit={openEdit} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
       </Card> : null}
       <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitRole} />
+      <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
     </div>
   )
 }
 
-function RoleRow({ role, onEdit }: { role: NativeRole; onEdit: (role: NativeRole) => void }) {
-  return <tr><td><div className="role-cell"><span className="role-cell-icon"><ShieldCheck size={16} /></span><div><strong>{role.name}</strong><small>{role.code}</small></div></div></td><td><Badge tone="neutral">{formatScope(role.dataScope)}</Badge></td><td>{role.deptScope || '—'}</td><td>{role.permissions.length}</td><td><Badge tone={role.enabled ? 'success' : 'warning'}>{role.enabled ? '启用' : '停用'}</Badge></td><td><Button variant="ghost" size="sm" onClick={() => onEdit(role)}><Pencil size={14} /> 编辑</Button></td></tr>
+function RoleRow({ role, selected, pending, onSelect, onEdit }: { role: NativeRole; selected: boolean; pending: boolean; onSelect: (id: string, checked: boolean) => void; onEdit: (role: NativeRole) => void }) {
+  return <tr><td><input type="checkbox" aria-label={`选择角色 ${role.code}`} checked={selected} onChange={(event) => onSelect(role.id, event.target.checked)} disabled={pending} /></td><td><div className="role-cell"><span className="role-cell-icon"><ShieldCheck size={16} /></span><div><strong>{role.name}</strong><small>{role.code}</small></div></div></td><td><Badge tone="neutral">{formatScope(role.dataScope)}</Badge></td><td>{role.deptScope || '—'}</td><td>{role.permissions.length}</td><td><Badge tone={role.enabled ? 'success' : 'warning'}>{role.enabled ? '启用' : '停用'}</Badge></td><td><Button variant="ghost" size="sm" onClick={() => onEdit(role)} disabled={pending}><Pencil size={14} /> 编辑</Button></td></tr>
 }
 
 // 只转换展示文字，实际范围标识继续使用 Native 返回值。

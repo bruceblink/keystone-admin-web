@@ -35,4 +35,21 @@ describe('RolesPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '保存角色' }))
     await waitFor(() => expect(createRole).toHaveBeenCalledWith({ code: 'auditor', name: '审计员', enabled: true }))
   })
+
+  it('确认后批量删除角色', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    const deleteRoles = vi.spyOn(apiClient, 'deleteRoles').mockResolvedValue({ deleted: 1 })
+    renderPage()
+
+    await screen.findByText('审计员')
+    fireEvent.click(screen.getByLabelText('选择角色 auditor'))
+    fireEvent.click(screen.getByRole('button', { name: '删除角色（1）' }))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('删除后不可恢复')
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(deleteRoles).toHaveBeenCalledWith([role.id]))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
 })
