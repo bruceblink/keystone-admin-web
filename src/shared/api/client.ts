@@ -253,7 +253,7 @@ export const apiClient = {
     const result = nativeMfaStepUpResultSchema.parse(await request<unknown>('/auth/mfa/step-up/verify', {
       method: 'POST',
       body: JSON.stringify({ challengeId, code }),
-    }))
+    }, false))
     accessToken = result.accessToken
     return result
   },
