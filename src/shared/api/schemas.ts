@@ -328,6 +328,21 @@ export const monitorSnapshotSchema = z.object({
 export type User = z.infer<typeof userSchema>
 export type NativeUser = z.infer<typeof nativeUserSchema>
 export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
+export type NativeUserWriteInput = {
+  username?: string
+  password?: string
+  displayName: string
+  deptId?: string | null
+  postId?: string | null
+  email?: string | null
+  phoneNumber?: string | null
+  sex?: number | null
+  avatar?: string | null
+  remark?: string | null
+  enabled?: boolean
+  clearDept?: boolean
+  roleCodes?: string[] | null
+}
 export type NativeRole = z.infer<typeof nativeRoleSchema>
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativeOperationLog = z.infer<typeof nativeOperationLogSchema>

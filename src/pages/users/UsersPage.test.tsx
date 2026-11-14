@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { UsersPage } from './UsersPage'
@@ -69,5 +69,36 @@ describe('UsersPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('无法读取用户列表')
     expect(screen.getByText('权限不足')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
+  })
+
+  it('通过模态框提交新增用户', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const createUser = vi.spyOn(apiClient, 'createUser').mockResolvedValue(userPage.items[0])
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /新增用户/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('用户名 *'), { target: { value: 'new-user' } })
+    fireEvent.change(within(dialog).getByLabelText('初始密码 *'), { target: { value: 'Strong-password-123!' } })
+    fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '新用户' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(createUser).toHaveBeenCalledWith(expect.objectContaining({ username: 'new-user', displayName: '新用户', roleCodes: [] })))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('编辑用户时保留空密码和角色字段语义', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '更新名称' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ displayName: '更新名称', password: undefined, roleCodes: null })))
   })
 })

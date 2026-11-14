@@ -98,6 +98,33 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
+  it('发送 Native 用户新增和编辑请求体', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      const body = JSON.parse(String(init?.body))
+      expect(body.displayName).toBe('新用户')
+      if (url.endsWith('/users')) {
+        expect(init?.method).toBe('POST')
+        expect(body.username).toBe('new-user')
+      } else {
+        expect(url).toBe('/api/v1/users/2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce')
+        expect(init?.method).toBe('PUT')
+        expect(body.password).toBeUndefined()
+        expect(body.roleCodes).toBeNull()
+      }
+      return ok({
+        id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', username: body.username ?? 'operator', displayName: body.displayName,
+        deptId: null, postId: null, enabled: true, email: null, phoneNumber: null, sex: null,
+        avatar: null, loginIp: null, loginAt: null, remark: null, roles: [],
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiClient.createUser({ username: 'new-user', password: 'Strong-password-123!', displayName: '新用户', roleCodes: [] })
+    await apiClient.updateUser('2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', { displayName: '新用户', roleCodes: null })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('按 Native 操作审计契约发送筛选和分页参数', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       expect(String(input)).toBe('/api/v1/operation-logs?page=2&size=20&actor=operator&action=UPDATE&resource=user')

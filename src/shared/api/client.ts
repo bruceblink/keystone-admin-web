@@ -4,6 +4,7 @@ import {
   monitorSnapshotSchema,
   nativeCacheInfoSchema,
   nativeUsersPageSchema,
+  nativeUserSchema,
   nativeOperationLogsPageSchema,
   nativeLoginLogsPageSchema,
   nativeJobsSchema,
@@ -21,6 +22,8 @@ import {
   nativeTokenSchema,
   userSchema,
   type NativeUsersPage,
+  type NativeUser,
+  type NativeUserWriteInput,
   type NativeOperationLogsPage,
   type NativeLoginLogsPage,
   type NativeJob,
@@ -246,6 +249,42 @@ export const apiClient = {
     } catch (error) {
       if (!mockFallbackEnabled()) throw error
       return createMockUsersPage(page, size)
+    }
+  },
+
+  async createUser(input: NativeUserWriteInput): Promise<NativeUser> {
+    try {
+      return nativeUserSchema.parse(await request<unknown>('/users', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeUserSchema.parse({
+        id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', username: input.username ?? 'new-user',
+        displayName: input.displayName, deptId: input.deptId ?? null, postId: input.postId ?? null,
+        enabled: input.enabled ?? true, email: input.email ?? null, phoneNumber: input.phoneNumber ?? null,
+        sex: input.sex ?? null, avatar: input.avatar ?? null, loginIp: null, loginAt: null,
+        remark: input.remark ?? null, roles: input.roleCodes ?? [],
+      })
+    }
+  },
+
+  async updateUser(id: string, input: NativeUserWriteInput): Promise<NativeUser> {
+    try {
+      return nativeUserSchema.parse(await request<unknown>(`/users/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      }))
+    } catch (error) {
+      if (!mockFallbackEnabled()) throw error
+      return nativeUserSchema.parse({
+        id, username: input.username ?? 'operator', displayName: input.displayName,
+        deptId: input.deptId ?? null, postId: input.postId ?? null, enabled: input.enabled ?? true,
+        email: input.email ?? null, phoneNumber: input.phoneNumber ?? null, sex: input.sex ?? null,
+        avatar: input.avatar ?? null, loginIp: null, loginAt: null, remark: input.remark ?? null,
+        roles: input.roleCodes ?? [],
+      })
     }
   },
 

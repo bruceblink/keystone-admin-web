@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { RefreshCw, Search, ShieldAlert, UsersRound } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Pencil, Plus, RefreshCw, Search, ShieldAlert, UsersRound } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
-import type { NativeUser } from '../../shared/api/schemas'
+import type { NativeUser, NativeUserWriteInput } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { UserFormModal } from './UserFormModal'
 
 const PAGE_SIZE = 20
 
@@ -15,13 +16,24 @@ type UserFilters = {
 const emptyFilters: UserFilters = { username: '', displayName: '' }
 
 export function UsersPage() {
+  const queryClient = useQueryClient()
   const [formFilters, setFormFilters] = useState<UserFilters>(emptyFilters)
   const [filters, setFilters] = useState<UserFilters>(emptyFilters)
   const [page, setPage] = useState(1)
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
+  const [editingUser, setEditingUser] = useState<NativeUser | null>(null)
   const query = useQuery({
     queryKey: ['users', filters, page],
     queryFn: () => apiClient.listUsers({ ...filters, page, size: PAGE_SIZE }),
     staleTime: 10_000,
+  })
+  const saveMutation = useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: NativeUserWriteInput }) => id ? apiClient.updateUser(id, input) : apiClient.createUser(input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
+      setModalMode(null)
+      setEditingUser(null)
+    },
   })
   const users = query.data?.items ?? []
   const total = query.data?.total ?? 0
@@ -49,15 +61,42 @@ export function UsersPage() {
     void query.refetch()
   }
 
+  function openCreate() {
+    saveMutation.reset()
+    setEditingUser(null)
+    setModalMode('create')
+  }
+
+  function openEdit(user: NativeUser) {
+    saveMutation.reset()
+    setEditingUser(user)
+    setModalMode('edit')
+  }
+
+  function closeModal() {
+    if (saveMutation.isPending) return
+    setModalMode(null)
+    setEditingUser(null)
+  }
+
+  async function submitUser(input: NativeUserWriteInput) {
+    try {
+      await saveMutation.mutateAsync({ id: editingUser?.id, input })
+    } catch {
+      // 模态框显示 mutation.error，保留表单内容供用户修正。
+    }
+  }
+
   return (
     <div className="users-page">
       <div className="page-heading">
         <div>
           <p className="eyebrow">IDENTITY / USERS</p>
           <h1>用户管理</h1>
-          <p className="page-description">查询用户身份、组织归属和授权角色。当前页面只提供查询能力。</p>
+          <p className="page-description">查询用户身份、组织归属和授权角色。新增和编辑在模态框中完成。</p>
         </div>
         <div className="heading-actions">
+          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增用户</Button>
           <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
             <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
           </Button>
@@ -112,10 +151,11 @@ export function UsersPage() {
                     <th scope="col">岗位</th>
                     <th scope="col">角色</th>
                     <th scope="col">状态</th>
+                    <th scope="col">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => <UserRow key={user.id} user={user} />)}
+                  {users.map((user) => <UserRow key={user.id} user={user} onEdit={openEdit} />)}
                 </tbody>
               </table>
             </div>
@@ -135,11 +175,12 @@ export function UsersPage() {
           </div>
         </Card>
       ) : null}
+      <UserFormModal open={modalMode !== null} mode={modalMode ?? 'create'} user={editingUser} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitUser} />
     </div>
   )
 }
 
-function UserRow({ user }: { user: NativeUser }) {
+function UserRow({ user, onEdit }: { user: NativeUser; onEdit: (user: NativeUser) => void }) {
   return (
     <tr>
       <td>
@@ -153,6 +194,7 @@ function UserRow({ user }: { user: NativeUser }) {
       <td>{user.postId ?? '—'}</td>
       <td>{user.roles.length > 0 ? user.roles.join('、') : '—'}</td>
       <td><Badge tone={user.enabled ? 'success' : 'neutral'}>{user.enabled ? '启用' : '停用'}</Badge></td>
+      <td><Button variant="ghost" size="sm" onClick={() => onEdit(user)}><Pencil size={14} /> 编辑</Button></td>
     </tr>
   )
 }
