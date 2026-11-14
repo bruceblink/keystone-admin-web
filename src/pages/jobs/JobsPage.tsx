@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { ClipboardList, Eye, RefreshCw, Search, ShieldAlert } from 'lucide-react'
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { ClipboardList, Eye, Pencil, Play, Plus, Power, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
-import type { NativeJob, NativeJobLog, NativeJobLogsPage } from '../../shared/api/schemas'
+import type { NativeJob, NativeJobLog, NativeJobLogsPage, NativeJobWriteInput } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { JobFormModal } from './JobFormModal'
 
 const PAGE_SIZE = 20
 function formatTime(value: string | null) {
@@ -14,11 +15,36 @@ function formatTime(value: string | null) {
 }
 
 export function JobsPage() {
+  const queryClient = useQueryClient()
   const [keyword, setKeyword] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
   const [selectedJob, setSelectedJob] = useState<NativeJob | null>(null)
   const [logPage, setLogPage] = useState(1)
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
+  const [editingJob, setEditingJob] = useState<NativeJob | null>(null)
   const query = useQuery({ queryKey: ['jobs'], queryFn: () => apiClient.listJobs(), staleTime: 10_000 })
+  const saveMutation = useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: NativeJobWriteInput }) => id ? apiClient.updateJob(id, input) : apiClient.createJob(input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      setModalMode(null)
+      setEditingJob(null)
+    },
+  })
+  const statusMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => apiClient.updateJobStatus(id, enabled),
+    onSuccess: async (updated) => {
+      setSelectedJob((current) => current?.id === updated.id ? updated : current)
+      await queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+  const triggerMutation = useMutation({
+    mutationFn: (id: string) => apiClient.triggerJob(id),
+    onSuccess: async (_, id) => {
+      await queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      await queryClient.invalidateQueries({ queryKey: ['job-logs', id] })
+    },
+  })
   const jobs = useMemo(() => {
     const normalized = appliedKeyword.toLocaleLowerCase()
     return (query.data ?? []).filter((job) => !normalized || `${job.code} ${job.name} ${job.group}`.toLocaleLowerCase().includes(normalized))
@@ -43,18 +69,59 @@ export function JobsPage() {
     setLogPage(1)
   }
 
+  function openCreate() {
+    saveMutation.reset()
+    setEditingJob(null)
+    setModalMode('create')
+  }
+
+  function openEdit(job: NativeJob) {
+    saveMutation.reset()
+    setEditingJob(job)
+    setModalMode('edit')
+  }
+
+  function closeModal() {
+    if (saveMutation.isPending) return
+    setModalMode(null)
+    setEditingJob(null)
+  }
+
+  async function submitJob(input: NativeJobWriteInput) {
+    try {
+      await saveMutation.mutateAsync({ id: editingJob?.id, input })
+    } catch {
+      // 保留模态框内容，让用户修正请求或重试。
+    }
+  }
+
+  function toggleJob(job: NativeJob) {
+    statusMutation.reset()
+    void statusMutation.mutateAsync({ id: job.id, enabled: !job.enabled }).catch(() => undefined)
+  }
+
+  function runJob(job: NativeJob) {
+    triggerMutation.reset()
+    void triggerMutation.mutateAsync(job.id).catch(() => undefined)
+  }
+
+  const actionPending = saveMutation.isPending || statusMutation.isPending || triggerMutation.isPending
+  const actionError = statusMutation.error instanceof Error ? statusMutation.error.message : triggerMutation.error instanceof Error ? triggerMutation.error.message : null
+
   return <div className="jobs-page">
-    <div className="page-heading"><div><p className="eyebrow">OPERATIONS / JOBS</p><h1>定时任务</h1><p className="page-description">查询任务配置、运行状态和执行日志。执行、暂停和删除将在后续模态框流程中完成。</p></div><div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新任务</Button></div></div>
+    <div className="page-heading"><div><p className="eyebrow">OPERATIONS / JOBS</p><h1>定时任务</h1><p className="page-description">查询任务配置、运行状态和执行日志。新增、编辑、启停和手动执行使用独立操作入口。</p></div><div className="heading-actions"><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增任务</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching || actionPending}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新任务</Button></div></div>
     <Card className="jobs-filter-card"><form className="jobs-filter-form" onSubmit={submit}><label><span>任务名称、编码或分组</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="按任务名称、编码或分组筛选" autoComplete="off" /></label><div className="jobs-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
+    {actionError ? <div className="error-panel jobs-error" role="alert"><ShieldAlert size={19} /><div><strong>任务操作失败</strong><p>{actionError}</p></div><Button variant="ghost" size="sm" onClick={() => { statusMutation.reset(); triggerMutation.reset() }}>关闭</Button></div> : null}
     {query.isLoading ? <div className="loading-panel jobs-loading"><Spinner label="正在读取任务列表" /></div> : null}
     {query.isError && !query.data ? <JobError message={query.error instanceof Error ? query.error.message : '任务列表读取失败'} onRetry={() => void query.refetch()} /> : null}
-    {query.data ? <Card className="jobs-table-card"><CardHeader title="任务列表" description={`共 ${jobs.length.toLocaleString('zh-CN')} 个匹配任务`} action={<Badge tone="info">Native API</Badge>} />{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th></tr></thead><tbody>{jobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} onSelect={() => selectJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}</Card> : null}
+    {query.data ? <Card className="jobs-table-card"><CardHeader title="任务列表" description={`共 ${jobs.length.toLocaleString('zh-CN')} 个匹配任务`} action={<Badge tone="info">Native API</Badge>} />{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th><th scope="col">操作</th></tr></thead><tbody>{jobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} pending={actionPending} onSelect={() => selectJob(job)} onEdit={() => openEdit(job)} onToggle={() => toggleJob(job)} onRun={() => runJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}</Card> : null}
     {selectedJob ? <JobLogsCard job={selectedJob} query={logsQuery} page={logPage} totalPages={totalPages} onPageChange={setLogPage} /> : null}
+    <JobFormModal open={modalMode !== null} mode={modalMode ?? 'create'} job={editingJob} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitJob} />
   </div>
 }
 
-function JobRow({ job, selected, onSelect }: { job: NativeJob; selected: boolean; onSelect: () => void }) {
-  return <tr className={selected ? 'jobs-row-selected' : undefined}><td><div className="job-cell"><span className="job-marker"><ClipboardList size={15} /></span><div><strong>{job.name}</strong><small>{job.code}</small></div></div></td><td>{job.group || '—'}</td><td><code className="job-cron">{job.cron}</code></td><td><Badge tone={job.enabled ? 'success' : 'neutral'}>{job.enabled ? '启用' : '停用'}</Badge>{job.lastStatus ? <span className="job-last-status">{formatJobStatus(job.lastStatus)}</span> : null}</td><td className="jobs-time">{formatTime(job.lastRunAt)}</td><td><Button variant="ghost" size="sm" onClick={onSelect}><Eye size={14} /> 日志</Button></td></tr>
+function JobRow({ job, selected, pending, onSelect, onEdit, onToggle, onRun }: { job: NativeJob; selected: boolean; pending: boolean; onSelect: () => void; onEdit: () => void; onToggle: () => void; onRun: () => void }) {
+  return <tr className={selected ? 'jobs-row-selected' : undefined}><td><div className="job-cell"><span className="job-marker"><ClipboardList size={15} /></span><div><strong>{job.name}</strong><small>{job.code}</small></div></div></td><td>{job.group || '—'}</td><td><code className="job-cron">{job.cron}</code></td><td><Badge tone={job.enabled ? 'success' : 'neutral'}>{job.enabled ? '启用' : '停用'}</Badge>{job.lastStatus ? <span className="job-last-status">{formatJobStatus(job.lastStatus)}</span> : null}</td><td className="jobs-time">{formatTime(job.lastRunAt)}</td><td><Button variant="ghost" size="sm" onClick={onSelect} disabled={pending}><Eye size={14} /> 日志</Button></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={onEdit} disabled={pending} title={`编辑 ${job.name}`}><Pencil size={14} /> 编辑</Button><Button variant="ghost" size="sm" onClick={onToggle} disabled={pending} title={job.enabled ? `停用 ${job.name}` : `启用 ${job.name}`}><Power size={14} /> {job.enabled ? '停用' : '启用'}</Button><Button variant="ghost" size="sm" onClick={onRun} disabled={pending || !job.enabled} title={`执行 ${job.name}`}><Play size={14} /> 执行</Button></div></td></tr>
 }
 
 function JobLogsCard({ job, query, page, totalPages, onPageChange }: { job: NativeJob; query: UseQueryResult<NativeJobLogsPage, Error>; page: number; totalPages: number; onPageChange: (page: number) => void }) {

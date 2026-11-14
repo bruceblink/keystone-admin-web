@@ -1,5 +1,5 @@
 import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { NativeApiKey, NativeDepartment, NativeDictionaryItem, NativeDictionaryItemWriteInput, NativeDictionaryType, NativeDictionaryTypeWriteInput, NativeJob, NativeLoginLogsPage, NativeMenuNode, NativeNotice, NativeNoticeWriteInput, NativeOperationLogsPage, NativeRole, NativeSystemConfig, NativeSystemConfigWriteInput, NativeUsersPage, User } from './schemas'
+import type { NativeApiKey, NativeDepartment, NativeDictionaryItem, NativeDictionaryItemWriteInput, NativeDictionaryType, NativeDictionaryTypeWriteInput, NativeJob, NativeJobTriggerResult, NativeJobWriteInput, NativeLoginLogsPage, NativeMenuNode, NativeNotice, NativeNoticeWriteInput, NativeOperationLogsPage, NativeRole, NativeSystemConfig, NativeSystemConfigWriteInput, NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -18,6 +18,7 @@ let mockSequence = 1000
 let mockSystemConfigs: NativeSystemConfig[] | null = null
 let mockDictionaryTypes: NativeDictionaryType[] | null = null
 let mockNotices: NativeNotice[] | null = null
+let mockJobs: NativeJob[] | null = null
 const mockDictionaryItems = new Map<string, NativeDictionaryItem[]>()
 
 function nextMockId(): string {
@@ -117,11 +118,60 @@ export function createMockLoginLogsPage(page = 1, size = 20): NativeLoginLogsPag
 }
 
 export function createMockJobs(): NativeJob[] {
-  return [{
+  mockJobs ??= [{
     id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM',
     invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false,
     enabled: true, remark: '开发环境示例任务', lastStatus: 'SUCCESS', lastRunAt: new Date().toISOString(),
   }]
+  return mockJobs.map(clone)
+}
+
+export function createMockJob(input: NativeJobWriteInput): NativeJob {
+  createMockJobs()
+  const job: NativeJob = {
+    id: nextMockId(), code: input.code ?? 'new-job', name: input.name, group: input.group ?? 'DEFAULT',
+    invokeTarget: input.invokeTarget, jobParams: input.jobParams ?? null, cron: input.cron,
+    concurrent: input.concurrent ?? false, enabled: input.enabled ?? true, remark: input.remark ?? null,
+    lastStatus: null, lastRunAt: null,
+  }
+  mockJobs?.push(job)
+  return clone(job)
+}
+
+export function updateMockJob(id: string, input: NativeJobWriteInput): NativeJob {
+  createMockJobs()
+  const index = mockJobs?.findIndex((job) => job.id === id) ?? -1
+  const current = index >= 0 && mockJobs ? mockJobs[index] : {
+    id, code: input.code ?? 'job', name: input.name, group: input.group ?? 'DEFAULT',
+    invokeTarget: input.invokeTarget, jobParams: input.jobParams ?? null, cron: input.cron,
+    concurrent: input.concurrent ?? false, enabled: input.enabled ?? true, remark: input.remark ?? null,
+    lastStatus: null, lastRunAt: null,
+  }
+  const job: NativeJob = {
+    ...current, name: input.name, group: input.group ?? current.group, invokeTarget: input.invokeTarget,
+    jobParams: input.jobParams ?? null, cron: input.cron, concurrent: input.concurrent ?? current.concurrent,
+    enabled: input.enabled ?? current.enabled, remark: input.remark ?? null,
+  }
+  if (mockJobs && index >= 0) mockJobs[index] = job
+  else mockJobs?.push(job)
+  return clone(job)
+}
+
+export function updateMockJobStatus(id: string, enabled: boolean): NativeJob {
+  const jobs = createMockJobs()
+  const index = jobs.findIndex((job) => job.id === id)
+  if (index < 0) return createMockJob({ code: id, name: '任务', group: 'DEFAULT', invokeTarget: 'keystoneJob.heartbeat()', cron: '0/30 * * * * ?', enabled })
+  const current = jobs[index]
+  const job = { ...current, enabled }
+  if (mockJobs) mockJobs[index] = job
+  return clone(job)
+}
+
+export function triggerMockJob(id: string): NativeJobTriggerResult {
+  createMockJobs()
+  const index = mockJobs?.findIndex((job) => job.id === id) ?? -1
+  if (mockJobs && index >= 0) mockJobs[index] = { ...mockJobs[index], lastStatus: 'SUCCESS', lastRunAt: new Date().toISOString() }
+  return { triggered: true }
 }
 
 export function createMockRoles(): NativeRole[] {

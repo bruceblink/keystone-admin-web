@@ -7,8 +7,6 @@ import {
   nativeUserSchema,
   nativeOperationLogsPageSchema,
   nativeLoginLogsPageSchema,
-  nativeJobsSchema,
-  nativeJobLogsPageSchema,
   nativeDepartmentsSchema,
   nativeDepartmentSchema,
   nativeMenusSchema,
@@ -34,8 +32,7 @@ import {
   type NativeUserWriteInput,
   type NativeOperationLogsPage,
   type NativeLoginLogsPage,
-  type NativeJob,
-  type NativeJobLogsPage,
+  type NativeJobWriteInput,
   type NativeDepartment,
   type NativeMenuNode,
   type NativeMenuWriteInput,
@@ -54,7 +51,8 @@ import {
   type NativeNoticeWriteInput,
   type User,
 } from './schemas'
-import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockJobs, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockRoles, createMockSystemConfigs, createMockUsersPage } from './mock'
+import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockRoles, createMockSystemConfigs, createMockUsersPage } from './mock'
+import { jobApi } from './jobClient'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
 
 const API_BASE = '/api/v1'
@@ -340,28 +338,17 @@ export const apiClient = {
     }
   },
 
-  async listJobs(): Promise<NativeJob[]> {
-    try {
-      return nativeJobsSchema.parse(await request<unknown>('/jobs'))
-    } catch (error) {
-      if (!mockFallbackEnabled()) throw error
-      return createMockJobs()
-    }
-  },
+  listJobs: () => jobApi.listJobs(request, mockFallbackEnabled),
 
-  async listJobLogs(filters: { jobId?: string; page?: number; size?: number } = {}): Promise<NativeJobLogsPage> {
-    const page = filters.page ?? 1
-    const size = filters.size ?? 20
-    const params = new URLSearchParams({ page: String(page), size: String(size) })
-    if (filters.jobId?.trim()) params.set('jobId', filters.jobId.trim())
+  listJobLogs: (filters: { jobId?: string; page?: number; size?: number } = {}) => jobApi.listJobLogs(request, mockFallbackEnabled, filters),
 
-    try {
-      return nativeJobLogsPageSchema.parse(await request<unknown>(`/jobs/logs?${params.toString()}`))
-    } catch (error) {
-      if (!mockFallbackEnabled()) throw error
-      return { items: [], page, size, total: 0 }
-    }
-  },
+  createJob: (input: NativeJobWriteInput) => jobApi.createJob(request, mockFallbackEnabled, input),
+
+  updateJob: (id: string, input: NativeJobWriteInput) => jobApi.updateJob(request, mockFallbackEnabled, id, input),
+
+  updateJobStatus: (id: string, enabled: boolean) => jobApi.updateJobStatus(request, mockFallbackEnabled, id, enabled),
+
+  triggerJob: (id: string) => jobApi.triggerJob(request, mockFallbackEnabled, id),
 
   async listRoles(): Promise<NativeRole[]> {
     try {

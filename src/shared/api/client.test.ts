@@ -256,6 +256,44 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
+  it('按 Native 任务写操作契约发送新增、编辑、状态和执行请求', async () => {
+    const id = '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a'
+    const baseJob = { id, code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: '2026-11-14T02:00:00Z' }
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      const body = init?.body ? JSON.parse(String(init.body)) : null
+      if (url.endsWith('/jobs') && init?.method === 'POST') {
+        expect(body).toMatchObject({ code: 'heartbeat', name: '系统心跳', cron: '0/30 * * * * ?' })
+        return ok(baseJob)
+      }
+      if (url.endsWith(`/jobs/${id}`) && init?.method === 'PUT') {
+        expect(body).toMatchObject({ name: '心跳任务', invokeTarget: 'keystoneJob.heartbeat()' })
+        return ok({ ...baseJob, name: body.name })
+      }
+      if (url.endsWith(`/jobs/${id}/status`)) {
+        expect(init?.method).toBe('PUT')
+        expect(body).toEqual({ enabled: false })
+        return ok({ ...baseJob, enabled: false })
+      }
+      if (url.endsWith(`/jobs/${id}/run`)) {
+        expect(init?.method).toBe('POST')
+        return ok({ triggered: true })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiClient.createJob({ code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true })
+    const updated = await apiClient.updateJob(id, { code: 'heartbeat', name: '心跳任务', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true })
+    const status = await apiClient.updateJobStatus(id, false)
+    const trigger = await apiClient.triggerJob(id)
+
+    expect(updated.name).toBe('心跳任务')
+    expect(status.enabled).toBe(false)
+    expect(trigger).toEqual({ triggered: true })
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
   it('读取 Native 配置、字典和管理公告契约', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)

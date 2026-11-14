@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { JobsPage } from './JobsPage'
@@ -19,5 +19,28 @@ describe('JobsPage', () => {
     expect(await screen.findByText('系统心跳')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /日志/ }))
     expect(await screen.findByText('任务执行成功')).toBeInTheDocument()
+  })
+
+  it('通过模态框新增任务并提供启停和手动执行入口', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: '2026-11-14T02:00:00Z' }
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue([job])
+    vi.spyOn(apiClient, 'createJob').mockResolvedValue({ ...job, id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: 'cache-refresh', name: '缓存刷新' })
+    vi.spyOn(apiClient, 'updateJobStatus').mockResolvedValue({ ...job, enabled: false })
+    vi.spyOn(apiClient, 'triggerJob').mockResolvedValue({ triggered: true })
+    renderPage()
+
+    expect(await screen.findByText('系统心跳')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /新增任务/ }))
+    fireEvent.change(screen.getByPlaceholderText('例如 refresh-cache'), { target: { value: 'cache-refresh' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '任务名称 *' }), { target: { value: '缓存刷新' } })
+    fireEvent.change(screen.getByPlaceholderText('keystoneJob.heartbeat()'), { target: { value: 'keystoneJob.refresh()' } })
+    fireEvent.change(screen.getByPlaceholderText('0/30 * * * * ?'), { target: { value: '0 0/5 * * * ?' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存任务' }))
+    await waitFor(() => expect(apiClient.createJob).toHaveBeenCalledWith(expect.objectContaining({ code: 'cache-refresh', name: '缓存刷新', cron: '0 0/5 * * * ?' })))
+
+    fireEvent.click(screen.getByTitle('停用 系统心跳'))
+    await waitFor(() => expect(apiClient.updateJobStatus).toHaveBeenCalledWith(job.id, false))
+    fireEvent.click(screen.getByTitle('执行 系统心跳'))
+    await waitFor(() => expect(apiClient.triggerJob).toHaveBeenCalledWith(job.id))
   })
 })

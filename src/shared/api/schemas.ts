@@ -285,6 +285,11 @@ export const nativeJobSchema = z.object({
 
 export const nativeJobsSchema = z.array(nativeJobSchema)
 
+/** Native 任务手动执行响应；只确认请求已提交，不把执行日志混入写操作响应。 */
+export const nativeJobTriggerResultSchema = z.object({
+  triggered: z.boolean(),
+})
+
 /** Native 任务执行日志分页记录。异常详情只读展示，不在前端执行。 */
 export const nativeJobLogSchema = z.object({
   id: z.string().uuid(),
@@ -372,6 +377,18 @@ export type NativeOperationLogsPage = z.infer<typeof nativeOperationLogsPageSche
 export type NativeLoginLog = z.infer<typeof nativeLoginLogSchema>
 export type NativeLoginLogsPage = z.infer<typeof nativeLoginLogsPageSchema>
 export type NativeJob = z.infer<typeof nativeJobSchema>
+export type NativeJobWriteInput = {
+  code?: string
+  name: string
+  group?: string
+  invokeTarget: string
+  jobParams?: string | null
+  cron: string
+  concurrent?: boolean
+  enabled?: boolean
+  remark?: string | null
+}
+export type NativeJobTriggerResult = z.infer<typeof nativeJobTriggerResultSchema>
 export type NativeJobLog = z.infer<typeof nativeJobLogSchema>
 export type NativeJobLogsPage = z.infer<typeof nativeJobLogsPageSchema>
 export type NativeApiKey = z.infer<typeof nativeApiKeySchema>
