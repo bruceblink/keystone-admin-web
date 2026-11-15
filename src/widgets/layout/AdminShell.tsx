@@ -35,7 +35,7 @@ export function AdminShell() {
       <aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-head"><div className="brand-mark"><Activity size={18} /></div><div><strong>KEYSTONE</strong><span>Admin Console</span></div><button className="mobile-close" onClick={() => setMobileOpen(false)} aria-label="关闭导航"><X size={20} /></button></div>
         <nav className="primary-nav" aria-label="主导航">
-          {navItems.map(({ to, label, icon: Icon }) => <Fragment key={to}>{to === '/audit/operations' ? <p className="nav-label nav-label-spaced">运维审计</p> : null}{to === '/configs' ? <p className="nav-label nav-label-spaced">系统</p> : null}<NavLink to={to} onClick={() => setMobileOpen(false)} className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}><Icon size={17} /><span>{label}</span></NavLink></Fragment>)}
+          {navItems.map(({ to, label, icon: Icon }) => <Fragment key={to}>{to === '/audit/operations' ? <p className="nav-label nav-label-spaced">运维审计</p> : null}<NavLink to={to} onClick={() => setMobileOpen(false)} className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}><Icon size={17} /><span>{label}</span></NavLink></Fragment>)}
         </nav>
         <div className="sidebar-foot"><div className="status-dot"><span /> API 正常</div><span className="sidebar-version">v0.1.0 · dev</span></div>
       </aside>
