@@ -33,8 +33,20 @@ export function MenusPage() {
     const allRows = flattenMenus(query.data ?? [])
     const normalized = appliedKeyword.toLocaleLowerCase()
     if (!normalized) return allRows
-    const matching = new Set(allRows.filter((row) => `${row.menu.code} ${row.menu.name} ${row.menu.permission ?? ''}`.toLocaleLowerCase().includes(normalized)).map((row) => row.menu.id))
-    return allRows.filter((row) => matching.has(row.menu.id) || (row.menu.parentId && matching.has(row.menu.parentId)))
+    const byId = new Map(allRows.map((row) => [row.menu.id, row.menu]))
+    const matching = allRows.filter((row) => `${row.menu.code} ${row.menu.name} ${row.menu.permission ?? ''}`.toLocaleLowerCase().includes(normalized))
+    const visibleIds = new Set<string>()
+    for (const row of matching) {
+      // 搜索命中深层节点时保留完整祖先链，避免树形路径断裂。
+      let current: NativeMenu | undefined = row.menu
+      const seen = new Set<string>()
+      while (current && !seen.has(current.id)) {
+        seen.add(current.id)
+        visibleIds.add(current.id)
+        current = current.parentId ? byId.get(current.parentId) : undefined
+      }
+    }
+    return allRows.filter((row) => visibleIds.has(row.menu.id))
   }, [appliedKeyword, query.data])
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
