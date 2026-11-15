@@ -1,14 +1,17 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Activity, ArrowRight, KeyRound, LockKeyhole, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { ApiError } from '../../shared/api/errors'
 import { getMfaLoginChallenge } from '../../shared/api/client'
 import type { NativeMfaLoginChallenge } from '../../shared/api/schemas'
 import { useSessionStore } from '../../shared/state/session'
-import { Button, Card, Spinner } from '../../shared/ui'
+import { Button, Card, Modal, Spinner } from '../../shared/ui'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const login = useSessionStore((state) => state.login)
+  const user = useSessionStore((state) => state.user)
+  const isHydrated = useSessionStore((state) => state.isHydrated)
   const verifyMfaLogin = useSessionStore((state) => state.verifyMfaLogin)
   const sessionMessage = useSessionStore((state) => state.message)
   const [username, setUsername] = useState('operator')
@@ -18,21 +21,30 @@ export function LoginPage() {
   const [mfaChallenge, setMfaChallenge] = useState<NativeMfaLoginChallenge | null>(null)
   const [mfaCode, setMfaCode] = useState('')
   const [mfaError, setMfaError] = useState<string | null>(null)
+  const [mfaForceLogin, setMfaForceLogin] = useState(false)
+  const [forceLoginOpen, setForceLoginOpen] = useState(false)
   const [isMfaSubmitting, setIsMfaSubmitting] = useState(false)
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  useEffect(() => {
+    if (isHydrated && user) navigate('/monitor', { replace: true })
+  }, [isHydrated, navigate, user])
+
+  async function submitLogin(forceLogin: boolean) {
     setError(null)
     setMfaError(null)
     setIsSubmitting(true)
     try {
-      await login(username.trim(), password)
+      await login(username.trim(), password, forceLogin)
+      setForceLoginOpen(false)
       navigate('/monitor', { replace: true })
     } catch (submitError) {
       const challenge = getMfaLoginChallenge(submitError)
       if (challenge) {
         setMfaChallenge(challenge)
+        setMfaForceLogin(forceLogin)
         setMfaCode('')
+      } else if (submitError instanceof ApiError && submitError.status === 409) {
+        setForceLoginOpen(true)
       } else {
         setError(submitError instanceof Error ? submitError.message : '登录失败，请稍后重试')
       }
@@ -41,13 +53,22 @@ export function LoginPage() {
     }
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await submitLogin(false)
+  }
+
+  async function handleForceLogin() {
+    await submitLogin(true)
+  }
+
   async function handleMfaSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!mfaChallenge || !mfaCode.trim()) return
     setMfaError(null)
     setIsMfaSubmitting(true)
     try {
-      await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim())
+      await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim(), mfaForceLogin)
       navigate('/monitor', { replace: true })
     } catch (submitError) {
       setMfaError(submitError instanceof Error ? submitError.message : '二次认证失败，请重试')
@@ -58,9 +79,12 @@ export function LoginPage() {
 
   function restartLogin() {
     setMfaChallenge(null)
+    setMfaForceLogin(false)
     setMfaCode('')
     setMfaError(null)
   }
+
+  if (!isHydrated || user) return <main className="login-page"><div className="page-center"><Spinner label={user ? '正在进入管理台' : '正在恢复会话'} /></div></main>
 
   return (
     <main className="login-page">
@@ -108,6 +132,9 @@ export function LoginPage() {
           )}
           <p className="login-footnote"><KeyRound size={14} /> 访问令牌只保存在当前页面内存，页面刷新后需要重新登录。</p>
         </Card>
+        <Modal open={forceLoginOpen} title="账号已有活动会话" description="该账号已经在其他位置登录。你可以取消本次登录，或强制接管已有会话。" onClose={() => setForceLoginOpen(false)} footer={<><Button type="button" variant="ghost" onClick={() => setForceLoginOpen(false)} disabled={isSubmitting}>取消登录</Button><Button type="button" onClick={() => void handleForceLogin()} disabled={isSubmitting}>{isSubmitting ? '接管中…' : '强制登录'}</Button></>}>
+          <p className="login-session-warning" role="status">强制登录会使该账号的其他活动会话失效。</p>
+        </Modal>
       </div>
     </main>
   )

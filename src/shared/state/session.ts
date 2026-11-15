@@ -7,8 +7,8 @@ type SessionState = {
   user: User | null
   isHydrated: boolean
   message: string | null
-  login: (username: string, password: string) => Promise<void>
-  verifyMfaLogin: (username: string, challengeId: string, clientId: string, code: string) => Promise<void>
+  login: (username: string, password: string, forceLogin?: boolean) => Promise<void>
+  verifyMfaLogin: (username: string, challengeId: string, clientId: string, code: string, forceLogin?: boolean) => Promise<void>
   restore: () => Promise<void>
   logout: () => Promise<void>
   clearSession: (message: string) => void
@@ -19,12 +19,12 @@ export const useSessionStore = create<SessionState>((set) => ({
   user: null,
   isHydrated: false,
   message: null,
-  login: async (username, password) => {
-    const result = await apiClient.login(username, password)
+  login: async (username, password, forceLogin = false) => {
+    const result = await apiClient.login(username, password, forceLogin)
     set({ user: result.user, message: null })
   },
-  verifyMfaLogin: async (username, challengeId, clientId, code) => {
-    const result = await apiClient.verifyMfaLogin(username, challengeId, clientId, code)
+  verifyMfaLogin: async (username, challengeId, clientId, code, forceLogin = false) => {
+    const result = await apiClient.verifyMfaLogin(username, challengeId, clientId, code, forceLogin)
     set({ user: result.user, message: null })
   },
   restore: async () => {

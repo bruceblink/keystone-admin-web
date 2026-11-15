@@ -229,11 +229,11 @@ export function getMfaLoginChallenge(error: unknown): NativeMfaLoginChallenge | 
 }
 
 export const apiClient = {
-  async login(username: string, password: string): Promise<{ accessToken: string; user: User }> {
+  async login(username: string, password: string, forceLogin = false): Promise<{ accessToken: string; user: User }> {
     try {
       const token = nativeTokenSchema.parse(await request<unknown>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password, clientId: CLIENT_ID }),
+        body: JSON.stringify({ username, password, forceLogin, clientId: CLIENT_ID }),
       }))
       const user = applyToken(token)
       return { accessToken: token.accessToken, user }
@@ -243,10 +243,10 @@ export const apiClient = {
     }
   },
 
-  async verifyMfaLogin(username: string, challengeId: string, clientId: string, code: string): Promise<{ accessToken: string; user: User }> {
+  async verifyMfaLogin(username: string, challengeId: string, clientId: string, code: string, forceLogin = false): Promise<{ accessToken: string; user: User }> {
     const token = nativeTokenSchema.parse(await request<unknown>('/auth/mfa/verify', {
       method: 'POST',
-      body: JSON.stringify({ username, challengeId, clientId, code }),
+      body: JSON.stringify({ username, challengeId, clientId, code, forceLogin }),
     }, false))
     const user = applyToken(token)
     return { accessToken: token.accessToken, user }

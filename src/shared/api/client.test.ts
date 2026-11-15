@@ -70,7 +70,7 @@ describe('Native API client', () => {
       }
       if (url.endsWith('/auth/mfa/verify')) {
         expect(init?.method).toBe('POST')
-        expect(init?.body).toBe(JSON.stringify({ username: 'operator', challengeId: 'challenge-login', clientId: 'web', code: '123456' }))
+        expect(init?.body).toBe(JSON.stringify({ username: 'operator', challengeId: 'challenge-login', clientId: 'web', code: '123456', forceLogin: false }))
         return ok(token)
       }
       throw new Error(`unexpected request: ${url}`)
