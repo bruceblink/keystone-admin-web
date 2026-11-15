@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RolesPage } from './RolesPage'
 import { apiClient } from '../../shared/api/client'
+import { ApiError } from '../../shared/api/errors'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -60,5 +61,24 @@ describe('RolesPage', () => {
     await screen.findByText('没有匹配的角色')
     fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }))
     await waitFor(() => expect(exportRoles).toHaveBeenCalledOnce())
+  })
+
+  it('刷新失败时保留已有角色并提供重试入口', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    const listRoles = vi.spyOn(apiClient, 'listRoles')
+      .mockResolvedValueOnce([role])
+      .mockRejectedValueOnce(new ApiError('服务暂时不可用', 503, 'service_unavailable'))
+      .mockResolvedValueOnce([role])
+    renderPage()
+
+    expect(await screen.findByText('审计员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '刷新列表' }))
+    expect(await screen.findByText('数据刷新失败')).toBeInTheDocument()
+    expect(screen.getByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument()
+    expect(screen.getByText('审计员')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    await waitFor(() => expect(listRoles).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.queryByText('数据刷新失败')).not.toBeInTheDocument())
   })
 })

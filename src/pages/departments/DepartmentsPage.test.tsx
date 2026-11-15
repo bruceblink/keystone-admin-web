@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DepartmentsPage } from './DepartmentsPage'
 import { apiClient } from '../../shared/api/client'
+import { ApiError } from '../../shared/api/errors'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -66,5 +67,24 @@ describe('DepartmentsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
 
     await waitFor(() => expect(deleteDepartment).toHaveBeenCalledWith(department.id))
+  })
+
+  it('刷新失败时保留已有组织树并提供重试入口', async () => {
+    const department = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true }
+    const listDepartments = vi.spyOn(apiClient, 'listDepartments')
+      .mockResolvedValueOnce([department])
+      .mockRejectedValueOnce(new ApiError('服务暂时不可用', 503, 'service_unavailable'))
+      .mockResolvedValueOnce([department])
+    renderPage()
+
+    expect(await screen.findByText('运营部')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '刷新结构' }))
+    expect(await screen.findByText('数据刷新失败')).toBeInTheDocument()
+    expect(screen.getByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument()
+    expect(screen.getByText('运营部')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    await waitFor(() => expect(listDepartments).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.queryByText('数据刷新失败')).not.toBeInTheDocument())
   })
 })
