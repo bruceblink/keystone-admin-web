@@ -126,7 +126,7 @@ python3 keystone-phoenix/scripts/check_error_code_catalog.py \
   --admin-root keystone-admin-web
 ```
 
-2026-11-16 验证结果：admin-web `dd1b280`、Phoenix `56ba348`、Native `7cb6533` 已登记相同的规范服务端代码 `21` 个；其中 Phoenix `56ba348` 后的集合包含 `mfa_invalid_code`、`mfa_state_conflict` 和 `https_required`。客户端本地代码为 `4` 个，三项目集合与默认状态 `21/21` 一致；文档、TypeScript 类型检查、构建和真实浏览器验收仍按本计划分别执行。
+2026-11-16 验证结果：admin-web `dd1b280`/`9e6e5e9`、Phoenix `56ba348`、Native `7cb6533` 已登记相同的规范服务端代码 `21` 个；其中 Phoenix `56ba348` 后的集合包含 `mfa_invalid_code`、`mfa_state_conflict` 和 `https_required`，admin-web `9e6e5e9` 为缺少业务码的失败响应补充 `invalid_response`。客户端本地代码为 `4` 个，三项目集合与默认状态 `21/21` 一致；文档、TypeScript 类型检查、构建和真实浏览器验收仍按本计划分别执行。
 
 ### 令牌处理
 
