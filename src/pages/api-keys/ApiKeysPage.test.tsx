@@ -53,6 +53,7 @@ describe('ApiKeysPage', () => {
     renderPage()
 
     await screen.findByText('没有匹配的 API Key')
+    expect(screen.queryByRole('button', { name: '配置接口权限' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '签发 API Key' }))
     const issueDialog = screen.getByRole('dialog', { name: '签发 API Key' })
     fireEvent.change(within(issueDialog).getByLabelText('密钥名称 *'), { target: { value: 'deploy' } })

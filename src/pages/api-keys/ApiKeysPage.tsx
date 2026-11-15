@@ -52,7 +52,7 @@ export function ApiKeysPage() {
           <h1>API Key 管理</h1>
           <p className="page-description">查询当前账号的机器凭据、授权范围和生命周期状态。密钥明文只在签发时返回一次。</p>
         </div>
-        <div className="heading-actions"><Button size="sm" onClick={() => { issueMutation.reset(); setIssueOpen(true) }}>配置接口权限</Button><Button variant="secondary" size="sm" onClick={() => { issueMutation.reset(); setIssueOpen(true) }}>签发 API Key</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
+        <div className="heading-actions"><Button size="sm" onClick={() => { issueMutation.reset(); setIssueOpen(true) }}>签发 API Key</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
       </div>
 
       {issuedKey ? <div className="secret-banner" role="alert"><div><strong>请立即保存这枚 API Key</strong><p>明文只在当前页面内存中展示一次。关闭提示后不会再次读取。</p><code>{issuedKey.apiKey}</code></div><Button variant="ghost" size="sm" onClick={() => setIssuedKey(null)}>关闭</Button></div> : null}
