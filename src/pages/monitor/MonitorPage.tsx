@@ -67,7 +67,7 @@ export function MonitorPage() {
         <p className="sr-only" aria-live="polite">{summary}</p>
         <div className="monitor-grid">
           <section className="monitor-main">
-            <Card className="trend-card"><CardHeader title="主机资源趋势" description="最近 30 分钟 · 百分比" action={<div className="node-chip"><Server size={14} /> {snapshot.node}</div>} /><TrendChart data={snapshot.trend} /><div className="trend-summary"><div><span className="line-key line-key-cyan" />CPU <strong>{formatPercent(snapshot.cpu)}</strong></div><div><span className="line-key line-key-indigo" />内存 <strong>{formatPercent(snapshot.memory)}</strong></div><span className="threshold-note">关注阈值 80%</span></div></Card>
+            <Card className="trend-card"><CardHeader title="主机资源趋势" description="最近 30 分钟 · 采样百分比" action={<div className="node-chip"><Server size={14} /> {snapshot.node}</div>} /><TrendChart data={snapshot.trend} /><div className="trend-summary"><div><span className="line-key line-key-cyan" />CPU <strong>{formatPercent(snapshot.cpu)}</strong></div><div><span className="line-key line-key-indigo" />内存 <strong>{formatPercent(snapshot.memory)}</strong></div><span className="threshold-note">关注阈值 80% · 来源：系统 API</span></div></Card>
             <div className="metric-grid">
               <MetricCard icon={<Activity size={18} />} label="CPU 使用率" value={formatPercent(snapshot.cpu)} detail={snapshot.cpu == null ? '系统 API 未提供' : '系统负载'} tone="cyan" progress={snapshot.cpu} />
               <MetricCard icon={<MemoryStick size={18} />} label="主机内存" value={formatPercent(snapshot.memory)} detail="Java 堆已使用" tone="indigo" progress={snapshot.memory} />

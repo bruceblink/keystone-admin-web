@@ -1,6 +1,6 @@
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from 'echarts/components'
 import { SVGRenderer } from 'echarts/renderers'
 
 let configured = false
@@ -8,7 +8,7 @@ let configured = false
 /** 只注册运行监控趋势图所需模块，避免加载 ECharts 其他图表类型。 */
 export function initTrendChart(element: HTMLDivElement) {
   if (!configured) {
-    echarts.use([LineChart, GridComponent, LegendComponent, TooltipComponent, SVGRenderer])
+    echarts.use([LineChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, SVGRenderer])
     configured = true
   }
   return echarts.init(element, undefined, { renderer: 'svg' })
