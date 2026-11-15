@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { apiClient } from '../api/client'
+import { queryClient } from '../query/queryClient'
 import type { User } from '../api/schemas'
 
 type SessionState = {
@@ -32,6 +33,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
   logout: async () => {
     await apiClient.logout()
+    queryClient.clear()
     set({ user: null, message: '会话已退出' })
   },
   clearSession: (message) => set({ user: null, message }),

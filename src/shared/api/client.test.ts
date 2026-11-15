@@ -87,6 +87,20 @@ describe('Native API client', () => {
     await expect(apiClient.verifyMfaLogin('operator', 'challenge-login', 'web', '123456')).resolves.toMatchObject({ user: { username: 'operator' } })
   })
 
+  it('按 401 和 challenge DTO 识别 Phoenix 的 MFA 登录响应', () => {
+    const challenge = getMfaLoginChallenge(new ApiError('需要二次认证', 401, 'invalid_credential', {
+      challengeId: 'phoenix-challenge',
+      clientId: 'web',
+      expiresAt: '2026-11-14T03:00:00Z',
+    }))
+
+    expect(challenge).toEqual({
+      challengeId: 'phoenix-challenge',
+      clientId: 'web',
+      expiresAt: '2026-11-14T03:00:00Z',
+    })
+  })
+
   it('按 Native step-up 契约创建挑战并只替换短时 AAL2 access token', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)

@@ -205,7 +205,8 @@ function mockXlsx(filename: string): { blob: Blob; filename: string } {
 }
 
 export function getMfaLoginChallenge(error: unknown): NativeMfaLoginChallenge | null {
-  if (!(error instanceof ApiError) || error.status !== 401 || error.message !== 'MFA_REQUIRED') return null
+  // Native 和 Phoenix 的可读 message 不同，认证挑战由 401 和统一 challenge DTO 判定。
+  if (!(error instanceof ApiError) || error.status !== 401) return null
   const challenge = nativeMfaLoginChallengeSchema.safeParse(error.data)
   return challenge.success ? challenge.data : null
 }

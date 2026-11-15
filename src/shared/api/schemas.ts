@@ -234,7 +234,14 @@ export const nativeApiKeySchema = z.object({
 export const nativeApiKeysSchema = z.array(nativeApiKeySchema)
 
 /** API Key 签发或轮换返回值；apiKey 只允许在签发响应中存在一次。 */
-export const nativeIssuedApiKeySchema = nativeApiKeySchema.extend({ apiKey: z.string().min(1) })
+export const nativeIssuedApiKeySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  prefix: z.string(),
+  apiKey: z.string().min(1),
+  scopes: z.array(z.string()),
+  expiresAt: z.string().nullable(),
+})
 
 /** Native 系统配置记录；敏感配置的值仍由后端按权限返回。 */
 export const nativeSystemConfigSchema = z.object({
