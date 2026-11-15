@@ -15,6 +15,7 @@ const statusLabels = { LIVE: 'LIVE', STALE: 'STALE', OFFLINE: 'OFFLINE', PARTIAL
 export function MonitorPage() {
   const [selectedSession, setSelectedSession] = useState<SessionSummary | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [helpOpen, setHelpOpen] = useState(false)
   const stepUp = useMfaStepUp()
   const clearSession = useSessionStore((state) => state.clearSession)
   const query = useQuery({ queryKey: ['monitor', 'snapshot'], queryFn: apiClient.getMonitorSnapshot, refetchInterval: 15_000, staleTime: 10_000 })
@@ -54,8 +55,9 @@ export function MonitorPage() {
     <div className="monitor-page">
       <div className="page-heading">
         <div><p className="eyebrow">OPERATIONS / MONITORING</p><h1>运行监控</h1><p className="page-description">快速判断平台健康，定位异常，并处理在线会话。</p></div>
-        <div className="heading-actions"><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新快照</Button><Button variant="ghost" size="sm" aria-label="监控帮助"><CircleHelp size={17} /></Button></div>
+        <div className="heading-actions"><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新快照</Button><Button variant="ghost" size="sm" aria-label="监控帮助" aria-expanded={helpOpen} onClick={() => setHelpOpen((current) => !current)}><CircleHelp size={17} /></Button></div>
       </div>
+      {helpOpen ? <div className="monitor-help-panel" role="note"><CircleHelp size={17} /><div><strong>如何阅读监控</strong><p>状态和趋势来自系统 API。显示“—”表示当前后端没有提供该指标；PARTIAL 表示部分节点数据可用。</p></div><Button variant="ghost" size="sm" aria-label="关闭监控帮助" onClick={() => setHelpOpen(false)}>关闭</Button></div> : null}
       <div className="monitor-status-bar">
         <div className="status-leading"><span className={`status-pulse status-pulse-${statusTone(computedStatus)}`} /><Badge tone={statusTone(computedStatus)}>{statusLabels[computedStatus]}</Badge><span>{statusMessage(computedStatus)}</span></div>
         <div className="status-meta"><span>{snapshot ? `最后更新 ${formatDateTime(snapshot.capturedAt)}` : '等待快照'}</span><span className="status-source">来源：{snapshot?.source ?? '系统 API'}</span></div>
