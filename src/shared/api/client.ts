@@ -95,6 +95,17 @@ function mockFallbackEnabled(): boolean {
 function shouldMockFallback(error: unknown): boolean {
   return mockFallbackEnabled() && error instanceof ApiError && error.status === 0
 }
+
+function serverApiError(envelope: ReturnType<typeof apiEnvelopeSchema.parse>, status: number): ApiError {
+  const error = envelope.error
+  return new ApiError(envelope.message, status, error?.code, envelope.data, {
+    source: 'server',
+    requestId: error?.requestId,
+    details: error?.details,
+    fields: error?.fields,
+    retryAfterSeconds: error?.retryAfterSeconds,
+  })
+}
 /** 会话刷新失败时通知状态层，避免模块内令牌已清理但页面仍保留旧用户。 */
 export function setSessionExpiredHandler(handler: (() => void) | null): void {
   sessionExpiredHandler = handler
@@ -103,7 +114,7 @@ function unwrap<T>(body: unknown, status: number): T {
   const envelope = apiEnvelopeSchema.safeParse(body)
   if (!envelope.success) return body as T
   if (!envelope.data.success) {
-    throw new ApiError(envelope.data.message, status, envelope.data.error?.code, envelope.data.data)
+    throw serverApiError(envelope.data, status)
   }
   return envelope.data.data as T
 }
@@ -136,9 +147,8 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   if (!response.ok) {
     const envelope = apiEnvelopeSchema.safeParse(body)
     const message = envelope.success ? envelope.data.message : `请求失败（${response.status}）`
-    const code = envelope.success ? envelope.data.error?.code : undefined
-    const data = envelope.success ? envelope.data.data : undefined
-    throw new ApiError(message, response.status, code, data)
+    if (envelope.success) throw serverApiError(envelope.data, response.status)
+    throw new ApiError(message, response.status, undefined, undefined, { source: 'server' })
   }
 
   if (response.status === 204) return undefined as T
@@ -165,9 +175,8 @@ async function requestFile(path: string, init: RequestInit = {}, retry = true): 
     const body = await readJson(response)
     const envelope = apiEnvelopeSchema.safeParse(body)
     const message = envelope.success ? envelope.data.message : `请求失败（${response.status}）`
-    const code = envelope.success ? envelope.data.error?.code : undefined
-    const data = envelope.success ? envelope.data.data : undefined
-    throw new ApiError(message, response.status, code, data)
+    if (envelope.success) throw serverApiError(envelope.data, response.status)
+    throw new ApiError(message, response.status, undefined, undefined, { source: 'server' })
   }
   return response
 }

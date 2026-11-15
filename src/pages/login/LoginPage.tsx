@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Activity, ArrowRight, KeyRound, LockKeyhole, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { ApiError } from '../../shared/api/errors'
+import { formatApiError, isActiveSessionConflict } from '../../shared/api/errors'
 import { getMfaLoginChallenge } from '../../shared/api/client'
 import type { NativeMfaLoginChallenge } from '../../shared/api/schemas'
 import { useSessionStore } from '../../shared/state/session'
@@ -47,11 +47,11 @@ export function LoginPage() {
         setMfaChallenge(challenge)
         setMfaForceLogin(forceLogin)
         setMfaCode('')
-      } else if (submitError instanceof ApiError && submitError.status === 409) {
+      } else if (isActiveSessionConflict(submitError)) {
         setForceLoginOpen(true)
         setForceLoginMode('password')
       } else {
-        setError(submitError instanceof Error ? submitError.message : '登录失败，请稍后重试')
+        setError(formatApiError(submitError, '登录失败，请稍后重试'))
       }
     } finally {
       setIsSubmitting(false)
@@ -81,7 +81,7 @@ export function LoginPage() {
       setForceLoginMode(null)
       navigate('/monitor', { replace: true })
     } catch (submitError) {
-      setMfaError(submitError instanceof Error ? submitError.message : '二次认证失败，请重试')
+      setMfaError(formatApiError(submitError, '二次认证失败，请重试'))
     } finally {
       setIsMfaSubmitting(false)
     }
@@ -96,11 +96,11 @@ export function LoginPage() {
       await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim(), mfaForceLogin)
       navigate('/monitor', { replace: true })
     } catch (submitError) {
-      if (submitError instanceof ApiError && submitError.status === 409) {
+      if (isActiveSessionConflict(submitError)) {
         setForceLoginMode('mfa')
         setForceLoginOpen(true)
       } else {
-        setMfaError(submitError instanceof Error ? submitError.message : '二次认证失败，请重试')
+        setMfaError(formatApiError(submitError, '二次认证失败，请重试'))
       }
     } finally {
       setIsMfaSubmitting(false)

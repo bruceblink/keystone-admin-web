@@ -57,7 +57,13 @@ export const apiEnvelopeSchema = z.object({
   success: z.boolean(),
   data: z.unknown().nullable(),
   message: z.string(),
-  error: z.object({ code: z.string() }).nullable().optional(),
+  error: z.object({
+    code: z.string(),
+    requestId: z.string().optional(),
+    details: z.unknown().optional(),
+    fields: z.record(z.string(), z.unknown()).optional(),
+    retryAfterSeconds: z.number().nonnegative().optional(),
+  }).nullable().optional(),
 })
 
 export const nativeServerInfoSchema = z.object({

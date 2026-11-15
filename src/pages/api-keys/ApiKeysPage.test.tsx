@@ -46,7 +46,7 @@ describe('ApiKeysPage', () => {
     vi.spyOn(apiClient, 'listApiKeys').mockResolvedValue([])
     vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([{ permission: 'api-key:create', resource: 'api-key', action: 'create', description: 'api-key create', risk: 'medium', registered: true, allowed: true }, { permission: 'user:read', resource: 'user', action: 'read', description: 'user read', risk: 'low', registered: true, allowed: true }])
     const issueApiKey = vi.spyOn(apiClient, 'issueApiKey')
-      .mockRejectedValueOnce(new ApiError('recent MFA step-up is required', 403, 'permission_denied'))
+      .mockRejectedValueOnce(new ApiError('recent MFA step-up is required', 403, 'mfa_step_up_required'))
       .mockResolvedValueOnce({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', name: 'deploy', prefix: 'dep', apiKey: 'ks_live_once', scopes: ['api-key:create'], expiresAt: null })
     const beginMfaStepUp = vi.spyOn(apiClient, 'beginMfaStepUp').mockResolvedValue({ challengeId: 'challenge-1', clientId: 'web', expiresAt: '2026-11-14T03:00:00Z' })
     const verifyMfaStepUp = vi.spyOn(apiClient, 'verifyMfaStepUp').mockResolvedValue({ accessToken: 'aal2-access', expiresIn: 300, authenticationLevel: 'AAL2', amr: 'otp' })

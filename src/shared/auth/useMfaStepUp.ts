@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { apiClient } from '../api/client'
-import { ApiError } from '../api/errors'
+import { ApiError, formatApiError } from '../api/errors'
 import type { NativeMfaStepUpChallenge } from '../api/schemas'
 
 type Operation<T> = () => Promise<T>
@@ -84,14 +84,14 @@ export function useMfaStepUp() {
 /** 只识别服务端明确返回的最近 MFA step-up 要求，避免把普通权限错误误导入 MFA 流程。 */
 export function isMfaStepUpRequired(error: unknown): error is ApiError {
   if (!(error instanceof ApiError) || error.status !== 403) return false
-  const message = error.message.toLocaleLowerCase()
-  return error.code === 'permission_denied' && /mfa|step[ -]?up/.test(message)
+  return error.code === 'mfa_step_up_required' || error.code === 'mfa_required'
 }
 
 function isStepUpVerificationError(error: unknown): boolean {
-  return error instanceof ApiError && (error.status === 401 || error.status === 422 || error.status === 429)
+  if (!(error instanceof ApiError)) return false
+  return ['mfa_invalid_code', 'mfa_challenge_invalid', 'invalid_credential', 'invalid_credentials', 'validation_failed', 'rate_limited'].includes(error.code ?? '')
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'MFA 验证失败，请重试。'
+  return formatApiError(error, 'MFA 验证失败，请重试。')
 }
