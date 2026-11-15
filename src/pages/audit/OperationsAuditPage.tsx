@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Download, RefreshCw, Search, ShieldAlert } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeOperationLog } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 const PAGE_SIZE = 20
 
@@ -14,6 +15,8 @@ type OperationFilters = {
 }
 
 const emptyFilters: OperationFilters = { actor: '', action: '', resource: '' }
+const urlDefaults = { actor: '', action: '', resource: '', page: 1 }
+const urlOptions = { namespace: 'operations_audit' }
 
 // 将 Native ISO 时间统一为管理台可读格式，保留无效值用于排查。
 function formatCreatedAt(value: string | null): string {
@@ -23,9 +26,10 @@ function formatCreatedAt(value: string | null): string {
 }
 
 export function OperationsAuditPage() {
-  const [formFilters, setFormFilters] = useState<OperationFilters>(emptyFilters)
-  const [filters, setFilters] = useState<OperationFilters>(emptyFilters)
-  const [page, setPage] = useState(1)
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { actor, action, resource, page } = urlState
+  const filters: OperationFilters = { actor, action, resource }
+  const [formFilters, setFormFilters] = useState<OperationFilters>(() => filters)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const query = useQuery({
@@ -42,20 +46,23 @@ export function OperationsAuditPage() {
     return `共 ${total.toLocaleString('zh-CN')} 条操作记录`
   }, [query.isError, query.isLoading, total])
 
+  useEffect(() => {
+    setFormFilters({ actor, action, resource })
+  }, [actor, action, resource])
+
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFilters({
+    setUrlState({
       actor: formFilters.actor.trim(),
       action: formFilters.action.trim(),
       resource: formFilters.resource.trim(),
+      page: 1,
     })
-    setPage(1)
   }
 
   function resetFilters() {
     setFormFilters(emptyFilters)
-    setFilters(emptyFilters)
-    setPage(1)
+    setUrlState(urlDefaults)
   }
 
   function refresh() {
@@ -174,8 +181,8 @@ export function OperationsAuditPage() {
           <div className="audit-pagination">
             <span>第 {query.data.page} / {totalPages} 页</span>
             <div>
-              <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((current) => current - 1)}>上一页</Button>
-              <Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setPage((current) => current + 1)}>下一页</Button>
+              <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button>
+              <Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button>
             </div>
           </div>
         </Card>

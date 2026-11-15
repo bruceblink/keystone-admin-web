@@ -9,9 +9,24 @@ function renderPage() {
   return render(<QueryClientProvider client={queryClient}><JobsPage /></QueryClientProvider>)
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  window.history.replaceState({}, '', '/')
+})
 
 describe('JobsPage', () => {
+  it('从 URL 恢复任务筛选、分页和日志任务', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    window.history.replaceState({}, '', `/jobs?jobs_keyword=heart&jobs_jobPage=2&jobs_selectedJobId=${job.id}&jobs_logPage=2`)
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue([job])
+    const listJobLogs = vi.spyOn(apiClient, 'listJobLogs').mockResolvedValue({ items: [], page: 2, size: 20, total: 21 })
+    renderPage()
+
+    expect(screen.getByLabelText('任务名称、编码或分组')).toHaveValue('heart')
+    expect(await screen.findByText('系统心跳')).toBeInTheDocument()
+    await waitFor(() => expect(listJobLogs).toHaveBeenLastCalledWith({ jobId: job.id, page: 2, size: 20 }))
+  })
+
   it('任务列表按 20 条分页并显示当前页状态', async () => {
     const jobs = Array.from({ length: 21 }, (_, index) => ({
       id: `8d30e3aa-0c16-4d66-bf42-9b2f84f5a5${String(index + 10).padStart(2, '0')}`,

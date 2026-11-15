@@ -9,7 +9,10 @@ function renderPage() {
   return render(<QueryClientProvider client={queryClient}><LoginLogsPage /></QueryClientProvider>)
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  window.history.replaceState({}, '', '/')
+})
 
 describe('LoginLogsPage', () => {
   it('显示登录状态和来源信息', async () => {

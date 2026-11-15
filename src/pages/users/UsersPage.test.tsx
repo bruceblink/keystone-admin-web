@@ -34,9 +34,20 @@ function renderPage() {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  window.history.replaceState({}, '', '/')
 })
 
 describe('UsersPage', () => {
+  it('从 URL 恢复筛选条件和分页', async () => {
+    window.history.replaceState({}, '', '/users?users_username=alice&users_displayName=Alice&users_page=2')
+    const listUsers = vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    renderPage()
+
+    expect(screen.getByLabelText('用户名')).toHaveValue('alice')
+    expect(screen.getByLabelText('展示名')).toHaveValue('Alice')
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith({ username: 'alice', displayName: 'Alice', page: 2, size: 20 }))
+  })
+
   it('显示 Native 用户并按筛选条件查询下一页', async () => {
     const listUsers = vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
     renderPage()

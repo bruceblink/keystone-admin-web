@@ -6,6 +6,7 @@ import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { UserFormModal } from './UserFormModal'
 import { UserImportModal } from './UserImportModal'
 
@@ -17,13 +18,16 @@ type UserFilters = {
 }
 
 const emptyFilters: UserFilters = { username: '', displayName: '' }
+const urlDefaults = { username: '', displayName: '', page: 1 }
+const urlOptions = { namespace: 'users' }
 
 export function UsersPage() {
   const queryClient = useQueryClient()
   const stepUp = useMfaStepUp()
-  const [formFilters, setFormFilters] = useState<UserFilters>(emptyFilters)
-  const [filters, setFilters] = useState<UserFilters>(emptyFilters)
-  const [page, setPage] = useState(1)
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { page, username, displayName } = urlState
+  const filters: UserFilters = { username, displayName }
+  const [formFilters, setFormFilters] = useState<UserFilters>(() => filters)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingUser, setEditingUser] = useState<NativeUser | null>(null)
   const [importOpen, setImportOpen] = useState(false)
@@ -67,7 +71,11 @@ export function UsersPage() {
 
   useEffect(() => {
     setSelectedIds([])
-  }, [filters, page])
+  }, [username, displayName, page])
+
+  useEffect(() => {
+    setFormFilters({ username, displayName })
+  }, [username, displayName])
 
   const resultDescription = useMemo(() => {
     if (query.isLoading) return '正在读取系统 API'
@@ -77,14 +85,12 @@ export function UsersPage() {
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFilters({ username: formFilters.username.trim(), displayName: formFilters.displayName.trim() })
-    setPage(1)
+    setUrlState({ username: formFilters.username.trim(), displayName: formFilters.displayName.trim(), page: 1 })
   }
 
   function resetFilters() {
     setFormFilters(emptyFilters)
-    setFilters(emptyFilters)
-    setPage(1)
+    setUrlState(urlDefaults)
   }
 
   function refresh() {
@@ -268,8 +274,8 @@ export function UsersPage() {
           <div className="users-pagination">
             <span>第 {query.data.page} / {totalPages} 页</span>
             <div>
-              <Button variant="ghost" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || query.isFetching}>上一页</Button>
-              <Button variant="secondary" size="sm" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages || query.isFetching}>下一页</Button>
+              <Button variant="ghost" size="sm" onClick={() => setUrlState({ page: Math.max(1, page - 1) })} disabled={page <= 1 || query.isFetching}>上一页</Button>
+              <Button variant="secondary" size="sm" onClick={() => setUrlState({ page: Math.min(totalPages, page + 1) })} disabled={page >= totalPages || query.isFetching}>下一页</Button>
             </div>
           </div>
         </Card>

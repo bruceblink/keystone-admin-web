@@ -4,9 +4,12 @@ import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tan
 import { apiClient } from '../../shared/api/client'
 import type { NativeJob, NativeJobLog, NativeJobLogsPage, NativeJobWriteInput } from '../../shared/api/schemas'
 import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { JobFormModal } from './JobFormModal'
 
 const PAGE_SIZE = 20
+const urlDefaults = { keyword: '', jobPage: 1, logPage: 1, selectedJobId: '' }
+const urlOptions = { namespace: 'jobs' }
 function formatTime(value: string | null) {
   // 统一任务和任务日志时间显示，避免页面直接暴露原始时区字符串。
   if (!value) return '—'
@@ -16,11 +19,10 @@ function formatTime(value: string | null) {
 
 export function JobsPage() {
   const queryClient = useQueryClient()
-  const [keyword, setKeyword] = useState('')
-  const [appliedKeyword, setAppliedKeyword] = useState('')
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { keyword: appliedKeyword, jobPage, logPage, selectedJobId } = urlState
+  const [keyword, setKeyword] = useState(appliedKeyword)
   const [selectedJob, setSelectedJob] = useState<NativeJob | null>(null)
-  const [jobPage, setJobPage] = useState(1)
-  const [logPage, setLogPage] = useState(1)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingJob, setEditingJob] = useState<NativeJob | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -30,7 +32,7 @@ export function JobsPage() {
     mutationFn: ({ id, input }: { id?: string; input: NativeJobWriteInput }) => id ? apiClient.updateJob(id, input) : apiClient.createJob(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['jobs'] })
-      setJobPage(1)
+      setUrlState({ jobPage: 1 })
       setModalMode(null)
       setEditingJob(null)
     },
@@ -40,7 +42,7 @@ export function JobsPage() {
     onSuccess: async (updated) => {
       setSelectedJob((current) => current?.id === updated.id ? updated : current)
       await queryClient.invalidateQueries({ queryKey: ['jobs'] })
-      setJobPage(1)
+      setUrlState({ jobPage: 1 })
     },
   })
   const triggerMutation = useMutation({
@@ -48,10 +50,10 @@ export function JobsPage() {
     onSuccess: async (_, id) => {
       await queryClient.invalidateQueries({ queryKey: ['jobs'] })
       await queryClient.invalidateQueries({ queryKey: ['job-logs', id] })
-      setJobPage(1)
+      setUrlState({ jobPage: 1 })
     },
   })
-  const deleteMutation = useMutation({ mutationFn: (ids: string[]) => apiClient.deleteJobs(ids), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['jobs'] }); setJobPage(1); setSelectedIds([]); setDeleteOpen(false) } })
+  const deleteMutation = useMutation({ mutationFn: (ids: string[]) => apiClient.deleteJobs(ids), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['jobs'] }); setUrlState({ jobPage: 1 }); setSelectedIds([]); setDeleteOpen(false) } })
   const jobs = useMemo(() => {
     const normalized = appliedKeyword.toLocaleLowerCase()
     return (query.data ?? []).filter((job) => !normalized || `${job.code} ${job.name} ${job.group}`.toLocaleLowerCase().includes(normalized))
@@ -64,28 +66,37 @@ export function JobsPage() {
   const visibleJobs = jobs.slice((currentJobPage - 1) * PAGE_SIZE, currentJobPage * PAGE_SIZE)
   const allSelected = visibleJobs.length > 0 && visibleJobs.every((job) => selectedIds.includes(job.id))
 
-  useEffect(() => { setSelectedIds([]); setJobPage(1) }, [appliedKeyword])
-  useEffect(() => { if (jobPage !== currentJobPage) setJobPage(currentJobPage) }, [currentJobPage, jobPage])
+  useEffect(() => { setSelectedIds([]) }, [appliedKeyword])
+  useEffect(() => { if (jobPage !== currentJobPage) setUrlState({ jobPage: currentJobPage }) }, [currentJobPage, jobPage])
+  useEffect(() => { setKeyword(appliedKeyword) }, [appliedKeyword])
+  useEffect(() => {
+    if (!selectedJobId) {
+      setSelectedJob(null)
+      return
+    }
+    const job = (query.data ?? []).find((item) => item.id === selectedJobId) ?? null
+    setSelectedJob(job)
+  }, [query.data, selectedJobId])
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setAppliedKeyword(keyword.trim())
+    setUrlState({ keyword: keyword.trim(), jobPage: 1 })
   }
 
   function reset() {
     setKeyword('')
-    setAppliedKeyword('')
+    setUrlState(urlDefaults)
   }
 
   function refreshJobs() {
-    setJobPage(1)
+    setUrlState({ jobPage: 1 })
     void query.refetch()
   }
 
   function selectJob(job: NativeJob) {
     // 选择任务后从第一页读取其日志，避免沿用上一个任务的分页位置。
     setSelectedJob(job)
-    setLogPage(1)
+    setUrlState({ selectedJobId: job.id, logPage: 1 })
   }
 
   function openCreate() {
@@ -140,8 +151,8 @@ export function JobsPage() {
     {query.isLoading ? <div className="loading-panel jobs-loading"><Spinner label="正在读取任务列表" /></div> : null}
     {query.isError && !query.data ? <JobError message={query.error instanceof Error ? query.error.message : '任务列表读取失败'} onRetry={() => void query.refetch()} /> : null}
     {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '任务列表刷新失败'} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-    {query.data ? <Card className="jobs-table-card"><CardHeader title="任务列表" description={`共 ${jobs.length.toLocaleString('zh-CN')} 个匹配任务`} action={<Badge tone="info">系统 API</Badge>} />{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前任务" checked={allSelected} onChange={(event) => toggleAllJobs(event.target.checked)} disabled={actionPending || deleteMutation.isPending} /></th><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th><th scope="col">操作</th></tr></thead><tbody>{visibleJobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} selectedForDelete={selectedIds.includes(job.id)} pending={actionPending || deleteMutation.isPending} onSelect={() => selectJob(job)} onSelectForDelete={toggleJobSelection} onEdit={() => openEdit(job)} onToggle={() => toggleJob(job)} onRun={() => runJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}{jobs.length > PAGE_SIZE ? <div className="jobs-pagination"><span>第 {currentJobPage} / {jobTotalPages} 页</span><div><Button variant="ghost" size="sm" disabled={currentJobPage <= 1 || query.isFetching} onClick={() => setJobPage((page) => Math.max(1, page - 1))}>上一页</Button><Button variant="ghost" size="sm" disabled={currentJobPage >= jobTotalPages || query.isFetching} onClick={() => setJobPage((page) => Math.min(jobTotalPages, page + 1))}>下一页</Button></div></div> : null}</Card> : null}
-    {selectedJob ? <JobLogsCard job={selectedJob} query={logsQuery} page={logPage} totalPages={totalPages} onPageChange={setLogPage} /> : null}
+    {query.data ? <Card className="jobs-table-card"><CardHeader title="任务列表" description={`共 ${jobs.length.toLocaleString('zh-CN')} 个匹配任务`} action={<Badge tone="info">系统 API</Badge>} />{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前任务" checked={allSelected} onChange={(event) => toggleAllJobs(event.target.checked)} disabled={actionPending || deleteMutation.isPending} /></th><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th><th scope="col">操作</th></tr></thead><tbody>{visibleJobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} selectedForDelete={selectedIds.includes(job.id)} pending={actionPending || deleteMutation.isPending} onSelect={() => selectJob(job)} onSelectForDelete={toggleJobSelection} onEdit={() => openEdit(job)} onToggle={() => toggleJob(job)} onRun={() => runJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}{jobs.length > PAGE_SIZE ? <div className="jobs-pagination"><span>第 {currentJobPage} / {jobTotalPages} 页</span><div><Button variant="ghost" size="sm" disabled={currentJobPage <= 1 || query.isFetching} onClick={() => setUrlState({ jobPage: Math.max(1, jobPage - 1) })}>上一页</Button><Button variant="ghost" size="sm" disabled={currentJobPage >= jobTotalPages || query.isFetching} onClick={() => setUrlState({ jobPage: Math.min(jobTotalPages, jobPage + 1) })}>下一页</Button></div></div> : null}</Card> : null}
+    {selectedJob ? <JobLogsCard job={selectedJob} query={logsQuery} page={logPage} totalPages={totalPages} onPageChange={(nextPage) => setUrlState({ logPage: nextPage })} /> : null}
     <JobFormModal open={modalMode !== null} mode={modalMode ?? 'create'} job={editingJob} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitJob} />
     <DeleteConfirmModal open={deleteOpen} resourceLabel="任务" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
   </div>

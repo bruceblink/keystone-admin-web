@@ -23,6 +23,7 @@ function renderPage() {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  window.history.replaceState({}, '', '/')
 })
 
 describe('OperationsAuditPage', () => {
