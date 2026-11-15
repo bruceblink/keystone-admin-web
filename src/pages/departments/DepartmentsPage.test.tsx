@@ -36,6 +36,23 @@ describe('DepartmentsPage', () => {
     await waitFor(() => expect(createDepartment).toHaveBeenCalledWith({ code: 'OPS', name: '运营部', parentId: null, sortOrder: 1, enabled: true }))
   })
 
+  it('筛选三级组织时保留全部祖先节点', async () => {
+    const root = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'HQ', name: '总部', sortOrder: 1, enabled: true } as const
+    const child = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: root.id, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true } as const
+    const grandchild = { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', parentId: child.id, code: 'AUDIT', name: '审计组', sortOrder: 1, enabled: true } as const
+    vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([root, child, grandchild])
+    renderPage()
+
+    await screen.findByText('审计组')
+    fireEvent.change(screen.getByLabelText('组织名称或编码'), { target: { value: 'AUDIT' } })
+    fireEvent.click(screen.getByRole('button', { name: '查询' }))
+
+    expect(screen.getByText('总部')).toBeInTheDocument()
+    expect(screen.getByText('运营部')).toBeInTheDocument()
+    expect(screen.getByText('审计组')).toBeInTheDocument()
+    expect(screen.getByText('共 3 个组织节点')).toBeInTheDocument()
+  })
+
   it('确认后删除组织', async () => {
     const department = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true }
     vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([department])

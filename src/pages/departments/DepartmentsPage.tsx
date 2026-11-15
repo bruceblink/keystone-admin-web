@@ -31,8 +31,20 @@ export function DepartmentsPage() {
     const allRows = flattenDepartments(query.data ?? [])
     const normalized = appliedKeyword.toLocaleLowerCase()
     if (!normalized) return allRows
-    const matchingIds = new Set(allRows.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase().includes(normalized)).map((row) => row.id))
-    return allRows.filter((row) => matchingIds.has(row.id) || (row.parentId && matchingIds.has(row.parentId)))
+    const byId = new Map(allRows.map((row) => [row.id, row]))
+    const matchingRows = allRows.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase().includes(normalized))
+    const visibleIds = new Set<string>()
+    for (const row of matchingRows) {
+      // 搜索命中深层组织时保留完整祖先链，避免层级路径断裂。
+      let current: DepartmentRow | undefined = row
+      const seen = new Set<string>()
+      while (current && !seen.has(current.id)) {
+        seen.add(current.id)
+        visibleIds.add(current.id)
+        current = current.parentId ? byId.get(current.parentId) : undefined
+      }
+    }
+    return allRows.filter((row) => visibleIds.has(row.id))
   }, [appliedKeyword, query.data])
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
