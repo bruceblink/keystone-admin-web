@@ -12,7 +12,7 @@ Admin Web 使用 Phoenix 主目录 `keystone-phoenix/docs/11-business-error-code
 | `BUSINESS_ERROR_CATALOG` | 21 个代码的默认状态、业务条件、提示键和安全标志 | 按代码反查业务条件和安全页面提示 |
 | `CLIENT_ERROR_CODES` | `network_error`、`invalid_response`、`mfa_step_up_in_progress`、`mfa_step_up_cancelled` | 表示前端请求、响应解析或 MFA 状态机失败，不发布为服务端代码 |
 
-`getBusinessErrorDefinition(code)` 是前端的反查入口。`ApiError` 原样保留服务端的 HTTP 状态、错误码、请求标识和诊断字段；页面可以根据反查结果生成安全提示，但不能把默认状态改成另一个状态。
+`getBusinessErrorDefinition(code)` 是前端的元数据反查入口；`lookupBusinessError(code)` 返回包含规范化 `code` 和 `meaning` 的完整目录项，适合生成排错信息。`errorDiagnostic(error)` 会把业务错误码、业务含义和可用的 `requestId` 组合为可复制的诊断文本。`ApiError` 原样保留服务端的 HTTP 状态、错误码、请求标识和诊断字段；页面可以根据反查结果生成安全提示，但不能把默认状态改成另一个状态。
 
 ## 兼容范围
 

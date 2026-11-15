@@ -36,6 +36,10 @@ export type BusinessErrorDefinition = {
   safeMessage: boolean
 }
 
+export type BusinessErrorLookup = BusinessErrorDefinition & {
+  code: ServerErrorCode
+}
+
 /** 跨项目业务错误目录；HTTP 状态是默认值，实际响应状态由接口保持现有约定。 */
 export const BUSINESS_ERROR_CATALOG: Record<ServerErrorCode, BusinessErrorDefinition> = {
   authentication_required: { httpStatus: 401, meaning: '请求缺少有效认证', retryable: false, messageKey: 'error.authentication_required', safeMessage: true },
@@ -63,9 +67,17 @@ export const BUSINESS_ERROR_CATALOG: Record<ServerErrorCode, BusinessErrorDefini
 
 /** 通过错误码反查业务含义，未知代码返回 undefined。 */
 export function getBusinessErrorDefinition(code: string | undefined): BusinessErrorDefinition | undefined {
-  return code && code in BUSINESS_ERROR_CATALOG
-    ? BUSINESS_ERROR_CATALOG[code as ServerErrorCode]
-    : undefined
+  return lookupBusinessError(code)
+}
+
+/**
+ * 通过错误码反查完整目录项。
+ * 入口统一去除首尾空格，调用方可以直接使用返回的 code 和 meaning 生成排错提示。
+ */
+export function lookupBusinessError(code: string | undefined): BusinessErrorLookup | undefined {
+  const normalized = code?.trim()
+  if (!normalized || !(normalized in BUSINESS_ERROR_CATALOG)) return undefined
+  return { code: normalized as ServerErrorCode, ...BUSINESS_ERROR_CATALOG[normalized as ServerErrorCode] }
 }
 
 const clientErrorCodeSet = new Set<string>(CLIENT_ERROR_CODES)
@@ -109,7 +121,12 @@ export function formatApiError(error: unknown, fallback = '请求失败，请稍
 /** 为错误面板提供可复制的稳定诊断标识。 */
 export function errorDiagnostic(error: unknown): string | null {
   if (!(error instanceof ApiError)) return null
-  const parts = [error.code, error.requestId ? `requestId=${error.requestId}` : null].filter(Boolean)
+  const definition = lookupBusinessError(error.code)
+  const parts = [
+    error.code,
+    definition?.meaning,
+    error.requestId ? `requestId=${error.requestId}` : null,
+  ].filter(Boolean)
   return parts.length > 0 ? parts.join(' · ') : null
 }
 

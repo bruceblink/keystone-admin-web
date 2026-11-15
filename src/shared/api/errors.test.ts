@@ -5,6 +5,7 @@ import {
   formatApiError,
   getBusinessErrorDefinition,
   isActiveSessionConflict,
+  lookupBusinessError,
 } from './errors'
 
 describe('ApiError', () => {
@@ -22,7 +23,7 @@ describe('ApiError', () => {
     expect(error.details).toEqual({ sessionCount: 1 })
     expect(error.retryAfterSeconds).toBe(3)
     expect(formatApiError(error)).toBe('该账号已经在其他位置登录')
-    expect(errorDiagnostic(error)).toBe('active_session_conflict · requestId=request-1')
+    expect(errorDiagnostic(error)).toBe('active_session_conflict · 账号已有活动会话 · requestId=request-1')
   })
 
   it('将客户端本地错误码标记为 client 来源', () => {
@@ -44,5 +45,14 @@ describe('ApiError', () => {
       messageKey: 'error.active_session_conflict',
     })
     expect(getBusinessErrorDefinition('unknown_code')).toBeUndefined()
+  })
+
+  it('反查时规范化错误码并返回可用于排错的代码和业务含义', () => {
+    expect(lookupBusinessError(' permission_denied ')).toMatchObject({
+      code: 'permission_denied',
+      meaning: '没有执行该操作的权限',
+      httpStatus: 403,
+    })
+    expect(lookupBusinessError(undefined)).toBeUndefined()
   })
 })
