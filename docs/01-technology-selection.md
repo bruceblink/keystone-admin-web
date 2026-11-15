@@ -114,6 +114,20 @@ API 的 `/api/v1` 前缀、UUID 字符串、分页结构、错误分类和 XLSX 
 前端的 `API Client` 只做入口校验、错误映射、超时和取消。权限和数据范围以 Native API
 返回为准。前端隐藏按钮不能视为授权控制。
 
+### 业务错误码目录基线
+
+跨项目主目录位于 `keystone-phoenix/docs/11-business-error-code-catalog.md`，本项目引用说明位于 [`02-business-error-code-catalog.md`](02-business-error-code-catalog.md)。`SERVER_ERROR_CODES` 和 `BUSINESS_ERROR_CATALOG` 当前包含 21 个服务端代码；`CLIENT_ERROR_CODES` 保留 4 个前端本地代码。`getBusinessErrorDefinition` 按代码反查业务条件，`ApiError` 保留服务端原始 HTTP 状态和错误码。页面不根据可读消息猜码，也不把默认状态改成其他状态。
+
+三个仓库的静态检查命令为：
+
+```sh
+python3 keystone-phoenix/scripts/check_error_code_catalog.py \
+  --native-root keystone-native \
+  --admin-root keystone-admin-web
+```
+
+2026-11-16 验证结果：admin-web `dd1b280`、Phoenix `56ba348`、Native `7cb6533` 已登记相同的规范服务端代码 `21` 个；其中 Phoenix `56ba348` 后的集合包含 `mfa_invalid_code`、`mfa_state_conflict` 和 `https_required`。客户端本地代码为 `4` 个，三项目集合与默认状态 `21/21` 一致；文档、TypeScript 类型检查、构建和真实浏览器验收仍按本计划分别执行。
+
 ### 令牌处理
 
 - access token 和 refresh token 只保存在当前页面内存中的 session store；Native 当前返回
