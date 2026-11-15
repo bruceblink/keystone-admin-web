@@ -71,6 +71,21 @@ describe('UsersPage', () => {
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
   })
 
+  it('刷新已有用户数据失败时保留列表并提供重试入口', async () => {
+    const listUsers = vi.spyOn(apiClient, 'listUsers')
+      .mockResolvedValueOnce(userPage)
+      .mockRejectedValueOnce(new ApiError('服务暂时不可用', 503, 'service_unavailable'))
+    renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /刷新列表/ }))
+
+    expect(await screen.findByText('数据刷新失败')).toBeInTheDocument()
+    expect(screen.getByText('服务暂时不可用')).toBeInTheDocument()
+    expect(screen.getByText('平台运维员')).toBeInTheDocument()
+    expect(listUsers).toHaveBeenCalledTimes(2)
+  })
+
   it('通过模态框提交新增用户', async () => {
     vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
     const createUser = vi.spyOn(apiClient, 'createUser').mockResolvedValue(userPage.items[0])
