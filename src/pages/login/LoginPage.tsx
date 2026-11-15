@@ -23,6 +23,7 @@ export function LoginPage() {
   const [mfaError, setMfaError] = useState<string | null>(null)
   const [mfaForceLogin, setMfaForceLogin] = useState(false)
   const [forceLoginOpen, setForceLoginOpen] = useState(false)
+  const [forceLoginMode, setForceLoginMode] = useState<'password' | 'mfa' | null>(null)
   const [isMfaSubmitting, setIsMfaSubmitting] = useState(false)
 
   useEffect(() => {
@@ -36,15 +37,19 @@ export function LoginPage() {
     try {
       await login(username.trim(), password, forceLogin)
       setForceLoginOpen(false)
+      setForceLoginMode(null)
       navigate('/monitor', { replace: true })
     } catch (submitError) {
       const challenge = getMfaLoginChallenge(submitError)
       if (challenge) {
+        setForceLoginOpen(false)
+        setForceLoginMode(null)
         setMfaChallenge(challenge)
         setMfaForceLogin(forceLogin)
         setMfaCode('')
       } else if (submitError instanceof ApiError && submitError.status === 409) {
         setForceLoginOpen(true)
+        setForceLoginMode('password')
       } else {
         setError(submitError instanceof Error ? submitError.message : '登录失败，请稍后重试')
       }
@@ -59,7 +64,27 @@ export function LoginPage() {
   }
 
   async function handleForceLogin() {
+    if (forceLoginMode === 'mfa') {
+      await handleForceMfaLogin()
+      return
+    }
     await submitLogin(true)
+  }
+
+  async function handleForceMfaLogin() {
+    if (!mfaChallenge || !mfaCode.trim()) return
+    setMfaError(null)
+    setIsMfaSubmitting(true)
+    try {
+      await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim(), true)
+      setForceLoginOpen(false)
+      setForceLoginMode(null)
+      navigate('/monitor', { replace: true })
+    } catch (submitError) {
+      setMfaError(submitError instanceof Error ? submitError.message : '二次认证失败，请重试')
+    } finally {
+      setIsMfaSubmitting(false)
+    }
   }
 
   async function handleMfaSubmit(event: FormEvent<HTMLFormElement>) {
@@ -71,7 +96,12 @@ export function LoginPage() {
       await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim(), mfaForceLogin)
       navigate('/monitor', { replace: true })
     } catch (submitError) {
-      setMfaError(submitError instanceof Error ? submitError.message : '二次认证失败，请重试')
+      if (submitError instanceof ApiError && submitError.status === 409) {
+        setForceLoginMode('mfa')
+        setForceLoginOpen(true)
+      } else {
+        setMfaError(submitError instanceof Error ? submitError.message : '二次认证失败，请重试')
+      }
     } finally {
       setIsMfaSubmitting(false)
     }
@@ -82,7 +112,16 @@ export function LoginPage() {
     setMfaForceLogin(false)
     setMfaCode('')
     setMfaError(null)
+    setForceLoginOpen(false)
+    setForceLoginMode(null)
   }
+
+  function cancelForceLogin() {
+    setForceLoginOpen(false)
+    setForceLoginMode(null)
+  }
+
+  const forceLoginPending = forceLoginMode === 'mfa' ? isMfaSubmitting : isSubmitting
 
   if (!isHydrated || user) return <main className="login-page"><div className="page-center"><Spinner label={user ? '正在进入管理台' : '正在恢复会话'} /></div></main>
 
@@ -132,7 +171,7 @@ export function LoginPage() {
           )}
           <p className="login-footnote"><KeyRound size={14} /> 访问令牌只保存在当前页面内存，页面刷新后需要重新登录。</p>
         </Card>
-        <Modal open={forceLoginOpen} title="账号已有活动会话" description="该账号已经在其他位置登录。你可以取消本次登录，或强制接管已有会话。" onClose={() => setForceLoginOpen(false)} footer={<><Button type="button" variant="ghost" onClick={() => setForceLoginOpen(false)} disabled={isSubmitting}>取消登录</Button><Button type="button" onClick={() => void handleForceLogin()} disabled={isSubmitting}>{isSubmitting ? '接管中…' : '强制登录'}</Button></>}>
+        <Modal open={forceLoginOpen} title="账号已有活动会话" description="该账号已经在其他位置登录。你可以取消本次登录，或强制接管已有会话。" onClose={cancelForceLogin} footer={<><Button type="button" variant="ghost" onClick={cancelForceLogin} disabled={forceLoginPending}>取消登录</Button><Button type="button" onClick={() => void handleForceLogin()} disabled={forceLoginPending}>{forceLoginPending ? '接管中…' : '强制登录'}</Button></>}>
           <p className="login-session-warning" role="status">强制登录会使该账号的其他活动会话失效。</p>
         </Modal>
       </div>

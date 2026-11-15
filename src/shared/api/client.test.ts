@@ -101,6 +101,30 @@ describe('Native API client', () => {
     })
   })
 
+  it('在强制接管时把 forceLogin 传递给密码和 MFA 接口', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) {
+        expect(init?.body).toBe(JSON.stringify({ username: 'operator', password: 'secret', forceLogin: true, clientId: 'web' }))
+        return response({
+          success: false,
+          data: { challengeId: 'challenge-force', clientId: 'web', expiresAt: '2026-11-14T03:00:00Z' },
+          message: 'MFA_REQUIRED',
+          error: { code: 'invalid_credential' },
+        }, 401)
+      }
+      if (url.endsWith('/auth/mfa/verify')) {
+        expect(init?.body).toBe(JSON.stringify({ username: 'operator', challengeId: 'challenge-force', clientId: 'web', code: '123456', forceLogin: true }))
+        return ok(token)
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.login('operator', 'secret', true)).rejects.toBeInstanceOf(ApiError)
+    await expect(apiClient.verifyMfaLogin('operator', 'challenge-force', 'web', '123456', true)).resolves.toMatchObject({ user: { username: 'operator' } })
+  })
+
   it('按 Native step-up 契约创建挑战并只替换短时 AAL2 access token', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
