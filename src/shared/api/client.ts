@@ -874,6 +874,15 @@ export const apiClient = {
     }
   },
 
+  async listPublicNotices(): Promise<NativeNotice[]> {
+    try {
+      return nativeNoticesSchema.parse(await request<unknown>('/notices'))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      return createMockNotices().filter((notice) => notice.published && notice.enabled)
+    }
+  },
+
   async listNotices(): Promise<NativeNotice[]> {
     try {
       return nativeNoticesSchema.parse(await request<unknown>('/notices/manage'))

@@ -547,6 +547,21 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
+  it('读取公开站内通知，不使用公告管理接口', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/notices')) return ok([{ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '维护通知', content: '今晚维护', noticeType: 'notification', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T01:00:00Z' }])
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const notices = await apiClient.listPublicNotices()
+
+    expect(notices).toHaveLength(1)
+    expect(notices[0]).toMatchObject({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', published: true })
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/notices', expect.anything())
+  })
+
   it('按 Native 契约发送用户、角色、公告和任务批量删除请求并去重 ID', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
