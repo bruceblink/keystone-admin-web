@@ -128,6 +128,10 @@ python3 keystone-phoenix/scripts/check_error_code_catalog.py \
 
 2026-11-16 验证结果：admin-web `dd1b280`/`9e6e5e9`、Phoenix `56ba348`、Native `7cb6533` 已登记相同的规范服务端代码 `21` 个；其中 Phoenix `56ba348` 后的集合包含 `mfa_invalid_code`、`mfa_state_conflict` 和 `https_required`，admin-web `9e6e5e9` 为缺少业务码的失败响应补充 `invalid_response`。客户端本地代码为 `4` 个，三项目集合与默认状态 `21/21` 一致；文档、TypeScript 类型检查、构建和真实浏览器验收仍按本计划分别执行。
 
+## 2026-11-16 页面闭环增量
+
+菜单角色目录读取失败现在显示错误和重试入口，并在目录未恢复前禁止保存，提交为 `7a88836`。Users、Jobs、LoginLogs、OperationsAudit、Profile 和 Monitor 在已有旧数据但刷新失败时保留当前内容并显示重试入口，提交为 `2c79ff7`。本轮验证为 21 个测试文件、95 个测试通过，并通过类型检查和构建。
+
 ### 令牌处理
 
 - access token 和 refresh token 只保存在当前页面内存中的 session store；Native 当前返回
