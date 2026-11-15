@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Eye, Pencil, Play, Plus, Power, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { ClipboardList, Eye, Pencil, Play, Plus, Power, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeJob, NativeJobLog, NativeJobLogsPage, NativeJobWriteInput } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { JobFormModal } from './JobFormModal'
 
@@ -141,20 +141,20 @@ export function JobsPage() {
   function closeDelete() { if (!deleteMutation.isPending) setDeleteOpen(false) }
 
   const actionPending = saveMutation.isPending || statusMutation.isPending || triggerMutation.isPending
-  const actionError = statusMutation.error instanceof Error ? statusMutation.error.message : triggerMutation.error instanceof Error ? triggerMutation.error.message : null
+  const actionError = statusMutation.error ?? triggerMutation.error
 
   return <div className="jobs-page">
     <div className="page-heading"><div><p className="eyebrow">OPERATIONS / JOBS</p><h1>定时任务</h1><p className="page-description">查询任务配置、运行状态和执行日志。新增、编辑、启停和手动执行使用独立操作入口。</p></div><div className="heading-actions"><Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除任务（{selectedIds.length}）</Button><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增任务</Button><Button variant="secondary" size="sm" onClick={refreshJobs} disabled={query.isFetching || actionPending}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新任务</Button></div></div>
     <Card className="jobs-filter-card"><form className="jobs-filter-form" onSubmit={submit}><label><span>任务名称、编码或分组</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="按任务名称、编码或分组筛选" autoComplete="off" /></label><div className="jobs-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
-    {actionError ? <div className="error-panel jobs-error" role="alert"><ShieldAlert size={19} /><div><strong>任务操作失败</strong><p>{actionError}</p></div><Button variant="ghost" size="sm" onClick={() => { statusMutation.reset(); triggerMutation.reset() }}>关闭</Button></div> : null}
-    {deleteMutation.error ? <div className="error-panel jobs-error" role="alert"><ShieldAlert size={19} /><div><strong>任务删除失败</strong><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : '请求失败'}</p></div></div> : null}
+    <ActionError title="任务操作失败" error={actionError} onDismiss={() => { statusMutation.reset(); triggerMutation.reset() }} />
+    <ActionError title="任务删除失败" error={deleteMutation.error} />
     {query.isLoading ? <div className="loading-panel jobs-loading"><Spinner label="正在读取任务列表" /></div> : null}
     {query.isError && !query.data ? <InitialQueryError title="无法读取任务列表" message="任务列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '任务列表刷新失败'} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     {query.data ? <Card className="jobs-table-card"><CardHeader title="任务列表" description={`共 ${jobs.length.toLocaleString('zh-CN')} 个匹配任务`} action={<Badge tone="info">系统 API</Badge>} />{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前任务" checked={allSelected} onChange={(event) => toggleAllJobs(event.target.checked)} disabled={actionPending || deleteMutation.isPending} /></th><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th><th scope="col">操作</th></tr></thead><tbody>{visibleJobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} selectedForDelete={selectedIds.includes(job.id)} pending={actionPending || deleteMutation.isPending} onSelect={() => selectJob(job)} onSelectForDelete={toggleJobSelection} onEdit={() => openEdit(job)} onToggle={() => toggleJob(job)} onRun={() => runJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}{jobs.length > PAGE_SIZE ? <div className="jobs-pagination"><span>第 {currentJobPage} / {jobTotalPages} 页</span><div><Button variant="ghost" size="sm" disabled={currentJobPage <= 1 || query.isFetching} onClick={() => setUrlState({ jobPage: Math.max(1, jobPage - 1) })}>上一页</Button><Button variant="ghost" size="sm" disabled={currentJobPage >= jobTotalPages || query.isFetching} onClick={() => setUrlState({ jobPage: Math.min(jobTotalPages, jobPage + 1) })}>下一页</Button></div></div> : null}</Card> : null}
     {selectedJob ? <JobLogsCard job={selectedJob} query={logsQuery} page={logPage} totalPages={totalPages} onPageChange={(nextPage) => setUrlState({ logPage: nextPage })} /> : null}
-    <JobFormModal open={modalMode !== null} mode={modalMode ?? 'create'} job={editingJob} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitJob} />
-    <DeleteConfirmModal open={deleteOpen} resourceLabel="任务" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
+    <JobFormModal open={modalMode !== null} mode={modalMode ?? 'create'} job={editingJob} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitJob} />
+    <DeleteConfirmModal open={deleteOpen} resourceLabel="任务" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
   </div>
 }
 

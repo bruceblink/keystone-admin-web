@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Modal } from '../../shared/ui'
+import { ActionError, Button, Modal } from '../../shared/ui'
 import type { NativePost, NativePostWriteInput } from '../../shared/api/schemas'
 
 type Props = {
@@ -7,7 +7,7 @@ type Props = {
   mode: 'create' | 'edit'
   post: NativePost | null
   pending: boolean
-  error: string | null
+  error: unknown
   onClose: () => void
   onSubmit: (input: NativePostWriteInput) => Promise<void>
 }
@@ -70,7 +70,8 @@ export function PostFormModal({ open, mode, post, pending, error, onClose, onSub
           <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} disabled={pending} />
           <span>岗位启用</span>
         </label>
-        {validationError || error ? <div className="modal-form-error" role="alert">{validationError ?? error}</div> : null}
+        {validationError ? <div className="modal-form-error" role="alert">{validationError}</div> : null}
+        <ActionError title="岗位保存失败" error={error} />
       </form>
     </Modal>
   )

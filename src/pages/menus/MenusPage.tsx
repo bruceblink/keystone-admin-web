@@ -114,11 +114,11 @@ export function MenusPage() {
         onRetryRoles={() => void rolesQuery.refetch()}
         onRetryMenuRoles={() => void menuRolesQuery.refetch()}
         pending={saveMutation.isPending || roleAssignmentMutation.isPending}
-        error={saveMutation.error instanceof Error ? saveMutation.error.message : roleAssignmentMutation.error instanceof Error ? roleAssignmentMutation.error.message : null}
+        error={saveMutation.error ?? roleAssignmentMutation.error}
         onClose={closeModal}
         onSubmit={submitMenu}
       />
-      <DeleteConfirmModal open={deletingMenu !== null} resourceLabel="菜单" count={1} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => { if (deletingMenu) void deleteMutation.mutateAsync(deletingMenu.id).catch(() => undefined) }} />
+      <DeleteConfirmModal open={deletingMenu !== null} resourceLabel="菜单" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingMenu) void deleteMutation.mutateAsync(deletingMenu.id).catch(() => undefined) }} />
     </div>
   )
 }

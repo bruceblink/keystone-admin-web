@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Modal } from '../../shared/ui'
+import { ActionError, Button, Modal } from '../../shared/ui'
 import type { NativeJob, NativeJobWriteInput } from '../../shared/api/schemas'
 
 type Props = {
@@ -7,7 +7,7 @@ type Props = {
   mode: 'create' | 'edit'
   job: NativeJob | null
   pending: boolean
-  error: string | null
+  error: unknown
   onClose: () => void
   onSubmit: (input: NativeJobWriteInput) => Promise<void>
 }
@@ -83,7 +83,8 @@ export function JobFormModal({ open, mode, job, pending, error, onClose, onSubmi
           <label className="checkbox-label"><input type="checkbox" checked={values.enabled} onChange={(event) => update('enabled', event.target.checked)} disabled={pending} /><span>任务启用</span></label>
         </div>
         <label htmlFor="job-remark"><span>备注</span><textarea id="job-remark" value={values.remark} onChange={(event) => update('remark', event.target.value)} disabled={pending} rows={2} /></label>
-        {validationError || error ? <div className="modal-form-error" role="alert">{validationError ?? error}</div> : null}
+        {validationError ? <div className="modal-form-error" role="alert">{validationError}</div> : null}
+        <ActionError title="任务保存失败" error={error} />
       </form>
     </Modal>
   )

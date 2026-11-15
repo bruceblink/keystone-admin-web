@@ -168,4 +168,19 @@ describe('MenusPage', () => {
     expect(listRolesForMenu).toHaveBeenCalledTimes(2)
     expect(within(dialog).getByRole('button', { name: '保存菜单' })).not.toBeDisabled()
   })
+
+  it('删除菜单失败时在确认框显示业务错误诊断', async () => {
+    const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu, children: [] }])
+    vi.spyOn(apiClient, 'deleteMenu').mockRejectedValue(new ApiError('菜单仍被引用', 409, 'resource_conflict', null, { requestId: 'menu-1' }))
+    renderPage()
+
+    await screen.findByText('系统管理')
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
+
+    expect(await within(dialog).findByText(/resource_conflict/)).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('requestId=menu-1')
+  })
 })

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PostsPage } from './PostsPage'
 import { apiClient } from '../../shared/api/client'
+import { ApiError } from '../../shared/api/errors'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -60,5 +61,21 @@ describe('PostsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
 
     await waitFor(() => expect(deletePost).toHaveBeenCalledWith(post.id))
+  })
+
+  it('保存岗位失败时保留表单并显示业务错误诊断', async () => {
+    vi.spyOn(apiClient, 'listPosts').mockResolvedValue([])
+    vi.spyOn(apiClient, 'createPost').mockRejectedValue(new ApiError('岗位编码冲突', 409, 'resource_conflict', null, { requestId: 'post-1' }))
+    renderPage()
+    await screen.findByText('没有匹配的岗位')
+    fireEvent.click(screen.getByRole('button', { name: /新增岗位/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('岗位编码 *'), { target: { value: 'operator' } })
+    fireEvent.change(within(dialog).getByLabelText('岗位名称 *'), { target: { value: '运营专员' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存岗位' }))
+
+    expect(await within(dialog).findByText(/resource_conflict/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('岗位编码 *')).toHaveValue('operator')
+    expect(dialog).toHaveTextContent('requestId=post-1')
   })
 })

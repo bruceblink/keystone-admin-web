@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, BriefcaseBusiness } from 'lucide-react'
+import { Download, Pencil, Plus, RefreshCw, Search, BriefcaseBusiness } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativePost, NativePostWriteInput } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { PostFormModal } from './PostFormModal'
 
 const PAGE_SIZE = 20
@@ -18,7 +18,7 @@ export function PostsPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingPost, setEditingPost] = useState<NativePost | null>(null)
   const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<unknown>(null)
   const [deletingPost, setDeletingPost] = useState<NativePost | null>(null)
   const query = useQuery({ queryKey: ['posts'], queryFn: () => apiClient.listPosts(), staleTime: 10_000 })
   const saveMutation = useMutation({
@@ -98,7 +98,7 @@ export function PostsPage() {
       anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 0)
     } catch (error) {
-      setExportError(error instanceof Error ? error.message : '岗位导出失败')
+      setExportError(error)
     } finally {
       setExporting(false)
     }
@@ -122,7 +122,7 @@ export function PostsPage() {
         </div>
       </div>
 
-      {exportError ? <div className="error-panel posts-error" role="alert"><ShieldAlert size={19} /><div><strong>岗位导出失败</strong><p>{exportError}</p></div></div> : null}
+      <ActionError title="岗位导出失败" error={exportError} />
 
       <Card className="posts-filter-card">
         <form className="posts-filter-form" onSubmit={submitFilters}>
@@ -140,8 +140,8 @@ export function PostsPage() {
         <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div>
       </Card> : null}
 
-      <PostFormModal open={modalMode !== null} mode={modalMode ?? 'create'} post={editingPost} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitPost} />
-      <DeleteConfirmModal open={deletingPost !== null} resourceLabel="岗位" count={1} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => { if (deletingPost) void deleteMutation.mutateAsync(deletingPost.id).catch(() => undefined) }} />
+      <PostFormModal open={modalMode !== null} mode={modalMode ?? 'create'} post={editingPost} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitPost} />
+      <DeleteConfirmModal open={deletingPost !== null} resourceLabel="岗位" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingPost) void deleteMutation.mutateAsync(deletingPost.id).catch(() => undefined) }} />
     </div>
   )
 }

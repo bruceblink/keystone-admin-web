@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { JobsPage } from './JobsPage'
 import { apiClient } from '../../shared/api/client'
+import { ApiError } from '../../shared/api/errors'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -103,5 +104,17 @@ describe('JobsPage', () => {
 
     await waitFor(() => expect(deleteJobs).toHaveBeenCalledWith([job.id]))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('任务操作失败时显示业务错误诊断', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue([job])
+    vi.spyOn(apiClient, 'updateJobStatus').mockRejectedValue(new ApiError('任务状态冲突', 409, 'resource_conflict', null, { requestId: 'job-1' }))
+    renderPage()
+    await screen.findByText('系统心跳')
+    fireEvent.click(screen.getByTitle('停用 系统心跳'))
+
+    expect(await screen.findByText(/resource_conflict/)).toBeInTheDocument()
+    expect(screen.getByText(/requestId=job-1/)).toBeInTheDocument()
   })
 })
