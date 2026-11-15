@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Building2, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { Building2, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeDepartment, NativeDepartmentWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { DepartmentFormModal } from './DepartmentFormModal'
 
 type DepartmentRow = NativeDepartment & { level: number }
@@ -87,7 +87,7 @@ export function DepartmentsPage() {
       </Card>
 
       {query.isLoading ? <div className="loading-panel departments-loading"><Spinner label="正在读取组织结构" /></div> : null}
-      {query.isError && !query.data ? <DepartmentError message={query.error instanceof Error ? query.error.message : '组织结构读取失败'} onRetry={refresh} /> : null}
+      {query.isError && !query.data ? <InitialQueryError title="无法读取组织结构" message="组织结构读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '组织结构刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="departments-table-card">
         <CardHeader title="组织结构" description={`共 ${rows.length.toLocaleString('zh-CN')} 个组织节点`} action={<Badge tone="info">系统 API</Badge>} />
@@ -128,8 +128,4 @@ function flattenDepartments(departments: NativeDepartment[]): DepartmentRow[] {
     if (!visited.has(department.id)) rows.push({ ...department, level: 0 })
   }
   return rows
-}
-
-function DepartmentError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <div className="error-panel departments-error" role="alert"><ShieldAlert size={19} /><div><strong>无法读取组织结构</strong><p>{message}</p></div><Button variant="secondary" size="sm" onClick={onRetry}>重试</Button></div>
 }

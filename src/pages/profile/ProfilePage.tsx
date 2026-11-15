@@ -5,7 +5,7 @@ import { apiClient } from '../../shared/api/client'
 import type { NativeProfile, NativeProfileWriteInput } from '../../shared/api/schemas'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
-import { Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 
 const emptyProfile: NativeProfileWriteInput = { displayName: '', email: '', phoneNumber: '', sex: null, avatar: '' }
 
@@ -61,7 +61,7 @@ export function ProfilePage() {
   return <div className="profile-page">
     <div className="page-heading"><div><p className="eyebrow">ACCOUNT / PROFILE</p><h1>个人资料</h1><p className="page-description">维护当前账号资料和登录凭据。</p></div><div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void profileQuery.refetch()} disabled={profileQuery.isFetching}><RefreshCw size={15} className={profileQuery.isFetching ? 'spin' : ''} /> 刷新资料</Button></div></div>
     {profileQuery.isLoading ? <div className="loading-panel"><Spinner label="正在读取个人资料" /></div> : null}
-    {profileQuery.isError && !profileQuery.data ? <div className="error-panel" role="alert"><ShieldAlert size={19} /><div><strong>无法读取个人资料</strong><p>{profileQuery.error instanceof Error ? profileQuery.error.message : '请求失败'}</p></div><Button variant="secondary" size="sm" onClick={() => void profileQuery.refetch()}>重试</Button></div> : null}
+    {profileQuery.isError && !profileQuery.data ? <InitialQueryError title="无法读取个人资料" message="个人资料读取失败，请重试" error={profileQuery.error} onRetry={() => void profileQuery.refetch()} retrying={profileQuery.isFetching} /> : null}
     {profileQuery.isError && profileQuery.data ? <StaleQueryError message={profileQuery.error instanceof Error ? profileQuery.error.message : '个人资料刷新失败'} error={profileQuery.error} onRetry={() => void profileQuery.refetch()} retrying={profileQuery.isFetching} /> : null}
     {message ? <div className="form-status" role="status">{message}</div> : null}
     {error ? <div className="error-panel" role="alert"><ShieldAlert size={19} /><div><strong>资料操作失败</strong><p>{error}</p></div></div> : null}

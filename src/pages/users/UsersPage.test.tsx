@@ -78,7 +78,8 @@ describe('UsersPage', () => {
     renderPage()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('无法读取用户列表')
-    expect(screen.getByText('权限不足')).toBeInTheDocument()
+    expect(screen.getByText('没有执行此操作的权限')).toBeInTheDocument()
+    expect(screen.getByText(/诊断：permission_denied/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
   })
 

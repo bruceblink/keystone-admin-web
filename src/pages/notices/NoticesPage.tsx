@@ -3,7 +3,7 @@ import { Megaphone, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeNotice, NativeNoticeWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { formatApiError } from '../../shared/api/errors'
 import { NoticeFormModal } from './NoticeFormModal'
 
@@ -62,7 +62,7 @@ export function NoticesPage() {
     {deleteMutation.error ? <div className="error-panel notices-error" role="alert"><ShieldAlert size={19} /><div><strong>公告删除失败</strong><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : '请求失败'}</p></div></div> : null}
     <Card className="notices-filter-card"><form className="notices-filter-form" onSubmit={submit}><label><span>标题或内容</span><input value={formFilters.keyword} onChange={(event) => setFormFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="按标题、内容或类型筛选" autoComplete="off" /></label><label><span>发布状态</span><select value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">全部状态</option><option value="published">已发布</option><option value="unpublished">未发布</option></select></label><div className="notices-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
     {query.isLoading ? <div className="loading-panel notices-loading"><Spinner label="正在读取通知公告" /></div> : null}
-    {query.isError && !query.data ? <NoticeError message={query.error instanceof Error ? query.error.message : '通知公告读取失败'} onRetry={() => void query.refetch()} /> : null}
+    {query.isError && !query.data ? <InitialQueryError title="无法读取通知公告" message="通知公告读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '通知公告刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     {query.data ? <Card className="notices-table-card"><CardHeader title="公告列表" description={`共 ${notices.length.toLocaleString('zh-CN')} 条匹配公告`} action={<Badge tone="info">系统 API</Badge>} />{notices.length > 0 ? <div className="notices-table-wrap"><table className="notices-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前公告" checked={allSelected} onChange={(event) => toggleAllNotices(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">公告</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">发布人</th><th scope="col">发布时间</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody>{notices.map((notice) => <NoticeRow key={notice.id} notice={notice} selected={selectedIds.includes(notice.id)} pending={publishMutation.isPending || deleteMutation.isPending} onSelect={toggleNotice} onEdit={() => openEdit(notice)} onPublish={() => publishNotice(notice)} />)}</tbody></table></div> : <div className="notices-empty" role="status"><span className="notices-empty-icon"><Megaphone size={20} /></span><strong>没有匹配的公告</strong><p>调整筛选条件后重试。</p></div>}</Card> : null}
     <NoticeFormModal open={modalMode !== null} mode={modalMode ?? 'create'} notice={editingNotice} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitNotice} />
@@ -78,8 +78,4 @@ function formatTime(value: string | null) {
   if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
-}
-
-function NoticeError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <div className="error-panel notices-error" role="alert"><ShieldAlert size={19} /><div><strong>无法读取通知公告</strong><p>{message}</p></div><Button variant="secondary" size="sm" onClick={onRetry}>重试</Button></div>
 }

@@ -3,7 +3,7 @@ import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, BriefcaseBusine
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativePost, NativePostWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { PostFormModal } from './PostFormModal'
 
 const PAGE_SIZE = 20
@@ -133,7 +133,7 @@ export function PostsPage() {
       </Card>
 
       {query.isLoading ? <div className="loading-panel posts-loading"><Spinner label="正在读取岗位列表" /></div> : null}
-      {query.isError && !query.data ? <PostError message={query.error instanceof Error ? query.error.message : '岗位列表读取失败'} onRetry={() => void query.refetch()} /> : null}
+      {query.isError && !query.data ? <InitialQueryError title="无法读取岗位列表" message="岗位列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="posts-table-card">
         <CardHeader title="岗位列表" description={`共 ${filteredPosts.length.toLocaleString('zh-CN')} 个匹配岗位`} action={<Badge tone="info">系统 API</Badge>} />
         {visiblePosts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{visiblePosts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
@@ -148,8 +148,4 @@ export function PostsPage() {
 
 function PostRow({ post, pending, onEdit, onDelete }: { post: NativePost; pending: boolean; onEdit: (post: NativePost) => void; onDelete: (post: NativePost) => void }) {
   return <tr><td><div className="post-cell"><span className="post-cell-icon"><BriefcaseBusiness size={15} /></span><div><strong>{post.name}</strong><small>{post.code}</small></div></div></td><td><code className="post-code">{post.code}</code></td><td>{post.sortOrder}</td><td><Badge tone={post.enabled ? 'success' : 'warning'}>{post.enabled ? '启用' : '停用'}</Badge></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={() => onEdit(post)} disabled={pending}><Pencil size={14} /> 编辑</Button><Button variant="ghost" size="sm" onClick={() => onDelete(post)} disabled={pending}>删除</Button></div></td></tr>
-}
-
-function PostError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <div className="error-panel posts-error" role="alert"><ShieldAlert size={19} /><div><strong>无法读取岗位列表</strong><p>{message}</p></div><Button variant="secondary" size="sm" onClick={onRetry}>重试</Button></div>
 }

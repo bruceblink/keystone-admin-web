@@ -3,7 +3,7 @@ import { ClipboardList, Download, RefreshCw, Search, ShieldAlert } from 'lucide-
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeOperationLog } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 const PAGE_SIZE = 20
@@ -147,7 +147,7 @@ export function OperationsAuditPage() {
       </Card>
 
       {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取操作审计" /></div> : null}
-      {query.isError && !query.data ? <AuditError message={query.error instanceof Error ? query.error.message : '操作审计读取失败'} onRetry={refresh} /> : null}
+      {query.isError && !query.data ? <InitialQueryError title="无法读取操作审计" message="操作审计读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '操作审计刷新失败'} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
 
       {query.data ? (
@@ -201,15 +201,5 @@ function OperationRow({ log }: { log: NativeOperationLog }) {
       <td className="audit-resource-id">{log.resourceId ?? '—'}</td>
       <td className="audit-detail" title={log.detail ?? undefined}>{log.detail ?? '—'}</td>
     </tr>
-  )
-}
-
-function AuditError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="error-panel audit-error" role="alert">
-      <ShieldAlert size={19} />
-      <div><strong>无法读取操作审计</strong><p>{message}</p></div>
-      <Button variant="secondary" size="sm" onClick={onRetry}>重试</Button>
-    </div>
   )
 }

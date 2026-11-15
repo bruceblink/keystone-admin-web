@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, ArrowDownToLine, ArrowUpFromLine, CircleHelp, Database, HardDrive, Layers3, MemoryStick, RefreshCw, Server, ShieldAlert, Signal, UserRound, Wifi } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowUpFromLine, CircleHelp, Database, HardDrive, Layers3, MemoryStick, RefreshCw, Server, Signal, UserRound, Wifi } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import { useSessionStore } from '../../shared/state/session'
 import { formatDateTime, formatPercent, formatRate, statusMessage, statusTone } from '../../entities/monitor/format'
 import type { SessionSummary } from '../../entities/monitor/types'
-import { Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 import { TrendChart } from '../../widgets/monitor/TrendChart'
 
 const statusLabels = { LIVE: 'LIVE', STALE: 'STALE', OFFLINE: 'OFFLINE', PARTIAL: 'PARTIAL' } as const
@@ -64,7 +64,7 @@ export function MonitorPage() {
       </div>
       {notice ? <div className="inline-notice" role="status">{notice}</div> : null}
       {query.isLoading ? <div className="loading-panel"><Spinner label="正在读取系统 API 快照" /></div> : null}
-      {query.isError && !snapshot ? <div className="error-panel" role="alert"><ShieldAlert size={20} /><div><strong>无法读取运行快照</strong><p>检查系统 API 连接后重试。开发环境可使用 VITE_ENABLE_MOCK=true。</p></div><Button variant="secondary" size="sm" onClick={refresh}>重试</Button></div> : null}
+      {query.isError && !snapshot ? <InitialQueryError title="无法读取运行快照" message="检查系统 API 连接后重试。" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.isError && snapshot ? <StaleQueryError message="最新监控快照读取失败，当前仍显示上一次成功数据。" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {snapshot ? <>
         <p className="sr-only" aria-live="polite">{summary}</p>

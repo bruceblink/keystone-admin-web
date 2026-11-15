@@ -6,7 +6,7 @@ import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeRole, NativeRoleWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { RoleFormModal } from './RoleFormModal'
 
 type RoleFilters = { keyword: string }
@@ -109,7 +109,7 @@ export function RolesPage() {
       </Card>
 
       {query.isLoading ? <div className="loading-panel roles-loading"><Spinner label="正在读取角色列表" /></div> : null}
-      {query.isError && !query.data ? <RoleError message={query.error instanceof Error ? query.error.message : '角色列表读取失败'} onRetry={refresh} /> : null}
+      {query.isError && !query.data ? <InitialQueryError title="无法读取角色列表" message="角色列表读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '角色列表刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="roles-table-card">
         <CardHeader title="角色列表" description={`共 ${roles.length.toLocaleString('zh-CN')} 个匹配角色`} action={<Badge tone="info">系统 API</Badge>} />
@@ -130,8 +130,4 @@ function RoleRow({ role, selected, pending, onSelect, onEdit }: { role: NativeRo
 function formatScope(scope: string) {
   const labels: Record<string, string> = { ALL: '全部数据', TENANT: '当前租户', DEPARTMENT: '本部门', DEPARTMENT_AND_CHILDREN: '本部门及下级', CUSTOM: '自定义', SELF: '本人', OWNER: '所属数据', MEMBER: '成员数据' }
   return labels[scope] ?? scope
-}
-
-function RoleError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <div className="error-panel roles-error" role="alert"><ShieldAlert size={19} /><div><strong>无法读取角色列表</strong><p>{message}</p></div><Button variant="secondary" size="sm" onClick={onRetry}>重试</Button></div>
 }

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { ListTree, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { ListTree, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeMenu, NativeMenuNode, NativeMenuWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { MenuFormModal } from './MenuFormModal'
 
 type MenuRow = NativeMenuNode & { level: number }
@@ -95,7 +95,7 @@ export function MenusPage() {
       </Card>
 
       {query.isLoading ? <div className="loading-panel menus-loading"><Spinner label="正在读取菜单结构" /></div> : null}
-      {query.isError && !query.data ? <MenuError message={query.error instanceof Error ? query.error.message : '菜单结构读取失败'} onRetry={() => void query.refetch()} /> : null}
+      {query.isError && !query.data ? <InitialQueryError title="无法读取菜单结构" message="菜单结构读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '菜单结构刷新失败，请重试'} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="menus-table-card">
         <CardHeader title="菜单目录" description={`共 ${rows.length.toLocaleString('zh-CN')} 个菜单节点`} action={<Badge tone="info">系统 API</Badge>} />
@@ -138,8 +138,4 @@ function flattenMenus(nodes: NativeMenuNode[]): MenuRow[] {
   }
   visit(nodes, 0)
   return rows
-}
-
-function MenuError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <div className="error-panel menus-error" role="alert"><ShieldAlert size={19} /><div><strong>无法读取菜单结构</strong><p>{message}</p></div><Button variant="secondary" size="sm" onClick={onRetry}>重试</Button></div>
 }

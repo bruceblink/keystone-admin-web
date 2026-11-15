@@ -5,7 +5,7 @@ import { apiClient } from '../../shared/api/client'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeApiKey, NativeIssuedApiKey } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { ApiKeyIssueModal } from './ApiKeyIssueModal'
 
 type ApiKeyStatus = 'all' | 'active' | 'revoked'
@@ -68,7 +68,7 @@ export function ApiKeysPage() {
       </Card>
 
       {query.isLoading ? <div className="loading-panel api-keys-loading"><Spinner label="正在读取 API Key 列表" /></div> : null}
-      {query.isError && !query.data ? <ApiKeyError message={query.error instanceof Error ? query.error.message : 'API Key 列表读取失败'} onRetry={() => void query.refetch()} /> : null}
+      {query.isError && !query.data ? <InitialQueryError title="无法读取 API Key 列表" message="API Key 列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="api-keys-table-card">
         <CardHeader title="API Key 列表" description={`共 ${keys.length.toLocaleString('zh-CN')} 个匹配凭据`} action={<Badge tone="info">仅显示元数据</Badge>} />
         {keys.length > 0 ? <div className="api-keys-table-wrap"><table className="api-keys-table"><thead><tr><th scope="col">名称</th><th scope="col">密钥前缀</th><th scope="col">授权范围</th><th scope="col">创建时间</th><th scope="col">最近使用</th><th scope="col">到期时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{keys.map((key) => <ApiKeyRow key={key.id} apiKey={key} pending={rotateMutation.isPending || revokeMutation.isPending} onRotate={(id) => rotateMutation.mutate(id)} onRevoke={(target) => { revokeMutation.reset(); setRevokingKey(target) }} />)}</tbody></table></div> : <div className="api-keys-empty" role="status"><span className="api-keys-empty-icon"><KeyRound size={20} /></span><strong>没有匹配的 API Key</strong><p>调整筛选条件后重试，或清空筛选条件查看全部凭据。</p></div>}
@@ -89,8 +89,4 @@ function formatDate(value: string | null) {
   if (!value) return '永不过期'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
-}
-
-function ApiKeyError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <div className="error-panel api-keys-error" role="alert"><ShieldAlert size={19} /><div><strong>无法读取 API Key 列表</strong><p>{message}</p></div><Button variant="secondary" size="sm" onClick={onRetry}>重试</Button></div>
 }
