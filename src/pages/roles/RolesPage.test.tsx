@@ -61,6 +61,23 @@ describe('RolesPage', () => {
     await waitFor(() => expect(createRole).toHaveBeenCalledWith({ code: 'auditor', name: '审计员', enabled: true }))
   })
 
+  it('保存角色失败时显示业务码诊断并保留表单', async () => {
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    vi.spyOn(apiClient, 'createRole').mockRejectedValue(new ApiError('temporary failure', 503, 'service_unavailable', null, { requestId: 'role-save-1' }))
+    renderPage()
+
+    await screen.findByText('没有匹配的角色')
+    fireEvent.click(screen.getByRole('button', { name: /新增角色/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('角色标识 *'), { target: { value: 'auditor' } })
+    fireEvent.change(within(dialog).getByLabelText('角色名称 *'), { target: { value: '审计员' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存角色' }))
+
+    await waitFor(() => expect(within(dialog).getByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument())
+    expect(within(dialog).getByLabelText('角色标识 *')).toHaveValue('auditor')
+    expect(within(dialog).getByText(/requestId=role-save-1/)).toBeInTheDocument()
+  })
+
   it('确认后批量删除角色', async () => {
     const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])

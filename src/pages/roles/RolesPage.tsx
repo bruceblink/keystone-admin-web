@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { Download, Pencil, Plus, RefreshCw, Search, ShieldCheck } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
@@ -107,7 +107,7 @@ export function RolesPage() {
       </div>
 
       <ActionError title="角色导出失败" error={exportError} />
-      {deleteMutation.error ? <div className="error-panel roles-error" role="alert"><ShieldAlert size={19} /><div><strong>角色删除失败</strong><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : '请求失败'}</p></div></div> : null}
+      <ActionError title="角色删除失败" error={deleteMutation.error} />
 
       <Card className="roles-filter-card">
         <form className="roles-filter-form" onSubmit={submitFilters}>
@@ -123,8 +123,8 @@ export function RolesPage() {
         <CardHeader title="角色列表" description={`共 ${roles.length.toLocaleString('zh-CN')} 个匹配角色`} action={<Badge tone="info">系统 API</Badge>} />
         {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending} onSelect={toggleRole} onEdit={openEdit} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
       </Card> : null}
-      <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitRole} />
-      <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
+      <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitRole} />
+      <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
       <MfaStepUpModal {...stepUp.modal} />
     </div>
   )

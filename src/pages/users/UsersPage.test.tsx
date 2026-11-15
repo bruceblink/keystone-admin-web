@@ -115,6 +115,24 @@ describe('UsersPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('保存用户失败时显示业务码诊断并保留表单', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    vi.spyOn(apiClient, 'createUser').mockRejectedValue(new ApiError('temporary failure', 503, 'service_unavailable', null, { requestId: 'user-save-1' }))
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /新增用户/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('用户名 *'), { target: { value: 'new-user' } })
+    fireEvent.change(within(dialog).getByLabelText('初始密码 *'), { target: { value: 'Strong-password-123!' } })
+    fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '新用户' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(within(dialog).getByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument())
+    expect(within(dialog).getByLabelText('用户名 *')).toHaveValue('new-user')
+    expect(within(dialog).getByText(/requestId=user-save-1/)).toBeInTheDocument()
+  })
+
   it('编辑用户时保留空密码和角色字段语义', async () => {
     vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
     const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])

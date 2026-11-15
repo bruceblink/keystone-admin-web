@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Modal } from '../../shared/ui'
+import { ActionError, Button, Modal } from '../../shared/ui'
 import type { NativeRole, NativeRoleWriteInput } from '../../shared/api/schemas'
 
 type Props = {
@@ -7,7 +7,7 @@ type Props = {
   mode: 'create' | 'edit'
   role: NativeRole | null
   pending: boolean
-  error: string | null
+  error: unknown
   onClose: () => void
   onSubmit: (input: NativeRoleWriteInput) => Promise<void>
 }
@@ -43,7 +43,8 @@ export function RoleFormModal({ open, mode, role, pending, error, onClose, onSub
         </div>
         <div className="admin-form-readonly"><span>当前数据范围</span><strong>{role?.dataScope ?? '由后端策略确定'}</strong><small>{role?.deptScope ?? '保存后按授权策略计算组织范围'}</small></div>
         <label className="checkbox-label"><input type="checkbox" checked={values.enabled} onChange={(event) => setValues((current) => ({ ...current, enabled: event.target.checked }))} disabled={pending} /><span>角色启用</span></label>
-        {validationError || error ? <div className="modal-form-error" role="alert">{validationError ?? error}</div> : null}
+        {validationError ? <div className="modal-form-error" role="alert">{validationError}</div> : null}
+        <ActionError title="角色保存失败" error={error} />
       </form>
     </Modal>
   )

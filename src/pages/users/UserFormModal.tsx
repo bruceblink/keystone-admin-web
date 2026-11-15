@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Modal } from '../../shared/ui'
+import { ActionError, Button, Modal } from '../../shared/ui'
 import type { NativeUser, NativeUserWriteInput } from '../../shared/api/schemas'
 
 type UserFormModalProps = {
@@ -7,7 +7,7 @@ type UserFormModalProps = {
   mode: 'create' | 'edit'
   user: NativeUser | null
   pending: boolean
-  error: string | null
+  error: unknown
   onClose: () => void
   onSubmit: (input: NativeUserWriteInput) => Promise<void>
 }
@@ -89,7 +89,8 @@ export function UserFormModal({ open, mode, user, pending, error, onClose, onSub
         </div>
         <label className="user-form-wide"><span>备注</span><textarea value={values.remark} onChange={(event) => setField('remark', event.target.value)} rows={3} disabled={pending} /></label>
         <div className="user-form-options"><label className="checkbox-label"><input type="checkbox" checked={values.enabled} onChange={(event) => setField('enabled', event.target.checked)} disabled={pending} /><span>账号启用</span></label>{mode === 'edit' ? <label className="checkbox-label"><input type="checkbox" checked={values.clearDept} onChange={(event) => setField('clearDept', event.target.checked)} disabled={pending} /><span>清除部门归属</span></label> : null}</div>
-        {validationError || error ? <div className="modal-form-error" role="alert">{validationError ?? error}</div> : null}
+        {validationError ? <div className="modal-form-error" role="alert">{validationError}</div> : null}
+        <ActionError title="用户保存失败" error={error} />
       </form>
     </Modal>
   )

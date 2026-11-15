@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, Pencil, Plus, RefreshCw, Search, ShieldAlert, Upload, UsersRound } from 'lucide-react'
+import { Download, Pencil, Plus, RefreshCw, Search, Upload, UsersRound } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { UserFormModal } from './UserFormModal'
 import { UserImportModal } from './UserImportModal'
@@ -32,7 +32,7 @@ export function UsersPage() {
   const [editingUser, setEditingUser] = useState<NativeUser | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importResult, setImportResult] = useState<NativeUserImportResult | null>(null)
-  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<unknown>(null)
   const [exporting, setExporting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -136,7 +136,7 @@ export function UsersPage() {
       anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 0)
     } catch (error) {
-      setExportError(error instanceof Error ? error.message : '用户导出失败')
+      setExportError(error)
     } finally {
       setExporting(false)
     }
@@ -204,7 +204,7 @@ export function UsersPage() {
         </div>
       </div>
 
-      {exportError ? <div className="error-panel users-file-error" role="alert"><ShieldAlert size={20} /><div><strong>用户导出失败</strong><p>{exportError}</p></div></div> : null}
+      <ActionError title="用户导出失败" error={exportError} />
 
       <Card className="users-filter-card">
         <form className="users-filter-form" onSubmit={submitFilters}>
@@ -289,7 +289,7 @@ export function UsersPage() {
         onSubmit={submitImport}
       />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="用户" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={submitDelete} />
-      <UserFormModal open={modalMode !== null} mode={modalMode ?? 'create'} user={editingUser} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitUser} />
+      <UserFormModal open={modalMode !== null} mode={modalMode ?? 'create'} user={editingUser} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitUser} />
       <MfaStepUpModal {...stepUp.modal} />
     </div>
   )
