@@ -69,12 +69,12 @@ export function LoginPage() {
       <div className="login-layout">
         <section className="login-intro">
           <div className="brand-mark"><Activity size={19} strokeWidth={2.5} /></div>
-          <p className="eyebrow">KEYSTONE NATIVE / ADMIN</p>
+          <p className="eyebrow">KEYSTONE / ADMIN</p>
           <h1>把平台状态，<span>放在一个清晰的工作台。</span></h1>
           <p className="login-lede">从登录、授权到运行监控，管理前端只保留完成运维判断所需的证据。</p>
           <div className="login-signals">
             <div><strong>30s</strong><span>健康快照刷新</span></div>
-            <div><strong>99.9%</strong><span>Native API 可用目标</span></div>
+            <div><strong>99.9%</strong><span>系统 API 可用目标</span></div>
           </div>
         </section>
         <Card className="login-card">
