@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { Activity, Bell, BookOpen, BriefcaseBusiness, Building2, ChevronDown, FileClock, KeyRound, LayoutDashboard, ListChecks, ListTree, LogOut, Megaphone, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
+import { Activity, Bell, BookOpen, BriefcaseBusiness, Building2, ChevronDown, FileClock, KeyRound, ListChecks, ListTree, LogOut, Megaphone, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../../shared/state/session'
 import { Button } from '../../shared/ui'
 
 const navItems = [
   { to: '/monitor', label: '运行监控', icon: Activity },
-  { to: '/dashboard', label: '总览仪表盘', icon: LayoutDashboard },
   { to: '/users', label: '用户与权限', icon: UsersRound },
   { to: '/roles', label: '角色管理', icon: UserRoundCog },
   { to: '/departments', label: '组织结构', icon: Building2 },
@@ -36,7 +35,6 @@ export function AdminShell() {
       <aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-head"><div className="brand-mark"><Activity size={18} /></div><div><strong>KEYSTONE</strong><span>Admin Console</span></div><button className="mobile-close" onClick={() => setMobileOpen(false)} aria-label="关闭导航"><X size={20} /></button></div>
         <nav className="primary-nav" aria-label="主导航">
-          <p className="nav-label">工作台</p>
           {navItems.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)} className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}><Icon size={17} /><span>{label}</span></NavLink>)}
           <p className="nav-label nav-label-spaced">系统</p>
         </nav>
