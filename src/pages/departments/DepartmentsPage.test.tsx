@@ -10,9 +10,23 @@ function renderPage() {
   return render(<QueryClientProvider client={queryClient}><DepartmentsPage /></QueryClientProvider>)
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  window.history.replaceState({}, '', '/')
+})
 
 describe('DepartmentsPage', () => {
+  it('从 URL 恢复组织树筛选条件并同步查询参数', async () => {
+    window.history.replaceState({}, '', '/departments?departments_keyword=OPS')
+    vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([])
+    renderPage()
+
+    expect(screen.getByLabelText('组织名称或编码')).toHaveValue('OPS')
+    fireEvent.change(screen.getByLabelText('组织名称或编码'), { target: { value: 'HQ' } })
+    fireEvent.submit(screen.getByRole('button', { name: '查询' }).closest('form') as HTMLFormElement)
+    await waitFor(() => expect(window.location.search).toContain('departments_keyword=HQ'))
+  })
+
   it('按组织层级显示根部门和子部门', async () => {
     vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([
       { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'HQ', name: '总部', sortOrder: 1, enabled: true },

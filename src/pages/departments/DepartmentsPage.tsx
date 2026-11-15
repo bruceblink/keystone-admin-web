@@ -1,18 +1,22 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Building2, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeDepartment, NativeDepartmentWriteInput } from '../../shared/api/schemas'
 import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { DepartmentFormModal } from './DepartmentFormModal'
 
 type DepartmentRow = NativeDepartment & { level: number }
+const urlDefaults = { keyword: '' }
+const urlOptions = { namespace: 'departments' }
 
 export function DepartmentsPage() {
   const queryClient = useQueryClient()
-  const [keyword, setKeyword] = useState('')
-  const [appliedKeyword, setAppliedKeyword] = useState('')
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { keyword: appliedKeyword } = urlState
+  const [keyword, setKeyword] = useState(appliedKeyword)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingDepartment, setEditingDepartment] = useState<NativeDepartment | null>(null)
   const [deletingDepartment, setDeletingDepartment] = useState<NativeDepartment | null>(null)
@@ -28,6 +32,9 @@ export function DepartmentsPage() {
       setDeletingDepartment(null)
     },
   })
+  useEffect(() => {
+    setKeyword(appliedKeyword)
+  }, [appliedKeyword])
   const rows = useMemo(() => {
     const allRows = flattenDepartments(query.data ?? [])
     const normalized = appliedKeyword.toLocaleLowerCase()
@@ -50,12 +57,12 @@ export function DepartmentsPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setAppliedKeyword(keyword.trim())
+    setUrlState({ keyword: keyword.trim() })
   }
 
   function reset() {
     setKeyword('')
-    setAppliedKeyword('')
+    setUrlState(urlDefaults)
   }
 
   function refresh() {

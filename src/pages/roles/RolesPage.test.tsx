@@ -10,9 +10,33 @@ function renderPage() {
   return render(<QueryClientProvider client={queryClient}><RolesPage /></QueryClientProvider>)
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  window.history.replaceState({}, '', '/')
+})
 
 describe('RolesPage', () => {
+  it('从 URL 恢复角色筛选条件并同步查询参数', async () => {
+    window.history.replaceState({}, '', '/roles?roles_keyword=auditor')
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    renderPage()
+
+    expect(screen.getByLabelText('角色名称或标识')).toHaveValue('auditor')
+    fireEvent.change(screen.getByLabelText('角色名称或标识'), { target: { value: 'admin' } })
+    fireEvent.submit(screen.getByRole('button', { name: '查询' }).closest('form') as HTMLFormElement)
+    await waitFor(() => expect(window.location.search).toContain('roles_keyword=admin'))
+  })
+
+  it('响应浏览器前进后退恢复角色筛选条件', async () => {
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    renderPage()
+
+    window.history.replaceState({}, '', '/roles?roles_keyword=operator')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+
+    await waitFor(() => expect(screen.getByLabelText('角色名称或标识')).toHaveValue('operator'))
+  })
+
   it('显示角色、数据范围和权限数量', async () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([{
       id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'admin', name: '系统管理员', enabled: true,

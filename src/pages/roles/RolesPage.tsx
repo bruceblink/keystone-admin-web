@@ -7,16 +7,20 @@ import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeRole, NativeRoleWriteInput } from '../../shared/api/schemas'
 import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { RoleFormModal } from './RoleFormModal'
 
 type RoleFilters = { keyword: string }
 const emptyFilters: RoleFilters = { keyword: '' }
+const urlDefaults = { keyword: '' }
+const urlOptions = { namespace: 'roles' }
 
 export function RolesPage() {
   const queryClient = useQueryClient()
   const stepUp = useMfaStepUp()
-  const [formFilters, setFormFilters] = useState<RoleFilters>(emptyFilters)
-  const [filters, setFilters] = useState<RoleFilters>(emptyFilters)
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { keyword: appliedKeyword } = urlState
+  const [formFilters, setFormFilters] = useState<RoleFilters>(() => ({ keyword: appliedKeyword }))
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingRole, setEditingRole] = useState<NativeRole | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -37,23 +41,27 @@ export function RolesPage() {
     },
   })
   const roles = useMemo(() => {
-    const keyword = filters.keyword.toLocaleLowerCase()
+    const keyword = appliedKeyword.toLocaleLowerCase()
     return (query.data ?? []).filter((role) => !keyword || `${role.code} ${role.name}`.toLocaleLowerCase().includes(keyword))
-  }, [filters.keyword, query.data])
+  }, [appliedKeyword, query.data])
   const allSelected = roles.length > 0 && roles.every((role) => selectedIds.includes(role.id))
 
   useEffect(() => {
     setSelectedIds([])
-  }, [filters])
+  }, [appliedKeyword])
+
+  useEffect(() => {
+    setFormFilters({ keyword: appliedKeyword })
+  }, [appliedKeyword])
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFilters({ keyword: formFilters.keyword.trim() })
+    setUrlState({ keyword: formFilters.keyword.trim() })
   }
 
   function resetFilters() {
     setFormFilters(emptyFilters)
-    setFilters(emptyFilters)
+    setUrlState(urlDefaults)
   }
 
   function refresh() {
