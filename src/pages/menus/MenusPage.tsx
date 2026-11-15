@@ -100,7 +100,23 @@ export function MenusPage() {
         <CardHeader title="菜单目录" description={`共 ${rows.length.toLocaleString('zh-CN')} 个菜单节点`} action={<Badge tone="info">系统 API</Badge>} />
         {rows.length > 0 ? <div className="menus-table-wrap"><table className="menus-table"><thead><tr><th scope="col">菜单名称</th><th scope="col">编码</th><th scope="col">路由</th><th scope="col">权限标识</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <MenuRowView key={row.menu.id} row={row} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="menus-empty" role="status"><span className="menus-empty-icon"><ListTree size={20} /></span><strong>没有匹配的菜单</strong><p>调整筛选条件后重试，或清空筛选条件查看完整菜单。</p></div>}
       </Card> : null}
-      <MenuFormModal open={modalMode !== null} mode={modalMode ?? 'create'} menu={editingMenu} menus={flattenMenus(query.data ?? []).map((row) => row.menu)} roles={rolesQuery.data ?? []} roleCodes={menuRolesQuery.data?.roleCodes ?? []} rolesLoading={rolesQuery.isLoading || menuRolesQuery.isFetching} pending={saveMutation.isPending || roleAssignmentMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : roleAssignmentMutation.error instanceof Error ? roleAssignmentMutation.error.message : null} onClose={closeModal} onSubmit={submitMenu} />
+      <MenuFormModal
+        open={modalMode !== null}
+        mode={modalMode ?? 'create'}
+        menu={editingMenu}
+        menus={flattenMenus(query.data ?? []).map((row) => row.menu)}
+        roles={rolesQuery.data ?? []}
+        roleCodes={menuRolesQuery.data?.roleCodes ?? []}
+        rolesLoading={rolesQuery.isLoading || rolesQuery.isFetching || menuRolesQuery.isLoading || menuRolesQuery.isFetching}
+        rolesError={rolesQuery.isError ? rolesQuery.error instanceof Error ? rolesQuery.error.message : '角色目录读取失败' : null}
+        menuRolesError={menuRolesQuery.isError ? menuRolesQuery.error instanceof Error ? menuRolesQuery.error.message : '菜单角色绑定读取失败' : null}
+        onRetryRoles={() => void rolesQuery.refetch()}
+        onRetryMenuRoles={() => void menuRolesQuery.refetch()}
+        pending={saveMutation.isPending || roleAssignmentMutation.isPending}
+        error={saveMutation.error instanceof Error ? saveMutation.error.message : roleAssignmentMutation.error instanceof Error ? roleAssignmentMutation.error.message : null}
+        onClose={closeModal}
+        onSubmit={submitMenu}
+      />
       <DeleteConfirmModal open={deletingMenu !== null} resourceLabel="菜单" count={1} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => { if (deletingMenu) void deleteMutation.mutateAsync(deletingMenu.id).catch(() => undefined) }} />
     </div>
   )
