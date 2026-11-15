@@ -71,6 +71,7 @@ describe('MenusPage', () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([
       { id: root.id, code: 'admin', name: '系统管理员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
       { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+      { id: '00000000-0000-4000-8000-000000000001', code: 'disabled', name: '停用角色', enabled: false, dataScope: 'ALL', deptScope: null, permissions: [] },
     ])
     const createMenu = vi.spyOn(apiClient, 'createMenu').mockResolvedValue(created)
     const assignMenuRoles = vi.spyOn(apiClient, 'assignMenuRoles').mockResolvedValue({ updated: true })
@@ -78,6 +79,7 @@ describe('MenusPage', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '新增菜单' }))
     const dialog = screen.getByRole('dialog')
+    expect(within(dialog).queryByRole('checkbox', { name: /停用角色/ })).not.toBeInTheDocument()
     fireEvent.change(within(dialog).getByLabelText('菜单名称'), { target: { value: created.name } })
     fireEvent.change(within(dialog).getByLabelText('菜单编码'), { target: { value: created.code } })
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /系统管理员/ }))
