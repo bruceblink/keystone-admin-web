@@ -27,4 +27,20 @@ describe('NoticesPage', () => {
     await waitFor(() => expect(deleteNotices).toHaveBeenCalledWith([notice.id]))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+
+  it('发布状态更新失败时显示可关闭的错误反馈', async () => {
+    const notice = { id: 'notice-1', title: '平台维护通知', content: '维护内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }
+    vi.spyOn(apiClient, 'listNotices').mockResolvedValue([notice])
+    vi.spyOn(apiClient, 'publishNotice').mockRejectedValue(new Error('发布接口不可用'))
+    renderPage()
+
+    await screen.findByText('平台维护通知')
+    fireEvent.click(screen.getByRole('button', { name: '取消发布' }))
+
+    const error = await screen.findByRole('alert')
+    expect(error).toHaveTextContent('公告状态更新失败')
+    expect(error).toHaveTextContent('发布接口不可用')
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    await waitFor(() => expect(screen.queryByText('公告状态更新失败')).not.toBeInTheDocument())
+  })
 })
