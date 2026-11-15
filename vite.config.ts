@@ -11,6 +11,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': apiProxyTarget,
+      '/swagger': apiProxyTarget,
+      '/openapi': apiProxyTarget,
     },
   },
   build: {

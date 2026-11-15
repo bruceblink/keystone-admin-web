@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react'
-import { Activity, Bell, BookOpen, BriefcaseBusiness, Building2, ChevronDown, FileClock, KeyRound, ListChecks, ListTree, LogOut, Megaphone, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
+import { Activity, Bell, BookOpen, BriefcaseBusiness, Building2, ChevronDown, FileClock, FileText, KeyRound, ListChecks, ListTree, LogOut, Megaphone, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../../shared/state/session'
 import { Button } from '../../shared/ui'
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/posts', label: '岗位管理', icon: BriefcaseBusiness },
   { to: '/menus', label: '菜单与权限', icon: ListTree },
   { to: '/api-keys', label: 'API Key', icon: KeyRound },
+  { to: '/swagger', label: '接口文档', icon: FileText, external: true },
   { to: '/audit/operations', label: '操作审计', icon: ShieldCheck },
   { to: '/audit/login', label: '登录日志', icon: FileClock },
   { to: '/jobs', label: '定时任务', icon: ListChecks },
@@ -35,7 +36,7 @@ export function AdminShell() {
       <aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-head"><div className="brand-mark"><Activity size={18} /></div><div><strong>KEYSTONE</strong><span>Admin Console</span></div><button className="mobile-close" onClick={() => setMobileOpen(false)} aria-label="关闭导航"><X size={20} /></button></div>
         <nav className="primary-nav" aria-label="主导航">
-          {navItems.map(({ to, label, icon: Icon }) => <Fragment key={to}>{to === '/audit/operations' ? <p className="nav-label nav-label-spaced">运维审计</p> : null}<NavLink to={to} onClick={() => setMobileOpen(false)} className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}><Icon size={17} /><span>{label}</span></NavLink></Fragment>)}
+          {navItems.map(({ to, label, icon: Icon, external }) => <Fragment key={to}>{to === '/audit/operations' ? <p className="nav-label nav-label-spaced">运维审计</p> : null}{external ? <a href={to} target="_blank" rel="noreferrer" onClick={() => setMobileOpen(false)} className="nav-item"><Icon size={17} /><span>{label}</span></a> : <NavLink to={to} onClick={() => setMobileOpen(false)} className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}><Icon size={17} /><span>{label}</span></NavLink>}</Fragment>)}
         </nav>
         <div className="sidebar-foot"><div className="status-dot"><span /> API 正常</div><span className="sidebar-version">v0.1.0 · dev</span></div>
       </aside>
