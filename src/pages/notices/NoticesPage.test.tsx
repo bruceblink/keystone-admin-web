@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NoticesPage } from './NoticesPage'
-import { apiClient } from '../../shared/api/client'
+import { ApiError, apiClient } from '../../shared/api/client'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -42,5 +42,27 @@ describe('NoticesPage', () => {
     expect(error).toHaveTextContent('发布接口不可用')
     fireEvent.click(screen.getByRole('button', { name: '关闭' }))
     await waitFor(() => expect(screen.queryByText('公告状态更新失败')).not.toBeInTheDocument())
+  })
+
+  it('刷新失败时保留旧公告并提供带错误码语义的重试入口', async () => {
+    const notice = { id: 'notice-2', title: '例行维护', content: '维护内容', noticeType: 'announcement', published: false, enabled: true, publishAt: null, createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }
+    const listNotices = vi.spyOn(apiClient, 'listNotices')
+      .mockResolvedValueOnce([notice])
+      .mockRejectedValueOnce(new ApiError('temporary failure', 503, 'service_unavailable'))
+      .mockResolvedValueOnce([notice])
+    renderPage()
+
+    await screen.findByText('例行维护')
+    fireEvent.click(screen.getByRole('button', { name: '刷新公告' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('数据刷新失败')
+    expect(alert).toHaveTextContent('系统服务暂时不可用，请稍后重试')
+    expect(screen.getByText('例行维护')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+
+    await waitFor(() => expect(listNotices).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.queryByText('数据刷新失败')).not.toBeInTheDocument())
+    expect(screen.getByText('例行维护')).toBeInTheDocument()
   })
 })
