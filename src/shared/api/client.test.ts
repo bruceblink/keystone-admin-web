@@ -159,6 +159,7 @@ describe('Native API client', () => {
     expect(snapshot.status).toBe('PARTIAL')
     expect(snapshot.cpu).toBeNull()
     expect(snapshot.memory).toBe(50)
+    expect(snapshot.source).toBe('系统 API /monitor')
     expect(snapshot.sessions[0]).toMatchObject({ id: 'session-1', user: 'operator', role: '系统管理员' })
     expect(snapshot.disk.total).toBeNull()
   })

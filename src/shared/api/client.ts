@@ -119,7 +119,7 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   try {
     response = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' })
   } catch {
-    throw new ApiError('无法连接 Native API', 0, 'network_error')
+    throw new ApiError('无法连接系统 API', 0, 'network_error')
   }
 
   const body = response.status === 204 ? null : await readJson(response)
@@ -148,7 +148,7 @@ async function requestFile(path: string, init: RequestInit = {}, retry = true): 
   try {
     response = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' })
   } catch {
-    throw new ApiError('无法连接 Native API', 0, 'network_error')
+    throw new ApiError('无法连接系统 API', 0, 'network_error')
   }
 
   if (response.status === 401 && retry && path !== '/auth/refresh') {
@@ -299,7 +299,7 @@ export const apiClient = {
       return monitorSnapshotSchema.parse({
         status: 'PARTIAL',
         capturedAt,
-        source: 'Native API /monitor',
+        source: '系统 API /monitor',
         node: `${serverInfo.jvmName} · ${serverInfo.osName}`,
         cpu: null,
         memory,
