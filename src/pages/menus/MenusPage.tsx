@@ -16,10 +16,12 @@ export function MenusPage() {
   const [deletingMenu, setDeletingMenu] = useState<NativeMenu | null>(null)
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['menus'], queryFn: () => apiClient.listMenus(), staleTime: 10_000 })
+  const rolesQuery = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
+  const menuRolesQuery = useQuery({ queryKey: ['menu-roles', editingMenu?.id], queryFn: () => apiClient.listMenuRoles(editingMenu!.id), enabled: modalMode === 'edit' && editingMenu !== null, staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeMenuWriteInput }) => id ? apiClient.updateMenu(id, input) : apiClient.createMenu(input),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['menus'] }); setModalMode(null); setEditingMenu(null) },
   })
+  const roleAssignmentMutation = useMutation({ mutationFn: ({ id, roleCodes }: { id: string; roleCodes: string[] }) => apiClient.assignMenuRoles(id, roleCodes) })
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiClient.deleteMenu(id),
     onSuccess: async () => {
@@ -45,10 +47,20 @@ export function MenusPage() {
     setAppliedKeyword('')
   }
 
-  function openCreate() { saveMutation.reset(); setEditingMenu(null); setModalMode('create') }
-  function openEdit(menu: NativeMenu) { saveMutation.reset(); setEditingMenu(menu); setModalMode('edit') }
-  function closeModal() { if (saveMutation.isPending) return; setModalMode(null); setEditingMenu(null) }
-  async function submitMenu(input: NativeMenuWriteInput) { await saveMutation.mutateAsync({ id: editingMenu?.id, input }) }
+  function openCreate() { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(null); setModalMode('create') }
+  function openEdit(menu: NativeMenu) { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(menu); setModalMode('edit') }
+  function closeModal() { if (saveMutation.isPending || roleAssignmentMutation.isPending) return; setModalMode(null); setEditingMenu(null) }
+  async function submitMenu(input: NativeMenuWriteInput, roleCodes: string[]) {
+    const saved = await saveMutation.mutateAsync({ id: editingMenu?.id, input })
+    // 创建成功后保留新 ID，角色绑定失败时用户可以在同一表单重试而不会重复创建。
+    setEditingMenu(saved)
+    setModalMode('edit')
+    await roleAssignmentMutation.mutateAsync({ id: saved.id, roleCodes })
+    await queryClient.invalidateQueries({ queryKey: ['menus'] })
+    await queryClient.invalidateQueries({ queryKey: ['menu-roles', saved.id] })
+    setModalMode(null)
+    setEditingMenu(null)
+  }
   function openDelete(menu: NativeMenu) { deleteMutation.reset(); setDeletingMenu(menu) }
   function closeDelete() { if (!deleteMutation.isPending) setDeletingMenu(null) }
 
@@ -76,7 +88,7 @@ export function MenusPage() {
         <CardHeader title="菜单目录" description={`共 ${rows.length.toLocaleString('zh-CN')} 个菜单节点`} action={<Badge tone="info">系统 API</Badge>} />
         {rows.length > 0 ? <div className="menus-table-wrap"><table className="menus-table"><thead><tr><th scope="col">菜单名称</th><th scope="col">编码</th><th scope="col">路由</th><th scope="col">权限标识</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <MenuRowView key={row.menu.id} row={row} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="menus-empty" role="status"><span className="menus-empty-icon"><ListTree size={20} /></span><strong>没有匹配的菜单</strong><p>调整筛选条件后重试，或清空筛选条件查看完整菜单。</p></div>}
       </Card> : null}
-      <MenuFormModal open={modalMode !== null} mode={modalMode ?? 'create'} menu={editingMenu} menus={flattenMenus(query.data ?? []).map((row) => row.menu)} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitMenu} />
+      <MenuFormModal open={modalMode !== null} mode={modalMode ?? 'create'} menu={editingMenu} menus={flattenMenus(query.data ?? []).map((row) => row.menu)} roles={rolesQuery.data ?? []} roleCodes={menuRolesQuery.data?.roleCodes ?? []} rolesLoading={rolesQuery.isLoading || menuRolesQuery.isFetching} pending={saveMutation.isPending || roleAssignmentMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : roleAssignmentMutation.error instanceof Error ? roleAssignmentMutation.error.message : null} onClose={closeModal} onSubmit={submitMenu} />
       <DeleteConfirmModal open={deletingMenu !== null} resourceLabel="菜单" count={1} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => { if (deletingMenu) void deleteMutation.mutateAsync(deletingMenu.id).catch(() => undefined) }} />
     </div>
   )

@@ -9,6 +9,8 @@ import {
   nativeBatchDeleteResultSchema,
   nativeDeleteResultSchema,
   nativeApiKeyRevokeResultSchema,
+  nativeMenuRoleAssignmentSchema,
+  nativeUpdatedResultSchema,
   nativeOperationLogsPageSchema,
   nativeLoginLogsPageSchema,
   nativeDepartmentsSchema,
@@ -53,6 +55,7 @@ import {
   type NativePost,
   type NativePostWriteInput,
   type NativeMenuNode,
+  type NativeMenuRoleAssignment,
   type NativeMenuWriteInput,
   type NativeApiKey,
   type NativeIssuedApiKey,
@@ -687,6 +690,30 @@ export const apiClient = {
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       return nativeMenuNodeSchema.parse({ menu: { id, parentId: input.parentId ?? null, code: input.code, name: input.name, path: input.path ?? null, component: input.component ?? null, menuType: input.menuType, permission: input.permission ?? null, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true }, children: [] }).menu
+    }
+  },
+
+  /** 查询菜单当前绑定的角色编码，供权限管理表单回显。 */
+  async listMenuRoles(id: string): Promise<NativeMenuRoleAssignment> {
+    try {
+      return nativeMenuRoleAssignmentSchema.parse(await request<unknown>(`/menus/${encodeURIComponent(id)}/roles`))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      return { roleCodes: [] }
+    }
+  },
+
+  /** 替换菜单的角色绑定；服务端会校验角色编码和管理权限。 */
+  async assignMenuRoles(id: string, roleCodes: string[]): Promise<{ updated: boolean }> {
+    const normalized = [...new Set(roleCodes.map((code) => code.trim()).filter(Boolean))]
+    try {
+      return nativeUpdatedResultSchema.parse(await request<unknown>(`/menus/${encodeURIComponent(id)}/roles`, {
+        method: 'PUT',
+        body: JSON.stringify({ roleCodes: normalized }),
+      }))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      return { updated: true }
     }
   },
 

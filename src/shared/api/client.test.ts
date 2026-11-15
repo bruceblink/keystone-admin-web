@@ -432,6 +432,24 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(5)
   })
 
+  it('读取并替换菜单角色绑定，规范化重复角色编码', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/menus/menu-1/roles') && !init?.method) return ok({ roleCodes: ['admin'] })
+      if (url.endsWith('/menus/menu-1/roles')) {
+        expect(init?.method).toBe('PUT')
+        expect(init?.body).toBe(JSON.stringify({ roleCodes: ['admin', 'auditor'] }))
+        return ok({ updated: true })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.listMenuRoles('menu-1')).resolves.toEqual({ roleCodes: ['admin'] })
+    await expect(apiClient.assignMenuRoles('menu-1', ['admin', ' admin ', 'auditor', ''])).resolves.toEqual({ updated: true })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('读取 Native 登录日志和任务执行日志分页契约', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
