@@ -30,7 +30,7 @@ pnpm build
 真实窗口使用 Native 开发服务完成登录、用户列表读取和用户名筛选验收。操作审计页对接
 `GET /api/v1/operation-logs`，支持操作用户、动作、资源类型筛选和分页，只提供查询能力。
 
-2026-11-15 使用 Codex 内置浏览器和本地 Native 服务再次完成真实窗口验收。`admin` 登录成功；
+2026-11-15 使用 Codex 内置浏览器和 `VITE_ENABLE_MOCK=false` 的本地 Native 服务再次完成真实窗口验收。`admin` 登录成功；
 `/monitor`、`/dashboard`、`/users`、`/roles`、`/departments`、`/posts`、`/menus`、
 `/api-keys`、`/audit/operations`、`/audit/login`、`/jobs`、`/configs`、`/dictionaries` 和
 `/notices` 均能通过侧栏打开并显示 Native 返回的数据。用户页用户名筛选返回 2 条记录；
