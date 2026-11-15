@@ -251,3 +251,44 @@ a { color: inherit; text-decoration: none; }
 /* 窄视口保留必要操作，顶栏上下文使用省略而不是逐字换行。 */
 .topbar .topbar-context { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 40rem) { .topbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }.topbar-context .context-kicker, .topbar-context .context-separator { display: none; }.topbar-actions { min-width: 0; gap: 8px; } }
+
+/* 让窄视口中的页面和监控卡片共享可收缩边界，避免长文本或图表撑大文档宽度。 */
+.app-shell, .shell-content, .shell-main, .monitor-page, .monitor-grid, .monitor-main, .monitor-inspector, .card, .card-header, .trend-card, .trend-chart, .metric-grid, .sessions-card { min-width: 0; max-width: 100%; }
+.monitor-page { overflow-x: clip; }
+.trend-card { overflow: hidden; }
+.trend-chart { width: 100%; overflow: hidden; }
+.card-header > * { min-width: 0; }
+.node-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 登录页使用父级内宽度，保证 320px 和 390px 视口仍保持单页布局。 */
+.login-page, .login-intro, .login-card, .login-form { width: 100%; min-width: 0; max-width: 100%; }
+.login-layout { min-width: 0; max-width: 100%; }
+@media (max-width: 400px) { .login-page { padding: 72px 16px 32px; }.login-card { padding: 18px; }.login-intro h1 { font-size: clamp(32px, 11vw, 39px); } }
+
+/* 中等窄视口也使用抽屉导航，避免固定侧栏挤压主内容和监控图表。 */
+@media (max-width: 68.75rem) {
+  .sidebar { position: fixed; inset: 0 auto 0 0; transform: translateX(-100%); transition: transform .25s ease; }
+  .sidebar.sidebar-open { transform: translateX(0); }
+  .mobile-close { display: grid; place-items: center; margin-left: auto; border: 0; color: var(--muted); background: transparent; }
+  .sidebar-scrim { display: block; position: fixed; inset: 0; z-index: 10; border: 0; background: rgba(2,7,14,.62); }
+  .mobile-menu { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 8px; color: var(--muted-strong); background: transparent; }
+  .mobile-menu:hover { background: var(--surface-soft); }
+  .topbar { justify-content: flex-start; }
+  .topbar-actions { margin-left: auto; }
+  .logout-button span, .user-copy, .user-menu > svg { display: none; }
+  .monitor-grid { grid-template-columns: minmax(0, 1fr); }
+  .page-heading { align-items: flex-start; }
+}
+
+/* 登录页在平板宽度切换为单列，保证输入框和按钮始终落在内容边界内。 */
+@media (max-width: 56.25rem) {
+  .login-page { padding: clamp(72px, 10vh, 112px) 20px 48px; }
+  .login-layout { width: min(100%, 560px); grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .login-intro { padding: 12px 0 0; }
+  .login-intro h1 { max-width: 100%; font-size: clamp(38px, 7vw, 54px); }
+  .login-lede, .login-signals { display: none; }
+  .login-card { margin-top: 28px; }
+  .monitor-inspector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metric-card:last-child { grid-column: 1 / -1; }
+}
