@@ -102,7 +102,7 @@ export function LoginPage() {
               {error ? <p className="form-error" role="alert">{error}</p> : null}
               {sessionMessage ? <p className="form-status" role="status">{sessionMessage}</p> : null}
               <Button type="submit" disabled={isSubmitting} className="login-submit">
-                {isSubmitting ? <Spinner label="正在验证" /> : <><span>登录 Native API</span><ArrowRight size={17} /></>}
+                {isSubmitting ? <Spinner label="正在验证" /> : <><span>登录</span><ArrowRight size={17} /></>}
               </Button>
             </form>
           )}
