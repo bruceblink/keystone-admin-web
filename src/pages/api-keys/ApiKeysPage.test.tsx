@@ -42,6 +42,21 @@ describe('ApiKeysPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('撤销失败时显示业务错误码诊断并保留确认上下文', async () => {
+    const key = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', name: 'CLI', prefix: 'cli_1234', scopes: ['user:read'], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' }
+    vi.spyOn(apiClient, 'listApiKeys').mockResolvedValue([key])
+    vi.spyOn(apiClient, 'revokeApiKey').mockRejectedValue(new ApiError('changed', 409, 'resource_conflict', null, { requestId: 'revoke-1' }))
+    renderPage()
+
+    expect(await screen.findByText('CLI')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+
+    expect(await screen.findByText('当前资源状态不允许此操作')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveTextContent('resource_conflict')
+    expect(screen.getByRole('dialog')).toHaveTextContent('requestId=revoke-1')
+  })
+
   it('API Key 签发收到 step-up 要求后验证并重试原操作', async () => {
     vi.spyOn(apiClient, 'listApiKeys').mockResolvedValue([])
     vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([{ permission: 'api-key:create', resource: 'api-key', action: 'create', description: 'api-key create', risk: 'medium', registered: true, allowed: true }, { permission: 'user:read', resource: 'user', action: 'read', description: 'user read', risk: 'low', registered: true, allowed: true }])

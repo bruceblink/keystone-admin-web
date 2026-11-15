@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Button, Modal } from '../../shared/ui'
+import { ActionError, Button, Modal } from '../../shared/ui'
 import { ApiKeyScopePicker, validateApiKeyScopes, type PermissionCatalogEntry } from './apiKeyScopes'
 
-type Props = { open: boolean; pending: boolean; error: string | null; scopeEntries: PermissionCatalogEntry[]; scopeLoading: boolean; scopeError: string | null; onRetryScopes: () => void; onClose: () => void; onSubmit: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => Promise<void> }
+type Props = { open: boolean; pending: boolean; error: unknown; scopeEntries: PermissionCatalogEntry[]; scopeLoading: boolean; scopeError: string | null; onRetryScopes: () => void; onClose: () => void; onSubmit: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => Promise<void> }
 
 /** API Key 签发模态框；明文只在成功响应的内存提示中展示一次。 */
 export function ApiKeyIssueModal({ open, pending, error, scopeEntries, scopeLoading, scopeError, onRetryScopes, onClose, onSubmit }: Props) {
@@ -25,7 +25,7 @@ export function ApiKeyIssueModal({ open, pending, error, scopeEntries, scopeLoad
     <form id="api-key-form" className="admin-form" onSubmit={submit}>
       <div className="admin-form-grid"><label><span>密钥名称 *</span><input value={name} onChange={(event) => setName(event.target.value)} required disabled={pending} placeholder="例如 deploy-bot" /></label><label><span>到期时间</span><input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} disabled={pending} /></label></div>
       <ApiKeyScopePicker entries={scopeEntries} loading={scopeLoading} error={scopeError} validationError={validationError} onRetry={onRetryScopes} selected={scopes} disabled={pending} onChange={(next) => { setValidationError(null); setScopes(next) }} />
-      {error ? <div className="modal-form-error" role="alert">{error}</div> : null}
+      <ActionError title="API Key 签发失败" error={error} />
     </form>
   </Modal>
 }

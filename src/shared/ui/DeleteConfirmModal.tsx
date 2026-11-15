@@ -1,13 +1,14 @@
 import { AlertTriangle } from 'lucide-react'
 import { Button } from './Button'
 import { Modal } from './Modal'
+import { ActionError } from './ActionError'
 
 type DeleteConfirmModalProps = {
   open: boolean
   resourceLabel: string
   count: number
   pending: boolean
-  error: string | null
+  error: unknown
   onClose: () => void
   onConfirm: () => void
 }
@@ -34,7 +35,7 @@ export function DeleteConfirmModal({ open, resourceLabel, count, pending, error,
           <p>删除后不可恢复。请确认已选择正确的记录。</p>
         </div>
       </div>
-      {error ? <div className="modal-form-error" role="alert">{error}</div> : null}
+      <ActionError title={`${resourceLabel}删除失败`} error={error} />
     </Modal>
   )
 }
