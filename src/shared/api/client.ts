@@ -694,7 +694,7 @@ export const apiClient = {
   },
 
   /** 查询菜单当前绑定的角色编码，供权限管理表单回显。 */
-  async listMenuRoles(id: string): Promise<NativeMenuRoleAssignment> {
+  async listRolesForMenu(id: string): Promise<NativeMenuRoleAssignment> {
     try {
       return nativeMenuRoleAssignmentSchema.parse(await request<unknown>(`/menus/${encodeURIComponent(id)}/roles`))
     } catch (error) {

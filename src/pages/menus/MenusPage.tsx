@@ -17,7 +17,7 @@ export function MenusPage() {
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['menus'], queryFn: () => apiClient.listMenus(), staleTime: 10_000 })
   const rolesQuery = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
-  const menuRolesQuery = useQuery({ queryKey: ['menu-roles', editingMenu?.id], queryFn: () => apiClient.listMenuRoles(editingMenu!.id), enabled: modalMode === 'edit' && editingMenu !== null, staleTime: 10_000 })
+  const menuRolesQuery = useQuery({ queryKey: ['menu-roles', editingMenu?.id], queryFn: () => apiClient.listRolesForMenu(editingMenu!.id), enabled: modalMode === 'edit' && editingMenu !== null, staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeMenuWriteInput }) => id ? apiClient.updateMenu(id, input) : apiClient.createMenu(input),
   })

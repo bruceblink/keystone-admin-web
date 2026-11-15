@@ -445,7 +445,7 @@ describe('Native API client', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(apiClient.listMenuRoles('menu-1')).resolves.toEqual({ roleCodes: ['admin'] })
+    await expect(apiClient.listRolesForMenu('menu-1')).resolves.toEqual({ roleCodes: ['admin'] })
     await expect(apiClient.assignMenuRoles('menu-1', ['admin', ' admin ', 'auditor', ''])).resolves.toEqual({ updated: true })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })

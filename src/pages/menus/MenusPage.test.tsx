@@ -47,7 +47,7 @@ describe('MenusPage', () => {
     const grandchild = { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', parentId: child.id, code: 'system:user:detail', name: '用户详情', path: '/users/detail', component: 'UserDetailPage', menuType: 'MENU', permission: 'user:detail', sortOrder: 1, enabled: true } as const
     vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu: root, children: [{ menu: child, children: [{ menu: grandchild, children: [] }] }] }])
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
-    vi.spyOn(apiClient, 'listMenuRoles').mockResolvedValue({ roleCodes: [] })
+    vi.spyOn(apiClient, 'listRolesForMenu').mockResolvedValue({ roleCodes: [] })
     renderPage()
 
     expect(await screen.findByText('用户详情')).toBeInTheDocument()
