@@ -20,6 +20,7 @@ import {
   nativeMenusSchema,
   nativeMenuNodeSchema,
   nativeApiKeysSchema,
+  nativePermissionCatalogSchema,
   nativeIssuedApiKeySchema,
   nativeSystemConfigsSchema,
   nativeSystemConfigSchema,
@@ -58,6 +59,7 @@ import {
   type NativeMenuRoleAssignment,
   type NativeMenuWriteInput,
   type NativeApiKey,
+  type NativePermissionCatalogEntry,
   type NativeIssuedApiKey,
   type NativeSystemConfig,
   type NativeDictionaryType,
@@ -724,6 +726,10 @@ export const apiClient = {
       if (!shouldMockFallback(error)) throw error
       return createMockApiKeys()
     }
+  },
+
+  async listPermissionCatalog(): Promise<NativePermissionCatalogEntry[]> {
+    return nativePermissionCatalogSchema.parse(await request<unknown>('/permissions/catalog')).entries
   },
 
   async issueApiKey(input: { name: string; scopes: string[]; expiresAt?: string | null }): Promise<NativeIssuedApiKey> {

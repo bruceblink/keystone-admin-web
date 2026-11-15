@@ -20,6 +20,7 @@ export function ApiKeysPage() {
   const stepUp = useMfaStepUp()
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['api-keys'], queryFn: () => apiClient.listApiKeys(), staleTime: 10_000 })
+  const scopeQuery = useQuery({ queryKey: ['permission-catalog'], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000 })
   const issueMutation = useMutation({ mutationFn: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => stepUp.run(() => apiClient.issueApiKey(input)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setIssuedKey(key); setIssueOpen(false) } })
   const rotateMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.rotateApiKey(id)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setIssuedKey(key) } })
   const revokeMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.revokeApiKey(id)), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setRevokingKey(null) } })
@@ -51,7 +52,7 @@ export function ApiKeysPage() {
           <h1>API Key 管理</h1>
           <p className="page-description">查询当前账号的机器凭据、授权范围和生命周期状态。密钥明文只在签发时返回一次。</p>
         </div>
-        <div className="heading-actions"><Button size="sm" onClick={() => { issueMutation.reset(); setIssueOpen(true) }}>签发 API Key</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
+        <div className="heading-actions"><Button size="sm" onClick={() => { issueMutation.reset(); setIssueOpen(true) }}>配置接口权限</Button><Button variant="secondary" size="sm" onClick={() => { issueMutation.reset(); setIssueOpen(true) }}>签发 API Key</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
       </div>
 
       {issuedKey ? <div className="secret-banner" role="alert"><div><strong>请立即保存这枚 API Key</strong><p>明文只在当前页面内存中展示一次。关闭提示后不会再次读取。</p><code>{issuedKey.apiKey}</code></div><Button variant="ghost" size="sm" onClick={() => setIssuedKey(null)}>关闭</Button></div> : null}
@@ -72,7 +73,7 @@ export function ApiKeysPage() {
         <CardHeader title="API Key 列表" description={`共 ${keys.length.toLocaleString('zh-CN')} 个匹配凭据`} action={<Badge tone="info">仅显示元数据</Badge>} />
         {keys.length > 0 ? <div className="api-keys-table-wrap"><table className="api-keys-table"><thead><tr><th scope="col">名称</th><th scope="col">密钥前缀</th><th scope="col">授权范围</th><th scope="col">创建时间</th><th scope="col">最近使用</th><th scope="col">到期时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{keys.map((key) => <ApiKeyRow key={key.id} apiKey={key} pending={rotateMutation.isPending || revokeMutation.isPending} onRotate={(id) => rotateMutation.mutate(id)} onRevoke={(target) => { revokeMutation.reset(); setRevokingKey(target) }} />)}</tbody></table></div> : <div className="api-keys-empty" role="status"><span className="api-keys-empty-icon"><KeyRound size={20} /></span><strong>没有匹配的 API Key</strong><p>调整筛选条件后重试，或清空筛选条件查看全部凭据。</p></div>}
       </Card> : null}
-      <ApiKeyIssueModal open={issueOpen} pending={issueMutation.isPending} error={issueMutation.error instanceof Error ? issueMutation.error.message : null} onClose={() => setIssueOpen(false)} onSubmit={(input) => issueMutation.mutateAsync(input).then(() => undefined)} />
+      <ApiKeyIssueModal open={issueOpen} pending={issueMutation.isPending} error={issueMutation.error instanceof Error ? issueMutation.error.message : null} scopeEntries={scopeQuery.data ?? []} scopeLoading={scopeQuery.isLoading} scopeError={scopeQuery.error instanceof Error ? scopeQuery.error.message : null} onRetryScopes={() => void scopeQuery.refetch()} onClose={() => setIssueOpen(false)} onSubmit={(input) => issueMutation.mutateAsync(input).then(() => undefined)} />
       <DeleteConfirmModal open={revokingKey !== null} resourceLabel="API Key" count={1} pending={revokeMutation.isPending} error={revokeMutation.error instanceof Error ? revokeMutation.error.message : null} onClose={() => { if (!revokeMutation.isPending) setRevokingKey(null) }} onConfirm={() => { if (revokingKey) void revokeMutation.mutateAsync(revokingKey.id).catch(() => undefined) }} />
       <MfaStepUpModal {...stepUp.modal} />
     </div>

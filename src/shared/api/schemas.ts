@@ -254,6 +254,19 @@ export const nativeApiKeySchema = z.object({
 
 export const nativeApiKeysSchema = z.array(nativeApiKeySchema)
 
+/** API Key 可用权限目录；allowed 表示当前登录主体可以签发该范围。 */
+export const nativePermissionCatalogEntrySchema = z.object({
+  permission: z.string(),
+  resource: z.string(),
+  action: z.string(),
+  description: z.string(),
+  risk: z.string(),
+  registered: z.boolean(),
+  allowed: z.boolean(),
+})
+export const nativePermissionCatalogSchema = z.object({ entries: z.array(nativePermissionCatalogEntrySchema) })
+export type NativePermissionCatalogEntry = z.infer<typeof nativePermissionCatalogEntrySchema>
+
 /** API Key 签发或轮换返回值；apiKey 只允许在签发响应中存在一次。 */
 export const nativeIssuedApiKeySchema = z.object({
   id: z.string().uuid(),

@@ -44,6 +44,7 @@ describe('ApiKeysPage', () => {
 
   it('API Key 签发收到 step-up 要求后验证并重试原操作', async () => {
     vi.spyOn(apiClient, 'listApiKeys').mockResolvedValue([])
+    vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([{ permission: 'api-key:create', resource: 'api-key', action: 'create', description: 'api-key create', risk: 'medium', registered: true, allowed: true }, { permission: 'user:read', resource: 'user', action: 'read', description: 'user read', risk: 'low', registered: true, allowed: true }])
     const issueApiKey = vi.spyOn(apiClient, 'issueApiKey')
       .mockRejectedValueOnce(new ApiError('recent MFA step-up is required', 403, 'permission_denied'))
       .mockResolvedValueOnce({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', name: 'deploy', prefix: 'dep', apiKey: 'ks_live_once', scopes: ['api-key:create'], expiresAt: null })
@@ -55,7 +56,7 @@ describe('ApiKeysPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '签发 API Key' }))
     const issueDialog = screen.getByRole('dialog', { name: '签发 API Key' })
     fireEvent.change(within(issueDialog).getByLabelText('密钥名称 *'), { target: { value: 'deploy' } })
-    fireEvent.change(within(issueDialog).getByLabelText('授权范围 *'), { target: { value: 'api-key:create' } })
+    fireEvent.click(within(issueDialog).getByRole('checkbox', { name: /api-key:create/ }))
     fireEvent.click(within(issueDialog).getByRole('button', { name: '签发密钥' }))
 
     const stepUpDialog = await screen.findByRole('dialog', { name: '需要 MFA 二次验证' })

@@ -406,6 +406,18 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('读取动态接口权限目录并保留 allowed 标志', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/permissions/catalog')
+      return ok({ entries: [{ permission: 'user:read', resource: 'user', action: 'read', description: 'user read', risk: 'low', registered: true, allowed: true }, { permission: 'user:delete', resource: 'user', action: 'delete', description: 'user delete', risk: 'high', registered: true, allowed: false }] })
+    }))
+
+    await expect(apiClient.listPermissionCatalog()).resolves.toEqual([
+      { permission: 'user:read', resource: 'user', action: 'read', description: 'user read', risk: 'low', registered: true, allowed: true },
+      { permission: 'user:delete', resource: 'user', action: 'delete', description: 'user delete', risk: 'high', registered: true, allowed: false },
+    ])
+  })
+
   it('发送菜单写入并只在 API Key 签发/轮换响应中接收明文', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
