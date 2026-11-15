@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MenusPage } from './MenusPage'
-import { apiClient } from '../../shared/api/client'
+import { ApiError, apiClient } from '../../shared/api/client'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -24,6 +24,24 @@ describe('MenusPage', () => {
     expect(await screen.findByText('系统管理')).toBeInTheDocument()
     expect(screen.getByText('用户管理')).toBeInTheDocument()
     expect(screen.getByText('user:read')).toBeInTheDocument()
+  })
+
+  it('刷新失败时保留菜单树并显示错误码，重试成功后清除反馈', async () => {
+    const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
+    const listMenus = vi.spyOn(apiClient, 'listMenus').mockResolvedValueOnce([{ menu, children: [] }]).mockRejectedValueOnce(new ApiError('服务暂不可用', 503, 'service_unavailable')).mockResolvedValueOnce([{ menu, children: [] }])
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    renderPage()
+
+    await screen.findByText('系统管理')
+    fireEvent.click(screen.getByRole('button', { name: '刷新菜单' }))
+    expect(await screen.findByText('数据刷新失败')).toBeInTheDocument()
+    expect(screen.getByText('诊断：service_unavailable · 服务暂不可用')).toBeInTheDocument()
+    expect(screen.getByText('系统管理')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    await waitFor(() => expect(listMenus).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.queryByText('数据刷新失败')).not.toBeInTheDocument())
+    expect(screen.getByText('系统管理')).toBeInTheDocument()
   })
 
   it('确认后删除菜单', async () => {
