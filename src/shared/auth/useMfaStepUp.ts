@@ -89,7 +89,7 @@ export function isMfaStepUpRequired(error: unknown): error is ApiError {
 
 function isStepUpVerificationError(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false
-  return ['mfa_invalid_code', 'mfa_challenge_invalid', 'invalid_credential', 'invalid_credentials', 'validation_failed', 'rate_limited'].includes(error.code ?? '')
+  return ['mfa_invalid_code', 'mfa_challenge_invalid', 'invalid_credential', 'validation_failed', 'rate_limited'].includes(error.code ?? '')
 }
 
 function errorMessage(error: unknown): string {

@@ -3,11 +3,12 @@
  * 每个服务端错误码只表示一个业务条件；HTTP 状态码只描述传输结果。
  */
 export const SERVER_ERROR_CODES = [
-  'authentication_required', 'invalid_credentials', 'invalid_credential', 'mfa_required',
-  'mfa_step_up_required', 'mfa_invalid_code', 'mfa_challenge_invalid', 'active_session_conflict',
+  'authentication_required', 'invalid_credential', 'mfa_required', 'mfa_step_up_required',
+  'mfa_invalid_code', 'mfa_challenge_invalid', 'mfa_state_conflict', 'active_session_conflict',
   'permission_denied', 'data_scope_denied', 'session_revoked', 'resource_not_found',
   'resource_conflict', 'rate_limited', 'precondition_required', 'payload_too_large',
-  'service_unavailable', 'authorization_unavailable', 'internal_error', 'validation_failed',
+  'https_required', 'service_unavailable', 'authorization_unavailable', 'internal_error',
+  'validation_failed',
 ] as const
 
 /** 客户端本地错误码，不应与后端业务错误码混用。 */
@@ -27,6 +28,46 @@ export type ApiErrorMetadata = {
   retryAfterSeconds?: number
 }
 
+export type BusinessErrorDefinition = {
+  httpStatus: number
+  meaning: string
+  retryable: boolean
+  messageKey: string
+  safeMessage: boolean
+}
+
+/** 跨项目业务错误目录；HTTP 状态是默认值，实际响应状态由接口保持现有约定。 */
+export const BUSINESS_ERROR_CATALOG: Record<ServerErrorCode, BusinessErrorDefinition> = {
+  authentication_required: { httpStatus: 401, meaning: '请求缺少有效认证', retryable: false, messageKey: 'error.authentication_required', safeMessage: true },
+  invalid_credential: { httpStatus: 401, meaning: '凭据无效或已过期', retryable: false, messageKey: 'error.invalid_credential', safeMessage: true },
+  mfa_required: { httpStatus: 401, meaning: '需要完成多因素认证', retryable: false, messageKey: 'error.mfa_required', safeMessage: true },
+  mfa_step_up_required: { httpStatus: 403, meaning: '需要完成当前操作的多因素认证升级', retryable: false, messageKey: 'error.mfa_step_up_required', safeMessage: true },
+  mfa_invalid_code: { httpStatus: 401, meaning: '多因素认证验证码无效', retryable: false, messageKey: 'error.mfa_invalid_code', safeMessage: true },
+  mfa_challenge_invalid: { httpStatus: 401, meaning: '多因素认证请求无效或已过期', retryable: false, messageKey: 'error.mfa_challenge_invalid', safeMessage: true },
+  mfa_state_conflict: { httpStatus: 409, meaning: '多因素认证状态不允许当前操作', retryable: false, messageKey: 'error.mfa_state_conflict', safeMessage: true },
+  active_session_conflict: { httpStatus: 409, meaning: '账号已有活动会话', retryable: false, messageKey: 'error.active_session_conflict', safeMessage: true },
+  permission_denied: { httpStatus: 403, meaning: '没有执行该操作的权限', retryable: false, messageKey: 'error.permission_denied', safeMessage: true },
+  data_scope_denied: { httpStatus: 403, meaning: '没有访问该数据的权限', retryable: false, messageKey: 'error.data_scope_denied', safeMessage: true },
+  session_revoked: { httpStatus: 401, meaning: '会话已撤销或失效', retryable: false, messageKey: 'error.session_revoked', safeMessage: true },
+  resource_not_found: { httpStatus: 404, meaning: '请求的资源不存在', retryable: false, messageKey: 'error.resource_not_found', safeMessage: true },
+  resource_conflict: { httpStatus: 409, meaning: '资源状态或唯一约束发生冲突', retryable: false, messageKey: 'error.resource_conflict', safeMessage: true },
+  rate_limited: { httpStatus: 429, meaning: '请求频率超过限制', retryable: true, messageKey: 'error.rate_limited', safeMessage: true },
+  precondition_required: { httpStatus: 428, meaning: '完成前置条件后才能继续', retryable: false, messageKey: 'error.precondition_required', safeMessage: true },
+  payload_too_large: { httpStatus: 413, meaning: '请求内容超过允许大小', retryable: false, messageKey: 'error.payload_too_large', safeMessage: true },
+  https_required: { httpStatus: 426, meaning: '请求必须使用 HTTPS', retryable: false, messageKey: 'error.https_required', safeMessage: true },
+  service_unavailable: { httpStatus: 503, meaning: '服务暂不可用', retryable: true, messageKey: 'error.service_unavailable', safeMessage: false },
+  authorization_unavailable: { httpStatus: 503, meaning: '认证授权状态暂不可用', retryable: true, messageKey: 'error.authorization_unavailable', safeMessage: false },
+  internal_error: { httpStatus: 500, meaning: '服务处理失败', retryable: true, messageKey: 'error.internal_error', safeMessage: false },
+  validation_failed: { httpStatus: 422, meaning: '请求参数或业务规则校验失败', retryable: false, messageKey: 'error.validation_failed', safeMessage: true },
+}
+
+/** 通过错误码反查业务含义，未知代码返回 undefined。 */
+export function getBusinessErrorDefinition(code: string | undefined): BusinessErrorDefinition | undefined {
+  return code && code in BUSINESS_ERROR_CATALOG
+    ? BUSINESS_ERROR_CATALOG[code as ServerErrorCode]
+    : undefined
+}
+
 const clientErrorCodeSet = new Set<string>(CLIENT_ERROR_CODES)
 
 export function isClientErrorCode(code: string | undefined): code is ClientErrorCode {
@@ -40,15 +81,16 @@ export function isActiveSessionConflict(error: unknown): error is ApiError {
 }
 
 const errorMessages: Record<string, string> = {
-  authentication_required: '请先登录后再继续操作', invalid_credentials: '用户名或密码错误',
+  authentication_required: '请先登录后再继续操作',
   invalid_credential: '认证信息无效，请重新登录', mfa_required: '需要完成二次认证',
   mfa_step_up_required: '需要完成二次认证后才能继续', mfa_invalid_code: '验证码错误，请重试',
-  mfa_challenge_invalid: '二次认证请求已失效，请重新开始', active_session_conflict: '该账号已经在其他位置登录',
+  mfa_challenge_invalid: '二次认证请求已失效，请重新开始', mfa_state_conflict: '当前 MFA 状态不允许此操作',
+  active_session_conflict: '该账号已经在其他位置登录',
   permission_denied: '没有执行此操作的权限', data_scope_denied: '当前账号没有访问这些数据的权限',
   session_revoked: '当前会话已失效，请重新登录', resource_not_found: '请求的资源不存在',
   resource_conflict: '当前资源状态不允许此操作', rate_limited: '操作过于频繁，请稍后重试',
   precondition_required: '请先完成账号安全设置', payload_too_large: '提交的数据过大，请缩小后重试',
-  service_unavailable: '系统服务暂时不可用，请稍后重试', authorization_unavailable: '认证服务暂时不可用，请稍后重试',
+  https_required: '请使用 HTTPS 访问系统', service_unavailable: '系统服务暂时不可用，请稍后重试', authorization_unavailable: '认证服务暂时不可用，请稍后重试',
   internal_error: '系统处理失败，请稍后重试', validation_failed: '提交的数据无效，请检查后重试',
   network_error: '无法连接系统 API', invalid_response: '系统 API 返回了无效响应',
   mfa_step_up_in_progress: '已有 MFA 验证请求正在处理', mfa_step_up_cancelled: 'MFA 验证已取消',

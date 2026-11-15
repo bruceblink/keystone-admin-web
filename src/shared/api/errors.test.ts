@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, errorDiagnostic, formatApiError, isActiveSessionConflict } from './errors'
+import {
+  ApiError,
+  errorDiagnostic,
+  formatApiError,
+  getBusinessErrorDefinition,
+  isActiveSessionConflict,
+} from './errors'
 
 describe('ApiError', () => {
   it('保留服务端业务错误码和请求追踪信息', () => {
@@ -29,5 +35,14 @@ describe('ApiError', () => {
   it('活动会话判断使用稳定错误码，不依赖可读消息', () => {
     expect(isActiveSessionConflict(new ApiError('message changed', 409, 'active_session_conflict'))).toBe(true)
     expect(isActiveSessionConflict(new ApiError('message changed', 409, 'permission_denied'))).toBe(false)
+  })
+
+  it('可以通过错误码反查目录元数据', () => {
+    expect(getBusinessErrorDefinition('active_session_conflict')).toMatchObject({
+      httpStatus: 409,
+      retryable: false,
+      messageKey: 'error.active_session_conflict',
+    })
+    expect(getBusinessErrorDefinition('unknown_code')).toBeUndefined()
   })
 })
