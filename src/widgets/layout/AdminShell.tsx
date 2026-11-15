@@ -12,7 +12,7 @@ const navItems = [
   { to: '/posts', label: '岗位管理', icon: BriefcaseBusiness },
   { to: '/menus', label: '菜单与权限', icon: ListTree },
   { to: '/api-keys', label: 'API Key', icon: KeyRound },
-  { to: '/swagger', label: '接口文档', icon: FileText, external: true },
+  { to: '/api/swagger', label: '接口文档', icon: FileText, external: true },
   { to: '/audit/operations', label: '操作审计', icon: ShieldCheck },
   { to: '/audit/login', label: '登录日志', icon: FileClock },
   { to: '/jobs', label: '定时任务', icon: ListChecks },
