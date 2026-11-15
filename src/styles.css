@@ -8,7 +8,7 @@
   color: var(--text); background: var(--bg); font-synthesis: none; text-rendering: optimizeLegibility;
 }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); }
+body { margin: 0; min-width: 0; background: var(--bg); color: var(--text); }
 button, input { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
@@ -246,3 +246,7 @@ a { color: inherit; text-decoration: none; }
 /* 监控图表在无采样时保持可读状态，并让窄屏来源说明独立换行。 */
 .trend-chart-empty { margin-top: 10px; }
 @media (max-width: 650px) { .trend-chart-empty { height: 215px; }.threshold-note { margin-left: 0; width: 100%; } }
+
+/* 窄视口保留必要操作，顶栏上下文使用省略而不是逐字换行。 */
+.topbar .topbar-context { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 40rem) { .topbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }.topbar-context .context-kicker, .topbar-context .context-separator { display: none; }.topbar-actions { min-width: 0; gap: 8px; } }
