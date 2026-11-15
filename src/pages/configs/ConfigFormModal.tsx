@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Button, Modal } from '../../shared/ui'
+import { ActionError, Button, Modal } from '../../shared/ui'
 import type { NativeSystemConfig, NativeSystemConfigWriteInput } from '../../shared/api/schemas'
 
-type Props = { open: boolean; mode: 'create' | 'edit'; config: NativeSystemConfig | null; pending: boolean; error: string | null; onClose: () => void; onSubmit: (input: NativeSystemConfigWriteInput) => Promise<void> }
+type Props = { open: boolean; mode: 'create' | 'edit'; config: NativeSystemConfig | null; pending: boolean; error: unknown; onClose: () => void; onSubmit: (input: NativeSystemConfigWriteInput) => Promise<void> }
 
 export function ConfigFormModal({ open, mode, config, pending, error, onClose, onSubmit }: Props) {
   const [key, setKey] = useState('')
@@ -32,7 +32,7 @@ export function ConfigFormModal({ open, mode, config, pending, error, onClose, o
       <div className="admin-form-grid"><label><span>配置键 *</span><input value={key} onChange={(event) => setKey(event.target.value)} disabled={mode === 'edit' || pending} placeholder="例如 security.session.ttl" autoComplete="off" /></label><label><span>配置值 *</span><input value={value} onChange={(event) => setValue(event.target.value)} disabled={pending} autoComplete="off" /></label></div>
       <label><span>说明</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} disabled={pending} rows={3} /></label>
       <label className="checkbox-label"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} disabled={pending} /><span>配置启用</span></label>
-      {validationError || error ? <div className="modal-form-error" role="alert">{validationError ?? error}</div> : null}
+      {validationError ? <div className="modal-form-error" role="alert">{validationError}</div> : null}<ActionError title="系统配置保存失败" error={error} />
     </form>
   </Modal>
 }

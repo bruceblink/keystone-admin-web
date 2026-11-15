@@ -6,7 +6,7 @@ import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeRole, NativeRoleWriteInput } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { RoleFormModal } from './RoleFormModal'
 
@@ -26,7 +26,7 @@ export function RolesPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<unknown>(null)
   const query = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => stepUp.run(() => id ? apiClient.updateRole(id, input) : apiClient.createRole(input)),
@@ -89,7 +89,7 @@ export function RolesPage() {
       anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 0)
     } catch (error) {
-      setExportError(error instanceof Error ? error.message : '角色导出失败')
+      setExportError(error)
     } finally {
       setExporting(false)
     }
@@ -106,7 +106,7 @@ export function RolesPage() {
         <div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void exportRoles()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button><Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除角色（{selectedIds.length}）</Button><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增角色</Button><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div>
       </div>
 
-      {exportError ? <div className="error-panel roles-error" role="alert"><ShieldAlert size={19} /><div><strong>角色导出失败</strong><p>{exportError}</p></div></div> : null}
+      <ActionError title="角色导出失败" error={exportError} />
       {deleteMutation.error ? <div className="error-panel roles-error" role="alert"><ShieldAlert size={19} /><div><strong>角色删除失败</strong><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : '请求失败'}</p></div></div> : null}
 
       <Card className="roles-filter-card">
