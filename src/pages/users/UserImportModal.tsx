@@ -56,7 +56,7 @@ export function UserImportModal({ open, pending, result, error, onClose, onSubmi
     <Modal
       open={open}
       title="导入用户"
-      description="上传 Excel Open XML 工作簿。Native 会按行校验并返回失败行。"
+      description="上传 Excel Open XML 工作簿。系统会按行校验并返回失败行。"
       size="lg"
       onClose={() => { if (!pending) onClose() }}
       footer={(

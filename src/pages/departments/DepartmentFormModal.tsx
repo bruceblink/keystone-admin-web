@@ -24,7 +24,7 @@ export function DepartmentFormModal({ open, mode, department, departments, pendi
   }
   const parentOptions = departments.filter((item) => item.id !== department?.id)
   return (
-    <Modal open={open} title={mode === 'create' ? '新增组织' : '编辑组织'} description="组织层级和排序由 Native API 保存。" onClose={pending ? () => undefined : onClose} footer={(
+    <Modal open={open} title={mode === 'create' ? '新增组织' : '编辑组织'} description="组织层级和排序由系统 API 保存。" onClose={pending ? () => undefined : onClose} footer={(
       <><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="department-form" disabled={pending}>{pending ? '保存中…' : '保存组织'}</Button></>
     )}>
       <form id="department-form" className="admin-form" onSubmit={submit}>

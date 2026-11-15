@@ -27,7 +27,7 @@ export function ConfigFormModal({ open, mode, config, pending, error, onClose, o
     void onSubmit({ key: key.trim(), value, description: description.trim() || null, enabled })
   }
 
-  return <Modal open={open} title={mode === 'create' ? '新增系统配置' : '编辑系统配置'} description="配置变更会写入 Native API，并记录操作审计。" onClose={pending ? () => undefined : onClose} footer={<><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="config-form" disabled={pending}>{pending ? '保存中…' : '保存配置'}</Button></>}>
+  return <Modal open={open} title={mode === 'create' ? '新增系统配置' : '编辑系统配置'} description="配置变更会写入系统 API，并记录操作审计。" onClose={pending ? () => undefined : onClose} footer={<><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="config-form" disabled={pending}>{pending ? '保存中…' : '保存配置'}</Button></>}>
     <form id="config-form" className="admin-form" onSubmit={submit}>
       <div className="admin-form-grid"><label><span>配置键 *</span><input value={key} onChange={(event) => setKey(event.target.value)} disabled={mode === 'edit' || pending} placeholder="例如 security.session.ttl" autoComplete="off" /></label><label><span>配置值 *</span><input value={value} onChange={(event) => setValue(event.target.value)} disabled={pending} autoComplete="off" /></label></div>
       <label><span>说明</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} disabled={pending} rows={3} /></label>

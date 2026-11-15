@@ -70,7 +70,7 @@ export function UsersPage() {
   }, [filters, page])
 
   const resultDescription = useMemo(() => {
-    if (query.isLoading) return '正在读取 Native API'
+    if (query.isLoading) return '正在读取系统 API'
     if (query.isError) return '读取失败，请检查服务连接'
     return `共 ${total.toLocaleString('zh-CN')} 个用户`
   }, [query.isError, query.isLoading, total])
@@ -236,7 +236,7 @@ export function UsersPage() {
 
       {query.data ? (
         <Card className="users-table-card">
-          <CardHeader title="用户列表" description={resultDescription} action={<Badge tone="info">Native API</Badge>} />
+          <CardHeader title="用户列表" description={resultDescription} action={<Badge tone="info">系统 API</Badge>} />
           {users.length > 0 ? (
             <div className="users-table-wrap">
               <table className="users-table">

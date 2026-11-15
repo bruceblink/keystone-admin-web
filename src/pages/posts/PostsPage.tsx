@@ -135,7 +135,7 @@ export function PostsPage() {
       {query.isLoading ? <div className="loading-panel posts-loading"><Spinner label="正在读取岗位列表" /></div> : null}
       {query.isError && !query.data ? <PostError message={query.error instanceof Error ? query.error.message : '岗位列表读取失败'} onRetry={() => void query.refetch()} /> : null}
       {query.data ? <Card className="posts-table-card">
-        <CardHeader title="岗位列表" description={`共 ${filteredPosts.length.toLocaleString('zh-CN')} 个匹配岗位`} action={<Badge tone="info">Native API</Badge>} />
+        <CardHeader title="岗位列表" description={`共 ${filteredPosts.length.toLocaleString('zh-CN')} 个匹配岗位`} action={<Badge tone="info">系统 API</Badge>} />
         {visiblePosts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{visiblePosts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
         <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div>
       </Card> : null}

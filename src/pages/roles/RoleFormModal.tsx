@@ -33,7 +33,7 @@ export function RoleFormModal({ open, mode, role, pending, error, onClose, onSub
   }
 
   return (
-    <Modal open={open} title={mode === 'create' ? '新增角色' : '编辑角色'} description="角色名称和启用状态由 Native API 保存。数据范围与权限目录由后端策略管理。" onClose={pending ? () => undefined : onClose} footer={(
+    <Modal open={open} title={mode === 'create' ? '新增角色' : '编辑角色'} description="角色名称和启用状态由系统 API 保存。数据范围与权限目录由后端策略管理。" onClose={pending ? () => undefined : onClose} footer={(
       <><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="role-form" disabled={pending}>{pending ? '保存中…' : '保存角色'}</Button></>
     )}>
       <form id="role-form" className="admin-form" onSubmit={submit}>

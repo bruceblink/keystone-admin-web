@@ -66,7 +66,7 @@ export function JobFormModal({ open, mode, job, pending, error, onClose, onSubmi
   }
 
   return (
-    <Modal open={open} size="lg" title={mode === 'create' ? '新增定时任务' : '编辑定时任务'} description="任务配置会写入 Native API，并按当前权限记录操作审计。" onClose={pending ? () => undefined : onClose} footer={(
+    <Modal open={open} size="lg" title={mode === 'create' ? '新增定时任务' : '编辑定时任务'} description="任务配置会写入系统 API，并按当前权限记录操作审计。" onClose={pending ? () => undefined : onClose} footer={(
       <><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="job-form" disabled={pending}>{pending ? '保存中…' : '保存任务'}</Button></>
     )}>
       <form id="job-form" className="admin-form" onSubmit={submit}>

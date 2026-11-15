@@ -33,6 +33,6 @@ export function statusTone(status: MonitorStatus): 'success' | 'warning' | 'dang
 export function statusMessage(status: MonitorStatus): string {
   if (status === 'LIVE') return '数据实时更新'
   if (status === 'STALE') return '保留最后一次有效快照'
-  if (status === 'OFFLINE') return '暂时无法连接 Native API'
+  if (status === 'OFFLINE') return '暂时无法连接系统 API'
   return '部分节点数据缺失'
 }
