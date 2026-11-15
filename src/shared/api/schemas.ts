@@ -115,6 +115,24 @@ export const nativeUserSchema = z.object({
   roles: z.array(z.string()),
 })
 
+/** 当前用户资料；密码和认证密钥永远不在资料响应中返回。 */
+export const nativeProfileSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  displayName: z.string(),
+  roles: z.array(z.string()),
+  mustChangePassword: z.boolean(),
+  deptId: z.string().nullable(),
+  postId: z.string().nullable(),
+  email: z.string().nullable(),
+  phoneNumber: z.string().nullable(),
+  sex: z.number().int().nullable(),
+  avatar: z.string().nullable(),
+  loginIp: z.string().nullable(),
+  loginAt: z.string().nullable(),
+  remark: z.string().nullable(),
+})
+
 export const nativeUsersPageSchema = z.object({
   items: z.array(nativeUserSchema),
   page: z.number().int().positive(),
@@ -408,6 +426,7 @@ export type NativeMfaStepUpChallenge = z.infer<typeof nativeMfaStepUpChallengeSc
 export type NativeMfaLoginChallenge = z.infer<typeof nativeMfaLoginChallengeSchema>
 export type NativeMfaStepUpResult = z.infer<typeof nativeMfaStepUpResultSchema>
 export type NativeUser = z.infer<typeof nativeUserSchema>
+export type NativeProfile = z.infer<typeof nativeProfileSchema>
 export type NativeUsersPage = z.infer<typeof nativeUsersPageSchema>
 export type NativeUserImportFailure = z.infer<typeof nativeUserImportFailureSchema>
 export type NativeUserImportResult = z.infer<typeof nativeUserImportResultSchema>
@@ -428,6 +447,14 @@ export type NativeUserWriteInput = {
   enabled?: boolean
   clearDept?: boolean
   roleCodes?: string[] | null
+}
+
+export type NativeProfileWriteInput = {
+  displayName: string
+  email?: string | null
+  phoneNumber?: string | null
+  sex?: number | null
+  avatar?: string | null
 }
 export type NativeRoleWriteInput = { code?: string; name: string; enabled?: boolean }
 export type NativeDepartmentWriteInput = { code: string; name: string; parentId?: string | null; sortOrder?: number; enabled?: boolean }

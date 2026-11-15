@@ -4,6 +4,7 @@ import { AdminShell } from '../widgets/layout/AdminShell'
 import { LoginPage } from '../pages/login/LoginPage'
 import { useSessionStore } from '../shared/state/session'
 import { Spinner } from '../shared/ui'
+import { NotFoundPage } from '../pages/not-found/NotFoundPage'
 
 // 管理页面按路由延迟加载，首屏只加载登录和管理外壳，避免所有业务页面进入同一个初始包。
 const MonitorPage = lazy(() => import('../pages/monitor/MonitorPage').then(({ MonitorPage }) => ({ default: MonitorPage })))
@@ -19,6 +20,7 @@ const JobsPage = lazy(() => import('../pages/jobs/JobsPage').then(({ JobsPage })
 const ConfigsPage = lazy(() => import('../pages/configs/ConfigsPage').then(({ ConfigsPage }) => ({ default: ConfigsPage })))
 const DictionariesPage = lazy(() => import('../pages/dictionaries/DictionariesPage').then(({ DictionariesPage }) => ({ default: DictionariesPage })))
 const NoticesPage = lazy(() => import('../pages/notices/NoticesPage').then(({ NoticesPage }) => ({ default: NoticesPage })))
+const ProfilePage = lazy(() => import('../pages/profile/ProfilePage').then(({ ProfilePage }) => ({ default: ProfilePage })))
 
 function RequireAuth() {
   const { user, isHydrated } = useSessionStore()
@@ -60,7 +62,8 @@ export function App() {
             <Route path="/configs" element={<ConfigsPage />} />
             <Route path="/dictionaries" element={<DictionariesPage />} />
             <Route path="/notices" element={<NoticesPage />} />
-            <Route path="*" element={<MonitorPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/monitor" replace />} />

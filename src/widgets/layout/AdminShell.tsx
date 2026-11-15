@@ -19,6 +19,7 @@ const navItems = [
   { to: '/configs', label: '系统配置', icon: Settings2 },
   { to: '/dictionaries', label: '字典管理', icon: BookOpen },
   { to: '/notices', label: '通知公告', icon: Megaphone },
+  { to: '/profile', label: '个人资料', icon: UserRoundCog },
 ]
 
 export function AdminShell() {

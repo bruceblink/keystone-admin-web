@@ -347,11 +347,18 @@ describe('Native API client', () => {
     await expect(apiClient.listPosts()).rejects.toMatchObject({ status: 403, code: 'permission_denied' })
   })
 
-  it('开发环境下将岗位代理 5xx 回退到 Mock 快照', async () => {
+  it('开发环境下只将岗位网络不可达回退到 Mock 快照', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'true')
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('network unavailable') }))
+
+    await expect(apiClient.listPosts()).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ code: 'operator' })]))
+  })
+
+  it('开发环境下保留岗位接口 5xx 错误', async () => {
     vi.stubEnv('VITE_ENABLE_MOCK', 'true')
     vi.stubGlobal('fetch', vi.fn(async () => response({ success: false, data: null, message: 'proxy unavailable', error: null }, 502)))
 
-    await expect(apiClient.listPosts()).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ code: 'operator' })]))
+    await expect(apiClient.listPosts()).rejects.toMatchObject({ status: 502 })
   })
 
   it('发送 Native 角色和组织新增/编辑请求体', async () => {

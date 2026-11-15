@@ -10,6 +10,7 @@ export function LoginPage() {
   const navigate = useNavigate()
   const login = useSessionStore((state) => state.login)
   const verifyMfaLogin = useSessionStore((state) => state.verifyMfaLogin)
+  const sessionMessage = useSessionStore((state) => state.message)
   const [username, setUsername] = useState('operator')
   const [password, setPassword] = useState('keystone')
   const [error, setError] = useState<string | null>(null)
@@ -99,6 +100,7 @@ export function LoginPage() {
               <label htmlFor="password">密码</label>
               <div className="input-wrap"><LockKeyhole size={17} aria-hidden="true" /><input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></div>
               {error ? <p className="form-error" role="alert">{error}</p> : null}
+              {sessionMessage ? <p className="form-status" role="status">{sessionMessage}</p> : null}
               <Button type="submit" disabled={isSubmitting} className="login-submit">
                 {isSubmitting ? <Spinner label="正在验证" /> : <><span>登录 Native API</span><ArrowRight size={17} /></>}
               </Button>

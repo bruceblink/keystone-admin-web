@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { apiClient } from '../api/client'
+import { apiClient, setSessionExpiredHandler } from '../api/client'
 import { queryClient } from '../query/queryClient'
 import type { User } from '../api/schemas'
 
@@ -36,6 +36,14 @@ export const useSessionStore = create<SessionState>((set) => ({
     queryClient.clear()
     set({ user: null, message: '会话已退出' })
   },
-  clearSession: (message) => set({ user: null, message }),
+  clearSession: (message) => {
+    queryClient.clear()
+    set({ user: null, message })
+  },
   clearMessage: () => set({ message: null }),
 }))
+
+setSessionExpiredHandler(() => {
+  queryClient.clear()
+  useSessionStore.setState({ user: null, isHydrated: true, message: '会话已失效，请重新登录' })
+})

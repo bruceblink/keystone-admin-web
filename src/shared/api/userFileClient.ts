@@ -14,7 +14,7 @@ type FileRequest = (path: string, init?: RequestInit) => Promise<Response>
 type UserFileClientOptions = {
   request: JsonRequest
   requestFile: FileRequest
-  mockFallbackEnabled: () => boolean
+  mockFallbackEnabled: (error: unknown) => boolean
 }
 
 function filenameFromContentDisposition(value: string | null): string | null {
@@ -51,8 +51,7 @@ export function createUserFileClient({ request, requestFile, mockFallbackEnabled
         return nativeUserImportResultSchema.parse(await request<unknown>('/users/import', { method: 'POST', body: formData }))
       } catch (error) {
         // 开发 Mock 只替代网络不可用；AAL2、API Key 和权限错误必须原样展示。
-        if (error instanceof ApiError && error.status !== 0) throw error
-        if (!mockFallbackEnabled()) throw error
+        if (!mockFallbackEnabled(error)) throw error
         return { total: 1, success: 1, failed: [] }
       }
     },
@@ -66,8 +65,7 @@ export function createUserFileClient({ request, requestFile, mockFallbackEnabled
       try {
         return await readXlsxResponse(await requestFile(`/users/export${query ? `?${query}` : ''}`))
       } catch (error) {
-        if (error instanceof ApiError && error.status !== 0) throw error
-        if (!mockFallbackEnabled()) throw error
+        if (!mockFallbackEnabled(error)) throw error
         return { blob: new Blob(['mock xlsx workbook'], { type: XLSX_MIME_TYPE }), filename: 'users.xlsx' }
       }
     },

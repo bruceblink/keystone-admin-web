@@ -5,6 +5,7 @@ import {
   nativeCacheInfoSchema,
   nativeUsersPageSchema,
   nativeUserSchema,
+  nativeProfileSchema,
   nativeBatchDeleteResultSchema,
   nativeDeleteResultSchema,
   nativeApiKeyRevokeResultSchema,
@@ -40,6 +41,8 @@ import {
   type NativeMfaLoginChallenge,
   type NativeMfaStepUpResult,
   type NativeUser,
+  type NativeProfile,
+  type NativeProfileWriteInput,
   type NativeUserWriteInput,
   type NativeBatchDeleteResult,
   type NativeDeleteResult,
@@ -80,8 +83,16 @@ let refreshToken: string | null = null
 let currentUser: User | null = null
 let currentSessionId: string | null = null
 let refreshPromise: Promise<string | null> | null = null
+let sessionExpiredHandler: (() => void) | null = null
 function mockFallbackEnabled(): boolean {
   return import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK !== 'false'
+}
+function shouldMockFallback(error: unknown): boolean {
+  return mockFallbackEnabled() && error instanceof ApiError && error.status === 0
+}
+/** 会话刷新失败时通知状态层，避免模块内令牌已清理但页面仍保留旧用户。 */
+export function setSessionExpiredHandler(handler: (() => void) | null): void {
+  sessionExpiredHandler = handler
 }
 function unwrap<T>(body: unknown, status: number): T {
   const envelope = apiEnvelopeSchema.safeParse(body)
@@ -155,7 +166,7 @@ async function requestFile(path: string, init: RequestInit = {}, retry = true): 
   }
   return response
 }
-const userFileApi = createUserFileClient({ request, requestFile, mockFallbackEnabled })
+const userFileApi = createUserFileClient({ request, requestFile, mockFallbackEnabled: shouldMockFallback })
 function applyToken(token: ReturnType<typeof nativeTokenSchema.parse>): User {
   accessToken = token.accessToken
   refreshToken = token.refreshToken
@@ -184,6 +195,7 @@ async function refreshAccessToken(): Promise<string | null> {
       refreshToken = null
       currentUser = null
       currentSessionId = null
+      sessionExpiredHandler?.()
       return null
     })
     .finally(() => {
@@ -221,8 +233,7 @@ export const apiClient = {
       const user = applyToken(token)
       return { accessToken: token.accessToken, user }
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return mockUserResult()
     }
   },
@@ -237,14 +248,8 @@ export const apiClient = {
   },
 
   async restoreSession(): Promise<User | null> {
-    try {
-      const token = await refreshAccessToken()
-      if (!token) return null
-      return currentUser
-    } catch (error) {
-      if (!mockFallbackEnabled()) return null
-      return mockUserResult().user
-    }
+    const token = await refreshAccessToken()
+    return token ? currentUser : null
   },
 
   async logout(): Promise<void> {
@@ -313,7 +318,7 @@ export const apiClient = {
         trend: [{ timestamp: capturedAt, cpu: null, memory: memory ?? 0 }],
       })
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return monitorSnapshotSchema.parse(createMockMonitorSnapshot())
     }
   },
@@ -330,7 +335,7 @@ export const apiClient = {
     try {
       return nativeUsersPageSchema.parse(await request<unknown>(`/users?${params.toString()}`))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockUsersPage(page, size)
     }
   },
@@ -343,7 +348,7 @@ export const apiClient = {
       }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeUserSchema.parse({
         id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', username: input.username ?? 'new-user',
         displayName: input.displayName, deptId: input.deptId ?? null, postId: input.postId ?? null,
@@ -362,7 +367,7 @@ export const apiClient = {
       }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeUserSchema.parse({
         id, username: input.username ?? 'operator', displayName: input.displayName,
         deptId: input.deptId ?? null, postId: input.postId ?? null, enabled: input.enabled ?? true,
@@ -381,7 +386,7 @@ export const apiClient = {
       return nativeBatchDeleteResultSchema.parse(await request<unknown>(`/users?${query}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { deleted: uniqueIds.length }
     }
   },
@@ -389,6 +394,43 @@ export const apiClient = {
   importUsers: userFileApi.importUsers,
 
   exportUsers: userFileApi.exportUsers,
+
+  async getProfile(): Promise<NativeProfile> {
+    try {
+      return nativeProfileSchema.parse(await request<unknown>('/profile'))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      const user = currentUser
+      return nativeProfileSchema.parse({
+        id: user?.id ?? '', username: user?.username ?? '', displayName: user?.displayName ?? '',
+        roles: user?.role ? [user.role] : [], mustChangePassword: false, deptId: null, postId: null,
+        email: null, phoneNumber: null, sex: null, avatar: null, loginIp: null, loginAt: null, remark: null,
+      })
+    }
+  },
+
+  async updateProfile(input: NativeProfileWriteInput): Promise<NativeProfile> {
+    try {
+      return nativeProfileSchema.parse(await request<unknown>('/profile', { method: 'PUT', body: JSON.stringify(input) }))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      const current = await apiClient.getProfile()
+      return nativeProfileSchema.parse({ ...current, ...input })
+    }
+  },
+
+  async updateProfileAvatar(avatar: string): Promise<{ avatar: string }> {
+    try {
+      return await request<unknown>('/profile/avatar', { method: 'PUT', body: JSON.stringify({ avatar }) }) as { avatar: string }
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      return { avatar }
+    }
+  },
+
+  async updateProfilePassword(password: string): Promise<{ updated: boolean }> {
+    return await request<unknown>('/profile/password', { method: 'PUT', body: JSON.stringify({ password }) }) as { updated: boolean }
+  },
 
   async listOperationLogs(filters: { actor?: string; action?: string; resource?: string; page?: number; size?: number } = {}): Promise<NativeOperationLogsPage> {
     const page = filters.page ?? 1
@@ -404,7 +446,7 @@ export const apiClient = {
     try {
       return nativeOperationLogsPageSchema.parse(await request<unknown>(`/operation-logs?${params.toString()}`))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockOperationLogsPage(page, size)
     }
   },
@@ -419,7 +461,7 @@ export const apiClient = {
       return await readXlsxResponse(await requestFile(`/operation-logs/export${query ? `?${query}` : ''}`))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return mockXlsx('operation-logs.xlsx')
     }
   },
@@ -436,7 +478,7 @@ export const apiClient = {
     try {
       return nativeLoginLogsPageSchema.parse(await request<unknown>(`/login-logs?${params.toString()}`))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockLoginLogsPage(page, size)
     }
   },
@@ -451,30 +493,30 @@ export const apiClient = {
       return await readXlsxResponse(await requestFile(`/login-logs/export${query ? `?${query}` : ''}`))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return mockXlsx('login-logs.xlsx')
     }
   },
 
-  listJobs: () => jobApi.listJobs(request, mockFallbackEnabled),
+  listJobs: () => jobApi.listJobs(request, shouldMockFallback),
 
-  listJobLogs: (filters: { jobId?: string; page?: number; size?: number } = {}) => jobApi.listJobLogs(request, mockFallbackEnabled, filters),
+  listJobLogs: (filters: { jobId?: string; page?: number; size?: number } = {}) => jobApi.listJobLogs(request, shouldMockFallback, filters),
 
-  deleteJobs: (ids: string[]) => jobApi.deleteJobs(request, mockFallbackEnabled, ids),
+  deleteJobs: (ids: string[]) => jobApi.deleteJobs(request, shouldMockFallback, ids),
 
-  createJob: (input: NativeJobWriteInput) => jobApi.createJob(request, mockFallbackEnabled, input),
+  createJob: (input: NativeJobWriteInput) => jobApi.createJob(request, shouldMockFallback, input),
 
-  updateJob: (id: string, input: NativeJobWriteInput) => jobApi.updateJob(request, mockFallbackEnabled, id, input),
+  updateJob: (id: string, input: NativeJobWriteInput) => jobApi.updateJob(request, shouldMockFallback, id, input),
 
-  updateJobStatus: (id: string, enabled: boolean) => jobApi.updateJobStatus(request, mockFallbackEnabled, id, enabled),
+  updateJobStatus: (id: string, enabled: boolean) => jobApi.updateJobStatus(request, shouldMockFallback, id, enabled),
 
-  triggerJob: (id: string) => jobApi.triggerJob(request, mockFallbackEnabled, id),
+  triggerJob: (id: string) => jobApi.triggerJob(request, shouldMockFallback, id),
 
   async listRoles(): Promise<NativeRole[]> {
     try {
       return nativeRolesSchema.parse(await request<unknown>('/roles'))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockRoles()
     }
   },
@@ -484,7 +526,7 @@ export const apiClient = {
       return await readXlsxResponse(await requestFile('/roles/export'))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return mockXlsx('roles.xlsx')
     }
   },
@@ -494,7 +536,7 @@ export const apiClient = {
       return nativeRoleSchema.parse(await request<unknown>('/roles', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeRoleSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: input.code ?? 'new-role', name: input.name, enabled: input.enabled ?? true, dataScope: 'ALL', deptScope: null, permissions: [] })
     }
   },
@@ -504,7 +546,7 @@ export const apiClient = {
       return nativeRoleSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       const role = createMockRoles().find((item) => item.id === id)
       return nativeRoleSchema.parse({ ...(role ?? createMockRoles()[0]), ...input, id })
     }
@@ -518,7 +560,7 @@ export const apiClient = {
       return nativeBatchDeleteResultSchema.parse(await request<unknown>(`/roles?${query}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { deleted: uniqueIds.length }
     }
   },
@@ -527,7 +569,7 @@ export const apiClient = {
     try {
       return nativeDepartmentsSchema.parse(await request<unknown>('/departments'))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockDepartments()
     }
   },
@@ -536,7 +578,7 @@ export const apiClient = {
     try {
       return nativeDepartmentSchema.parse(await request<unknown>('/departments', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeDepartmentSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: input.code, name: input.name, parentId: input.parentId ?? null, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true })
     }
   },
@@ -545,7 +587,7 @@ export const apiClient = {
     try {
       return nativeDepartmentSchema.parse(await request<unknown>(`/departments/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       const department = createMockDepartments().find((item) => item.id === id)
       return nativeDepartmentSchema.parse({ ...(department ?? createMockDepartments()[0]), ...input, id })
     }
@@ -556,7 +598,7 @@ export const apiClient = {
       return nativeDeleteResultSchema.parse(await request<unknown>(`/departments/${encodeURIComponent(id)}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { deleted: true }
     }
   },
@@ -566,7 +608,7 @@ export const apiClient = {
       return nativePostsSchema.parse(await request<unknown>('/posts'))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockPosts()
     }
   },
@@ -576,7 +618,7 @@ export const apiClient = {
       return nativePostSchema.parse(await request<unknown>('/posts', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockPost(input)
     }
   },
@@ -586,7 +628,7 @@ export const apiClient = {
       return nativePostSchema.parse(await request<unknown>(`/posts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return updateMockPost(id, input)
     }
   },
@@ -596,7 +638,7 @@ export const apiClient = {
       return nativeDeleteResultSchema.parse(await request<unknown>(`/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return deleteMockPost(id)
     }
   },
@@ -606,7 +648,7 @@ export const apiClient = {
       return await readXlsxResponse(await requestFile('/posts/export'))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return mockXlsx('posts.xlsx')
     }
   },
@@ -616,7 +658,7 @@ export const apiClient = {
       return nativeDeleteResultSchema.parse(await request<unknown>(`/menus/${encodeURIComponent(id)}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { deleted: true }
     }
   },
@@ -625,7 +667,7 @@ export const apiClient = {
     try {
       return nativeMenusSchema.parse(await request<unknown>('/menus'))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockMenus()
     }
   },
@@ -634,7 +676,7 @@ export const apiClient = {
     try {
       return nativeMenuNodeSchema.parse({ menu: await request<unknown>('/menus', { method: 'POST', body: JSON.stringify(input) }), children: [] }).menu
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeMenuNodeSchema.parse({ menu: { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', parentId: input.parentId ?? null, code: input.code, name: input.name, path: input.path ?? null, component: input.component ?? null, menuType: input.menuType, permission: input.permission ?? null, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true }, children: [] }).menu
     }
   },
@@ -643,7 +685,7 @@ export const apiClient = {
     try {
       return nativeMenuNodeSchema.parse({ menu: await request<unknown>(`/menus/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }), children: [] }).menu
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeMenuNodeSchema.parse({ menu: { id, parentId: input.parentId ?? null, code: input.code, name: input.name, path: input.path ?? null, component: input.component ?? null, menuType: input.menuType, permission: input.permission ?? null, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true }, children: [] }).menu
     }
   },
@@ -652,7 +694,7 @@ export const apiClient = {
     try {
       return nativeApiKeysSchema.parse(await request<unknown>('/api-keys'))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockApiKeys()
     }
   },
@@ -662,8 +704,8 @@ export const apiClient = {
       return nativeIssuedApiKeySchema.parse(await request<unknown>('/api-keys', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
-      return nativeIssuedApiKeySchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', name: input.name, prefix: 'demo', apiKey: 'ks_live_demo_once', scopes: input.scopes, expiresAt: input.expiresAt ?? null, revokedAt: null, lastUsedAt: null, createdAt: new Date().toISOString() })
+      if (!shouldMockFallback(error)) throw error
+      return nativeIssuedApiKeySchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', name: input.name, prefix: 'demo', apiKey: 'ks_live_demo_once', scopes: input.scopes, expiresAt: input.expiresAt ?? null })
     }
   },
 
@@ -672,8 +714,8 @@ export const apiClient = {
       return nativeIssuedApiKeySchema.parse(await request<unknown>(`/api-keys/${encodeURIComponent(id)}/rotate`, { method: 'POST' }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
-      return nativeIssuedApiKeySchema.parse({ id, name: 'Rotated key', prefix: 'demo', apiKey: 'ks_live_rotated_once', scopes: [], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: new Date().toISOString() })
+      if (!shouldMockFallback(error)) throw error
+      return nativeIssuedApiKeySchema.parse({ id, name: 'Rotated key', prefix: 'demo', apiKey: 'ks_live_rotated_once', scopes: [], expiresAt: null })
     }
   },
 
@@ -682,7 +724,7 @@ export const apiClient = {
       return nativeApiKeyRevokeResultSchema.parse(await request<unknown>(`/api-keys/${encodeURIComponent(id)}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { revoked: true }
     }
   },
@@ -691,7 +733,7 @@ export const apiClient = {
     try {
       return nativeSystemConfigsSchema.parse(await request<unknown>('/configs'))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockSystemConfigs()
     }
   },
@@ -700,7 +742,7 @@ export const apiClient = {
     try {
       return nativeSystemConfigSchema.parse(await request<unknown>('/configs', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeSystemConfigSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', key: input.key ?? 'new.config', value: input.value, description: input.description ?? null, enabled: input.enabled ?? true, updatedAt: new Date().toISOString() })
     }
   },
@@ -709,7 +751,7 @@ export const apiClient = {
     try {
       return nativeSystemConfigSchema.parse(await request<unknown>(`/configs/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeSystemConfigSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', key, value: input.value, description: input.description ?? null, enabled: input.enabled ?? true, updatedAt: new Date().toISOString() })
     }
   },
@@ -719,7 +761,7 @@ export const apiClient = {
       return nativeDeleteResultSchema.parse(await request<unknown>(`/configs/${encodeURIComponent(key)}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { deleted: true }
     }
   },
@@ -728,7 +770,7 @@ export const apiClient = {
     try {
       return nativeDictionaryTypesSchema.parse(await request<unknown>('/dictionaries'))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockDictionaryTypes()
     }
   },
@@ -738,7 +780,7 @@ export const apiClient = {
     try {
       return nativeDictionaryItemsSchema.parse(await request<unknown>(`/dictionaries/${encodedTypeCode}/items`))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockDictionaryItems(typeCode)
     }
   },
@@ -747,7 +789,7 @@ export const apiClient = {
     try {
       return nativeDictionaryTypeSchema.parse(await request<unknown>('/dictionaries', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeDictionaryTypeSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: input.code ?? 'new_type', name: input.name, enabled: input.enabled ?? true })
     }
   },
@@ -756,7 +798,7 @@ export const apiClient = {
     try {
       return nativeDictionaryTypeSchema.parse(await request<unknown>(`/dictionaries/types/${encodeURIComponent(code)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeDictionaryTypeSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code, name: input.name, enabled: input.enabled ?? true })
     }
   },
@@ -766,7 +808,7 @@ export const apiClient = {
       return nativeDeleteResultSchema.parse(await request<unknown>(`/dictionaries/types/${encodeURIComponent(code)}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { deleted: true }
     }
   },
@@ -775,7 +817,7 @@ export const apiClient = {
     try {
       return nativeDictionaryItemSchema.parse(await request<unknown>(`/dictionaries/${encodeURIComponent(typeCode)}/items`, { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeDictionaryItemSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518f2f', typeCode, value: input.value ?? 'new_value', label: input.label, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true })
     }
   },
@@ -784,7 +826,7 @@ export const apiClient = {
     try {
       return nativeDictionaryItemSchema.parse(await request<unknown>(`/dictionaries/items/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeDictionaryItemSchema.parse({ id, typeCode: 'custom', value: input.value ?? 'value', label: input.label, sortOrder: input.sortOrder ?? 1, enabled: input.enabled ?? true })
     }
   },
@@ -794,7 +836,7 @@ export const apiClient = {
       return nativeDeleteResultSchema.parse(await request<unknown>(`/dictionaries/items/${encodeURIComponent(id)}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { deleted: true }
     }
   },
@@ -803,7 +845,7 @@ export const apiClient = {
     try {
       return nativeNoticesSchema.parse(await request<unknown>('/notices/manage'))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return createMockNotices()
     }
   },
@@ -812,7 +854,7 @@ export const apiClient = {
     try {
       return nativeNoticeSchema.parse(await request<unknown>('/notices', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeNoticeSchema.parse({ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', title: input.title, content: input.content, noticeType: input.noticeType, published: false, enabled: input.enabled ?? true, publishAt: null, createdBy: 'operator', createdAt: new Date().toISOString() })
     }
   },
@@ -821,7 +863,7 @@ export const apiClient = {
     try {
       return nativeNoticeSchema.parse(await request<unknown>(`/notices/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeNoticeSchema.parse({ id, title: input.title, content: input.content, noticeType: input.noticeType, published: false, enabled: input.enabled ?? true, publishAt: null, createdBy: 'operator', createdAt: new Date().toISOString() })
     }
   },
@@ -834,7 +876,7 @@ export const apiClient = {
       return nativeBatchDeleteResultSchema.parse(await request<unknown>(`/notices?${query}`, { method: 'DELETE' }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return { deleted: uniqueIds.length }
     }
   },
@@ -843,7 +885,7 @@ export const apiClient = {
     try {
       return nativeNoticeSchema.parse(await request<unknown>(`/notices/${encodeURIComponent(id)}/publish`, { method: 'POST', body: JSON.stringify({ published }) }))
     } catch (error) {
-      if (!mockFallbackEnabled()) throw error
+      if (!shouldMockFallback(error)) throw error
       return nativeNoticeSchema.parse({ id, title: '公告', content: '', noticeType: 'announcement', published, enabled: true, publishAt: published ? new Date().toISOString() : null, createdBy: 'operator', createdAt: new Date().toISOString() })
     }
   },

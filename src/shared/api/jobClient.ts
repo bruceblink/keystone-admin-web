@@ -3,7 +3,7 @@ import { createMockJob, createMockJobs, triggerMockJob, updateMockJob, updateMoc
 import { ApiError } from './errors'
 
 export type ApiRequest = <T>(path: string, init?: RequestInit) => Promise<T>
-export type MockFallback = () => boolean
+export type MockFallback = (error: unknown) => boolean
 
 /** 计划任务接口适配器；集中管理任务写操作和开发环境的可重复 Mock 回退。 */
 export const jobApi = {
@@ -11,7 +11,7 @@ export const jobApi = {
     try {
       return nativeJobsSchema.parse(await request<unknown>('/jobs'))
     } catch (error) {
-      if (!fallback()) throw error
+      if (!fallback(error)) throw error
       return createMockJobs()
     }
   },
@@ -25,7 +25,7 @@ export const jobApi = {
     try {
       return nativeJobLogsPageSchema.parse(await request<unknown>(`/jobs/logs?${params.toString()}`))
     } catch (error) {
-      if (!fallback()) throw error
+      if (!fallback(error)) throw error
       return { items: [], page, size, total: 0 }
     }
   },
@@ -34,7 +34,7 @@ export const jobApi = {
     try {
       return nativeJobSchema.parse(await request<unknown>('/jobs', { method: 'POST', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!fallback()) throw error
+      if (!fallback(error)) throw error
       return createMockJob(input)
     }
   },
@@ -43,7 +43,7 @@ export const jobApi = {
     try {
       return nativeJobSchema.parse(await request<unknown>(`/jobs/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }))
     } catch (error) {
-      if (!fallback()) throw error
+      if (!fallback(error)) throw error
       return updateMockJob(id, input)
     }
   },
@@ -52,7 +52,7 @@ export const jobApi = {
     try {
       return nativeJobSchema.parse(await request<unknown>(`/jobs/${encodeURIComponent(id)}/status`, { method: 'PUT', body: JSON.stringify({ enabled }) }))
     } catch (error) {
-      if (!fallback()) throw error
+      if (!fallback(error)) throw error
       return updateMockJobStatus(id, enabled)
     }
   },
@@ -61,7 +61,7 @@ export const jobApi = {
     try {
       return nativeJobTriggerResultSchema.parse(await request<unknown>(`/jobs/${encodeURIComponent(id)}/trigger`, { method: 'POST' }))
     } catch (error) {
-      if (!fallback()) throw error
+      if (!fallback(error)) throw error
       return triggerMockJob(id)
     }
   },
@@ -73,8 +73,7 @@ export const jobApi = {
     try {
       return nativeBatchDeleteResultSchema.parse(await request<unknown>(`/jobs?${query}`, { method: 'DELETE' }))
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 0) throw error
-      if (!fallback()) throw error
+      if (!fallback(error)) throw error
       return { deleted: uniqueIds.length }
     }
   },
