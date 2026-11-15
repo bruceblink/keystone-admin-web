@@ -5,7 +5,7 @@ import { apiClient } from '../../shared/api/client'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
+import { Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { UserFormModal } from './UserFormModal'
 import { UserImportModal } from './UserImportModal'
 
@@ -233,6 +233,7 @@ export function UsersPage() {
 
       {query.isLoading ? <div className="loading-panel users-loading"><Spinner label="正在读取用户列表" /></div> : null}
       {query.isError && !query.data ? <UsersError message={query.error instanceof Error ? query.error.message : '用户列表读取失败'} onRetry={refresh} /> : null}
+      {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '用户列表刷新失败'} onRetry={refresh} retrying={query.isFetching} /> : null}
 
       {query.data ? (
         <Card className="users-table-card">

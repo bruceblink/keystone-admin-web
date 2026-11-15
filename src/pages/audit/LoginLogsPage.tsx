@@ -3,7 +3,7 @@ import { Download, FileClock, RefreshCw, Search, ShieldAlert } from 'lucide-reac
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeLoginLog } from '../../shared/api/schemas'
-import { Badge, Button, Card, CardHeader, Spinner } from '../../shared/ui'
+import { Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 
 const PAGE_SIZE = 20
 type LoginFilters = { username: string; status: string }
@@ -64,6 +64,7 @@ export function LoginLogsPage() {
     <Card className="audit-filter-card"><form className="audit-filter-form" onSubmit={submit}><label><span>用户名</span><input value={formFilters.username} onChange={(event) => setFormFilters((current) => ({ ...current, username: event.target.value }))} placeholder="按用户名筛选" autoComplete="off" /></label><label><span>登录状态</span><input value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))} placeholder="例如 SUCCESS、FAILURE" autoComplete="off" /></label><div className="audit-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
     {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取登录日志" /></div> : null}
     {query.isError && !query.data ? <LogError message={query.error instanceof Error ? query.error.message : '登录日志读取失败'} onRetry={() => void query.refetch()} /> : null}
+    {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '登录日志刷新失败'} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     {query.data ? <Card className="audit-table-card"><CardHeader title="登录记录" description={description} action={<Badge tone="info">系统 API</Badge>} />{logs.length > 0 ? <div className="audit-table-wrap"><table className="audit-table"><thead><tr><th scope="col">时间</th><th scope="col">用户名</th><th scope="col">状态</th><th scope="col">来源地址</th><th scope="col">说明</th><th scope="col">客户端</th></tr></thead><tbody>{logs.map((log) => <LoginRow key={log.id} log={log} />)}</tbody></table></div> : <div className="audit-empty" role="status"><span className="audit-empty-icon"><FileClock size={20} /></span><strong>没有匹配的登录记录</strong><p>调整筛选条件后重试。</p></div>}<div className="audit-pagination"><span>第 {query.data.page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((current) => current - 1)}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setPage((current) => current + 1)}>下一页</Button></div></div></Card> : null}
   </div>
 }
