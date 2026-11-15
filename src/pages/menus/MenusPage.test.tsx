@@ -63,4 +63,28 @@ describe('MenusPage', () => {
     const editParentSelect = within(editDialog).getByLabelText('上级菜单')
     expect(Array.from(editParentSelect.querySelectorAll('option')).map((option) => option.textContent)).toEqual(['根菜单', '系统管理'])
   })
+
+  it('保存菜单后替换角色绑定', async () => {
+    const root = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
+    const created = { ...root, id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: 'audit', name: '审计中心' }
+    vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu: root, children: [] }])
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([
+      { id: root.id, code: 'admin', name: '系统管理员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+      { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+    ])
+    const createMenu = vi.spyOn(apiClient, 'createMenu').mockResolvedValue(created)
+    const assignMenuRoles = vi.spyOn(apiClient, 'assignMenuRoles').mockResolvedValue({ updated: true })
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: '新增菜单' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('菜单名称'), { target: { value: created.name } })
+    fireEvent.change(within(dialog).getByLabelText('菜单编码'), { target: { value: created.code } })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /系统管理员/ }))
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /审计员/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存菜单' }))
+
+    await waitFor(() => expect(createMenu).toHaveBeenCalledWith(expect.objectContaining({ code: created.code, name: created.name })))
+    await waitFor(() => expect(assignMenuRoles).toHaveBeenCalledWith(created.id, ['admin', 'auditor']))
+  })
 })
