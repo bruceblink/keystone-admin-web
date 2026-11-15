@@ -148,7 +148,7 @@ export function OperationsAuditPage() {
 
       {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取操作审计" /></div> : null}
       {query.isError && !query.data ? <AuditError message={query.error instanceof Error ? query.error.message : '操作审计读取失败'} onRetry={refresh} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '操作审计刷新失败'} onRetry={refresh} retrying={query.isFetching} /> : null}
+      {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '操作审计刷新失败'} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
 
       {query.data ? (
         <Card className="audit-table-card">

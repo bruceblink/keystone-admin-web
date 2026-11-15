@@ -239,7 +239,7 @@ export function UsersPage() {
 
       {query.isLoading ? <div className="loading-panel users-loading"><Spinner label="正在读取用户列表" /></div> : null}
       {query.isError && !query.data ? <UsersError message={query.error instanceof Error ? query.error.message : '用户列表读取失败'} onRetry={refresh} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '用户列表刷新失败'} onRetry={refresh} retrying={query.isFetching} /> : null}
+      {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '用户列表刷新失败'} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
 
       {query.data ? (
         <Card className="users-table-card">
