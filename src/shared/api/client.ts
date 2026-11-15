@@ -98,8 +98,10 @@ function shouldMockFallback(error: unknown): boolean {
 
 function serverApiError(envelope: ReturnType<typeof apiEnvelopeSchema.parse>, status: number): ApiError {
   const error = envelope.error
-  return new ApiError(envelope.message, status, error?.code, envelope.data, {
-    source: 'server',
+  const hasServerCode = typeof error?.code === 'string' && error.code.trim() !== ''
+  // 服务端失败响应缺少业务码时，按协议响应错误处理，避免页面产生不可反查的异常。
+  return new ApiError(envelope.message, status, hasServerCode ? error.code : 'invalid_response', envelope.data, {
+    source: hasServerCode ? 'server' : 'client',
     requestId: error?.requestId,
     details: error?.details,
     fields: error?.fields,

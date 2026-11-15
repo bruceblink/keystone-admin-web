@@ -35,6 +35,21 @@ describe('Native API client', () => {
     vi.restoreAllMocks()
   })
 
+  it('为缺少服务端业务码的失败响应补充协议错误码', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({
+      success: false,
+      data: null,
+      message: 'malformed error response',
+      error: null,
+    }, 500)))
+
+    await expect(apiClient.listUsers()).rejects.toMatchObject({
+      status: 500,
+      code: 'invalid_response',
+      source: 'client',
+    })
+  })
+
   it('解包 Native 登录响应并使用刷新令牌恢复会话', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
