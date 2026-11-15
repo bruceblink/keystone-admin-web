@@ -132,6 +132,8 @@ python3 keystone-phoenix/scripts/check_error_code_catalog.py \
 
 菜单角色目录读取失败现在显示错误和重试入口，并在目录未恢复前禁止保存，提交为 `7a88836`。Users、Jobs、LoginLogs、OperationsAudit、Profile 和 Monitor 在已有旧数据但刷新失败时保留当前内容并显示重试入口，提交为 `2c79ff7`。本轮验证为 21 个测试文件、95 个测试通过，并通过类型检查和构建。
 
+`4ccc35d` 为 Users、Jobs、LoginLogs、OperationsAudit 增加命名 URL 查询状态，刷新或复制链接可以恢复筛选、分页和任务详情页码。该切片验证为 21 个测试文件、98 个测试通过，并通过类型检查和构建。
+
 ### 令牌处理
 
 - access token 和 refresh token 只保存在当前页面内存中的 session store；Native 当前返回
