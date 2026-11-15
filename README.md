@@ -30,6 +30,14 @@ pnpm build
 真实窗口使用 Native 开发服务完成登录、用户列表读取和用户名筛选验收。操作审计页对接
 `GET /api/v1/operation-logs`，支持操作用户、动作、资源类型筛选和分页，只提供查询能力。
 
+2026-11-15 使用 Codex 内置浏览器和本地 Native 服务再次完成真实窗口验收。`admin` 登录成功；
+`/monitor`、`/dashboard`、`/users`、`/roles`、`/departments`、`/posts`、`/menus`、
+`/api-keys`、`/audit/operations`、`/audit/login`、`/jobs`、`/configs`、`/dictionaries` 和
+`/notices` 均能通过侧栏打开并显示 Native 返回的数据。用户页用户名筛选返回 2 条记录；
+用户新增、角色新增和 API Key 签发模态框可以打开和关闭。监控页真实显示 `PARTIAL`，CPU、
+磁盘和网络指标按 Native 接口约定显示为不可用。此次没有签发真实 API Key，也没有提交会改变
+业务数据的表单；MFA、OIDC 和 WebAuthn 真实仪式不属于此次本地窗口验收。
+
 角色页对接 `GET /api/v1/roles`，组织页对接 `GET /api/v1/departments`；菜单页对接 `GET /api/v1/menus`，API Key 页对接 `GET /api/v1/api-keys`，提供签发、轮换和确认撤销，并且只展示脱敏元数据；登录日志页对接 `GET /api/v1/login-logs`，任务页对接 `GET /api/v1/jobs`、`GET /api/v1/jobs/logs` 以及新增/编辑/启停/执行和批量删除接口；配置、字典和通知公告页对接对应 Native 查询接口。各页均以查询为默认入口，角色支持状态和关键词筛选，组织和菜单按父子关系展示层级，任务支持只读执行日志查看。用户、角色、组织、菜单、API Key、配置、字典和通知公告已提供对应模态框或签发/轮换操作，保存期间锁定提交，成功后刷新列表；用户、角色、公告和任务提供确认模态框批量删除，部门、菜单、岗位、系统配置和字典类型/条目提供确认删除，删除错误在页面中明确反馈。
 
 Native 已提供用户、角色、岗位、部门、菜单、配置、字典、公告、任务、登录日志、操作日志、API Key、个人资料、监控和文件接口。前端已接入用户、角色、岗位、登录日志和操作审计的 `.xlsx` 导出，并在每个页面保留当前筛选条件；用户导入继续只接受 `.xlsx`。外部身份提供商、Passkey、多节点和生产窗口不属于当前本地验收范围。
