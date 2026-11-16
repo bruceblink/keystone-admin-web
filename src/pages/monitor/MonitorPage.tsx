@@ -7,7 +7,7 @@ import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import { useSessionStore } from '../../shared/state/session'
 import { formatDateTime, formatPercent, formatRate, statusMessage, statusTone } from '../../entities/monitor/format'
 import type { SessionSummary } from '../../entities/monitor/types'
-import { InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 import { TrendChart } from '../../widgets/monitor/TrendChart'
 
 const statusLabels = { LIVE: 'LIVE', STALE: 'STALE', OFFLINE: 'OFFLINE', PARTIAL: 'PARTIAL' } as const
@@ -15,6 +15,7 @@ const statusLabels = { LIVE: 'LIVE', STALE: 'STALE', OFFLINE: 'OFFLINE', PARTIAL
 export function MonitorPage() {
   const [selectedSession, setSelectedSession] = useState<SessionSummary | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<unknown>(null)
   const [helpOpen, setHelpOpen] = useState(false)
   const stepUp = useMfaStepUp()
   const clearSession = useSessionStore((state) => state.clearSession)
@@ -33,10 +34,14 @@ export function MonitorPage() {
 
   function refresh() {
     setNotice(null)
+    setActionError(null)
     void query.refetch()
   }
 
   async function forceLogout(session: SessionSummary) {
+    setNotice(null)
+    setActionError(null)
+
     try {
       const result = await stepUp.run(() => apiClient.revokeOnlineSession(session.id))
       setSelectedSession(null)
@@ -47,7 +52,7 @@ export function MonitorPage() {
       setNotice(`已完成下线：${session.user}`)
       void query.refetch()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '下线请求失败')
+      setActionError(error)
     }
   }
 
@@ -58,6 +63,7 @@ export function MonitorPage() {
         <div className="heading-actions"><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新快照</Button><Button variant="ghost" size="sm" aria-label="监控帮助" aria-expanded={helpOpen} onClick={() => setHelpOpen((current) => !current)}><CircleHelp size={17} /></Button></div>
       </div>
       {helpOpen ? <div className="monitor-help-panel" role="note"><CircleHelp size={17} /><div><strong>如何阅读监控</strong><p>状态和趋势来自系统 API。显示“—”表示当前后端没有提供该指标；PARTIAL 表示部分节点数据可用。</p></div><Button variant="ghost" size="sm" aria-label="关闭监控帮助" onClick={() => setHelpOpen(false)}>关闭</Button></div> : null}
+      <ActionError title="强制下线失败" error={actionError} onDismiss={() => setActionError(null)} />
       <div className="monitor-status-bar">
         <div className="status-leading"><span className={`status-pulse status-pulse-${statusTone(computedStatus)}`} /><Badge tone={statusTone(computedStatus)}>{statusLabels[computedStatus]}</Badge><span>{statusMessage(computedStatus)}</span></div>
         <div className="status-meta"><span>{snapshot ? `最后更新 ${formatDateTime(snapshot.capturedAt)}` : '等待快照'}</span><span className="status-source">来源：{snapshot?.source ?? '系统 API'}</span></div>
