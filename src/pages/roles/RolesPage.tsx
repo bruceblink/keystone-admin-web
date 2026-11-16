@@ -29,9 +29,12 @@ export function RolesPage() {
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
   const query = useQuery({ queryKey: ['roles', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listRoles({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000, placeholderData: (previousData) => previousData })
+  const permissionCatalogQuery = useQuery({ queryKey: ['permission-catalog'], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000, enabled: modalMode !== null })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => stepUp.run(() => id ? apiClient.updateRole(id, input) : apiClient.createRole(input)),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['roles'] }); setUrlState({ page: 1 }); setModalMode(null); setEditingRole(null) },
+  })
+  const permissionMutation = useMutation({
+    mutationFn: ({ id, permissions }: { id: string; permissions: string[] }) => stepUp.run(() => apiClient.updateRolePermissions(id, permissions)),
   })
   const deleteMutation = useMutation({
     mutationFn: (ids: string[]) => stepUp.run(() => apiClient.deleteRoles(ids)),
@@ -74,10 +77,24 @@ export function RolesPage() {
     void query.refetch()
   }
 
-  function openCreate() { saveMutation.reset(); setEditingRole(null); setModalMode('create') }
-  function openEdit(role: NativeRole) { saveMutation.reset(); setEditingRole(role); setModalMode('edit') }
-  function closeModal() { if (saveMutation.isPending) return; setModalMode(null); setEditingRole(null) }
-  async function submitRole(input: NativeRoleWriteInput) { try { await saveMutation.mutateAsync({ id: editingRole?.id, input }) } catch { /* 模态框保留错误和用户输入。 */ } }
+  function openCreate() { saveMutation.reset(); permissionMutation.reset(); setEditingRole(null); setModalMode('create') }
+  function openEdit(role: NativeRole) { saveMutation.reset(); permissionMutation.reset(); setEditingRole(role); setModalMode('edit') }
+  function closeModal() { if (saveMutation.isPending || permissionMutation.isPending) return; setModalMode(null); setEditingRole(null) }
+  async function submitRole(input: NativeRoleWriteInput, permissions: string[]) {
+    try {
+      const saved = await saveMutation.mutateAsync({ id: editingRole?.id, input })
+      // 保存角色后先保留新 ID，权限更新失败时用户可以在同一表单重试而不会重复创建角色。
+      setEditingRole({ ...saved, permissions })
+      setModalMode('edit')
+      await permissionMutation.mutateAsync({ id: saved.id, permissions })
+      await queryClient.invalidateQueries({ queryKey: ['roles'] })
+      setUrlState({ page: 1 })
+      setModalMode(null)
+      setEditingRole(null)
+    } catch {
+      // 模态框保留错误和用户输入，供用户修正或重试。
+    }
+  }
   function toggleRole(id: string, checked: boolean) { setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)) }
   function toggleAllRoles(checked: boolean) { setSelectedIds(checked ? roles.map((role) => role.id) : []) }
   function openDelete() { deleteMutation.reset(); setDeleteOpen(true) }
@@ -131,7 +148,7 @@ export function RolesPage() {
         {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending} onSelect={toggleRole} onEdit={openEdit} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
         {totalPages > 1 ? <div className="roles-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="secondary" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
       </Card> : null}
-      <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitRole} />
+      <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending || permissionMutation.isPending} error={saveMutation.error} permissionsError={permissionMutation.error} permissionEntries={permissionCatalogQuery.data ?? []} permissionsLoading={permissionCatalogQuery.isLoading || permissionCatalogQuery.isFetching} permissionsErrorState={permissionCatalogQuery.error} onRetryPermissions={() => void permissionCatalogQuery.refetch()} onClose={closeModal} onSubmit={submitRole} />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
       <MfaStepUpModal {...stepUp.modal} />
     </div>

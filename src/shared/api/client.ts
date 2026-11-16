@@ -659,6 +659,21 @@ export const apiClient = {
     }
   },
 
+  /** 替换角色权限目录；服务端要求 role:manage 和 MFA step-up。 */
+  async updateRolePermissions(id: string, permissions: string[]): Promise<{ updated: boolean }> {
+    const normalized = [...new Set(permissions.map((permission) => permission.trim()).filter(Boolean))]
+    try {
+      return nativeUpdatedResultSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({ permissions: normalized }),
+      }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 0) throw error
+      if (!shouldMockFallback(error)) throw error
+      return { updated: true }
+    }
+  },
+
   async deleteRoles(ids: string[]): Promise<NativeBatchDeleteResult> {
     const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
     if (uniqueIds.length === 0) throw new Error('至少选择一个角色')

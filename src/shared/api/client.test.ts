@@ -509,6 +509,19 @@ describe('Native API client', () => {
     ])
   })
 
+  it('规范化并替换角色权限目录', async () => {
+    const calls: Array<{ input: string; init?: RequestInit }> = []
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ input: String(input), init })
+      return ok({ updated: true })
+    }))
+
+    await expect(apiClient.updateRolePermissions('role-1', [' user:read ', 'role:read', 'user:read'])).resolves.toEqual({ updated: true })
+    expect(calls[0]?.input).toBe('/api/v1/roles/role-1/permissions')
+    expect(calls[0]?.init?.method).toBe('PUT')
+    expect(calls[0]?.init?.body).toBe(JSON.stringify({ permissions: ['user:read', 'role:read'] }))
+  })
+
   it('发送菜单写入并只在 API Key 签发/轮换响应中接收明文', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
