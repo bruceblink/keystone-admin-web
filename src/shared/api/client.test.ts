@@ -157,7 +157,7 @@ describe('Native API client', () => {
         expect((init?.headers as Headers).get('Authorization')).toBe('Bearer access-1')
         return ok({ accessToken: 'aal2-access', expiresIn: 300, authenticationLevel: 'AAL2', amr: 'otp' })
       }
-      if (url.endsWith('/api-keys')) {
+      if (url.split('?')[0].endsWith('/api-keys')) {
         expect((init?.headers as Headers).get('Authorization')).toBe('Bearer aal2-access')
         return ok({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', name: 'deploy', prefix: 'dep', apiKey: 'ks_live_once', scopes: ['api-key:create'], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' })
       }
@@ -429,7 +429,7 @@ describe('Native API client', () => {
           path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true,
         }, children: [],
       }])
-      if (url.endsWith('/api-keys')) return ok([{
+      if (url.split('?')[0].endsWith('/api-keys')) return ok([{
         id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: 'CLI', prefix: 'cli_1234', scopes: ['user:read'],
         expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z',
       }])
@@ -485,7 +485,7 @@ describe('Native API client', () => {
       const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: body?.parentId ?? null, code: body?.code ?? 'system', name: body?.name ?? '系统', path: body?.path ?? '/system', component: body?.component ?? null, menuType: body?.menuType ?? 'MENU', permission: body?.permission ?? null, sortOrder: body?.sortOrder ?? 1, enabled: body?.enabled ?? true }
       if (url.endsWith('/menus')) return ok(menu)
       if (url.includes('/menus/')) return ok(menu)
-      if (url.endsWith('/api-keys')) return ok({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: body.name, prefix: 'cli_1234', apiKey: 'ks_live_secret_once', scopes: body.scopes, expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' })
+      if (url.split('?')[0].endsWith('/api-keys')) return ok({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: body.name, prefix: 'cli_1234', apiKey: 'ks_live_secret_once', scopes: body.scopes, expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' })
       if (url.includes('/api-keys/') && url.endsWith('/rotate')) return ok({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: 'CLI', prefix: 'cli_5678', apiKey: 'ks_live_rotated_once', scopes: ['user:read'], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' })
       if (url.includes('/api-keys/') && init?.method === 'DELETE') return ok({ revoked: true })
       throw new Error(`unexpected request: ${url}`)
@@ -591,7 +591,7 @@ describe('Native API client', () => {
       }])
       if (url.endsWith('/dictionaries')) return ok([{ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'user_status', name: '用户状态', enabled: true }])
       if (url.endsWith('/dictionaries/user_status/items')) return ok([{ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', typeCode: 'user_status', value: 'enabled', label: '启用', sortOrder: 1, enabled: true }])
-      if (url.endsWith('/notices/manage')) return ok([{ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '维护通知', content: '内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }])
+      if (url.split('?')[0].endsWith('/notices/manage')) return ok([{ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '维护通知', content: '内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }])
       throw new Error(`unexpected request: ${url}`)
     })
     vi.stubGlobal('fetch', fetchMock)

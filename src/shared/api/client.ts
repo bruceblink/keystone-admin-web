@@ -107,6 +107,15 @@ async function requestSystemConfigs(query = ''): Promise<unknown> {
   return request<unknown>(`/configs?${query}`)
 }
 
+// 统一 API Key 和公告读取入口，兼容数组接口并保持分页请求使用同一路由。
+async function requestApiKeys(query = ''): Promise<unknown> {
+  return request<unknown>(`/api-keys?${query}`)
+}
+
+async function requestManagedNotices(query = ''): Promise<unknown> {
+  return request<unknown>(`/notices/manage?${query}`)
+}
+
 function serverApiError(envelope: ReturnType<typeof apiEnvelopeSchema.parse>, status: number): ApiError {
   const error = envelope.error
   const hasServerCode = typeof error?.code === 'string' && error.code.trim() !== ''
@@ -743,7 +752,7 @@ export const apiClient = {
 
   async listApiKeys(): Promise<NativeApiKey[]> {
     try {
-      return nativeApiKeysSchema.parse(await request<unknown>('/api-keys'))
+      return nativeApiKeysSchema.parse(await requestApiKeys())
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       return createMockApiKeys()
@@ -755,7 +764,7 @@ export const apiClient = {
       const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
       if (filters.keyword) params.set('keyword', filters.keyword)
       if (filters.status && filters.status !== 'all') params.set('status', filters.status)
-      return nativeApiKeysPageSchema.parse(await request<unknown>(`/api-keys?${params.toString()}`))
+      return nativeApiKeysPageSchema.parse(await requestApiKeys(params.toString()))
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       const keyword = filters.keyword?.toLocaleLowerCase() ?? ''
@@ -940,7 +949,7 @@ export const apiClient = {
 
   async listNotices(): Promise<NativeNotice[]> {
     try {
-      return nativeNoticesSchema.parse(await request<unknown>('/notices/manage'))
+      return nativeNoticesSchema.parse(await requestManagedNotices())
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       return createMockNotices()
@@ -952,7 +961,7 @@ export const apiClient = {
       const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
       if (filters.keyword) params.set('keyword', filters.keyword)
       if (filters.status && filters.status !== 'all') params.set('status', filters.status)
-      return nativeNoticesPageSchema.parse(await request<unknown>(`/notices/manage?${params.toString()}`))
+      return nativeNoticesPageSchema.parse(await requestManagedNotices(params.toString()))
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       const keyword = filters.keyword?.toLocaleLowerCase() ?? ''
