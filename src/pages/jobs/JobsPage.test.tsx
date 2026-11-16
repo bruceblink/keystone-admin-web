@@ -118,4 +118,16 @@ describe('JobsPage', () => {
     expect(await screen.findByText(/resource_conflict/)).toBeInTheDocument()
     expect(screen.getByText(/requestId=job-1/)).toBeInTheDocument()
   })
+
+  it('深链接选择当前页之外的任务时读取任务详情', async () => {
+    const detail = { id: '9d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'detail-job', name: '跨页任务', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    window.history.replaceState({}, '', '/jobs?jobs_jobPage=2&jobs_selectedJobId=' + detail.id)
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue({ items: [], page: 2, size: 20, total: 21 })
+    const getJob = vi.spyOn(apiClient, 'getJob').mockResolvedValue(detail)
+    vi.spyOn(apiClient, 'listJobLogs').mockResolvedValue({ items: [], page: 1, size: 20, total: 0 })
+    renderPage()
+
+    expect(await screen.findByText(/跨页任务/)).toBeInTheDocument()
+    await waitFor(() => expect(getJob).toHaveBeenCalledWith(detail.id))
+  })
 })

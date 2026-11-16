@@ -26,6 +26,15 @@ export const jobApi = {
     }
   },
 
+  async getJob(request: ApiRequest, fallback: MockFallback, id: string): Promise<NativeJob> {
+    try {
+      return nativeJobSchema.parse(await request<unknown>(`/jobs/${encodeURIComponent(id)}`))
+    } catch (error) {
+      if (!fallback(error)) throw error
+      return createMockJobs().find((job) => job.id === id) ?? createMockJob({ code: id, name: '任务', group: 'DEFAULT', invokeTarget: 'keystoneJob.heartbeat()', cron: '0/30 * * * * ?', enabled: true })
+    }
+  },
+
   async listJobLogs(request: ApiRequest, fallback: MockFallback, filters: { jobId?: string; page?: number; size?: number } = {}): Promise<NativeJobLogsPage> {
     const page = filters.page ?? 1
     const size = filters.size ?? 20
