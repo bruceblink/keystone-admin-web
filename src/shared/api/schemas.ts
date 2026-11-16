@@ -204,6 +204,12 @@ export const nativePostSchema = z.object({
 })
 
 export const nativePostsSchema = z.array(nativePostSchema)
+export const nativePostsPageSchema = z.object({
+  items: z.array(nativePostSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
 
 /** Native 菜单树节点；菜单详情和子节点保持原始层级，页面只读展示。 */
 export const nativeMenuSchema = z.object({
@@ -522,6 +528,7 @@ export type NativeNoticeWriteInput = { title: string; content: string; noticeTyp
 export type NativeRole = z.infer<typeof nativeRoleSchema>
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativePost = z.infer<typeof nativePostSchema>
+export type NativePostsPage = z.infer<typeof nativePostsPageSchema>
 export type NativePostWriteInput = { code?: string; name: string; sortOrder?: number; enabled?: boolean }
 export type NativeOperationLog = z.infer<typeof nativeOperationLogSchema>
 export type NativeOperationLogsPage = z.infer<typeof nativeOperationLogsPageSchema>

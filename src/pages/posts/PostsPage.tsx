@@ -1,30 +1,34 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, Pencil, Plus, RefreshCw, Search, BriefcaseBusiness } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativePost, NativePostWriteInput } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { PostFormModal } from './PostFormModal'
 
 const PAGE_SIZE = 20
 type PostFilters = { keyword: string; status: string }
-const emptyFilters: PostFilters = { keyword: '', status: '' }
+const emptyFilters: PostFilters = { keyword: '', status: 'all' }
+const urlDefaults = { keyword: '', status: 'all', page: 1 }
+const urlOptions = { namespace: 'posts' }
 
 export function PostsPage() {
   const queryClient = useQueryClient()
-  const [formFilters, setFormFilters] = useState<PostFilters>(emptyFilters)
-  const [filters, setFilters] = useState<PostFilters>(emptyFilters)
-  const [page, setPage] = useState(1)
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { keyword: appliedKeyword, status: appliedStatus, page } = urlState
+  const [formFilters, setFormFilters] = useState<PostFilters>({ keyword: appliedKeyword, status: appliedStatus })
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingPost, setEditingPost] = useState<NativePost | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
   const [deletingPost, setDeletingPost] = useState<NativePost | null>(null)
-  const query = useQuery({ queryKey: ['posts'], queryFn: () => apiClient.listPosts(), staleTime: 10_000 })
+  const query = useQuery({ queryKey: ['posts', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listPosts({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativePostWriteInput }) => id ? apiClient.updatePost(id, input) : apiClient.createPost(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['posts'] })
+      setUrlState({ page: 1 })
       setModalMode(null)
       setEditingPost(null)
     },
@@ -33,31 +37,31 @@ export function PostsPage() {
     mutationFn: (id: string) => apiClient.deletePost(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['posts'] })
+      setUrlState({ page: 1 })
       setDeletingPost(null)
     },
   })
 
-  const filteredPosts = useMemo(() => {
-    const keyword = filters.keyword.toLocaleLowerCase()
-    return (query.data ?? []).filter((post) => {
-      const matchesKeyword = !keyword || `${post.code} ${post.name}`.toLocaleLowerCase().includes(keyword)
-      const matchesStatus = !filters.status || (filters.status === 'enabled' ? post.enabled : !post.enabled)
-      return matchesKeyword && matchesStatus
-    })
-  }, [filters, query.data])
-  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE))
-  const visiblePosts = filteredPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const posts = query.data?.items ?? []
+  const total = query.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  useEffect(() => {
+    setFormFilters({ keyword: appliedKeyword, status: appliedStatus })
+  }, [appliedKeyword, appliedStatus])
+
+  useEffect(() => {
+    if (query.data && page > totalPages) setUrlState({ page: totalPages })
+  }, [page, query.data, setUrlState, totalPages])
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFilters({ keyword: formFilters.keyword.trim(), status: formFilters.status })
-    setPage(1)
+    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 })
   }
 
   function resetFilters() {
     setFormFilters(emptyFilters)
-    setFilters(emptyFilters)
-    setPage(1)
+    setUrlState(urlDefaults)
   }
 
   function openCreate() {
@@ -127,17 +131,18 @@ export function PostsPage() {
       <Card className="posts-filter-card">
         <form className="posts-filter-form" onSubmit={submitFilters}>
           <label><span>岗位名称或编码</span><input value={formFilters.keyword} onChange={(event) => setFormFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="按岗位名称或编码筛选" autoComplete="off" /></label>
-          <label><span>岗位状态</span><select value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">全部状态</option><option value="enabled">启用</option><option value="disabled">停用</option></select></label>
+          <label><span>岗位状态</span><select value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="all">全部状态</option><option value="enabled">启用</option><option value="disabled">停用</option></select></label>
           <div className="posts-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={resetFilters}>重置</Button></div>
         </form>
       </Card>
 
       {query.isLoading ? <div className="loading-panel posts-loading"><Spinner label="正在读取岗位列表" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取岗位列表" message="岗位列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+      {query.isError && query.data ? <StaleQueryError message="岗位列表刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="posts-table-card">
-        <CardHeader title="岗位列表" description={`共 ${filteredPosts.length.toLocaleString('zh-CN')} 个匹配岗位`} action={<Badge tone="info">系统 API</Badge>} />
-        {visiblePosts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{visiblePosts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
-        <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div>
+        <CardHeader title="岗位列表" description={`共 ${total.toLocaleString('zh-CN')} 个匹配岗位`} action={<Badge tone="info">系统 API</Badge>} />
+        {posts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{posts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
+        {totalPages > 1 ? <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setUrlState({ page: page - 1 })} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setUrlState({ page: page + 1 })} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div> : null}
       </Card> : null}
 
       <PostFormModal open={modalMode !== null} mode={modalMode ?? 'create'} post={editingPost} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitPost} />

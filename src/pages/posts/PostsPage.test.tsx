@@ -13,21 +13,23 @@ function renderPage() {
 afterEach(() => vi.restoreAllMocks())
 
 describe('PostsPage', () => {
+  const postsPage = (items: Array<{ id: string; code: string; name: string; sortOrder: number; enabled: boolean }>, total = items.length, page = 1) => ({ items, page, size: 20, total })
+
   it('显示岗位并按状态筛选', async () => {
-    vi.spyOn(apiClient, 'listPosts').mockResolvedValue([
+    const listPosts = vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([
       { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true },
       { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'old', name: '停用岗位', sortOrder: 2, enabled: false },
-    ])
+    ]))
     renderPage()
     expect(await screen.findByText('运营专员')).toBeInTheDocument()
     expect(screen.getByText('停用岗位')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('岗位状态'), { target: { value: 'enabled' } })
     fireEvent.click(screen.getByRole('button', { name: /查询/ }))
-    await waitFor(() => expect(screen.queryByText('停用岗位')).not.toBeInTheDocument())
+    await waitFor(() => expect(listPosts).toHaveBeenLastCalledWith({ keyword: '', status: 'enabled', page: 1, size: 20 }))
   })
 
   it('通过模态框提交新增岗位', async () => {
-    vi.spyOn(apiClient, 'listPosts').mockResolvedValue([])
+    vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([]))
     const createPost = vi.spyOn(apiClient, 'createPost').mockResolvedValue({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true })
     renderPage()
     await screen.findByText('没有匹配的岗位')
@@ -40,7 +42,7 @@ describe('PostsPage', () => {
   })
 
   it('提供岗位 XLSX 导出操作', async () => {
-    vi.spyOn(apiClient, 'listPosts').mockResolvedValue([])
+    vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([]))
     const exportPosts = vi.spyOn(apiClient, 'exportPosts').mockResolvedValue({ blob: new Blob(['xlsx']), filename: 'posts.xlsx' })
     renderPage()
     await screen.findByText('没有匹配的岗位')
@@ -50,7 +52,7 @@ describe('PostsPage', () => {
 
   it('确认后删除岗位', async () => {
     const post = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true }
-    vi.spyOn(apiClient, 'listPosts').mockResolvedValue([post])
+    vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([post]))
     const deletePost = vi.spyOn(apiClient, 'deletePost').mockResolvedValue({ deleted: true })
     renderPage()
 
@@ -64,7 +66,7 @@ describe('PostsPage', () => {
   })
 
   it('保存岗位失败时保留表单并显示业务错误诊断', async () => {
-    vi.spyOn(apiClient, 'listPosts').mockResolvedValue([])
+    vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([]))
     vi.spyOn(apiClient, 'createPost').mockRejectedValue(new ApiError('岗位编码冲突', 409, 'resource_conflict', null, { requestId: 'post-1' }))
     renderPage()
     await screen.findByText('没有匹配的岗位')

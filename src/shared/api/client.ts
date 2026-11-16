@@ -16,6 +16,7 @@ import {
   nativeDepartmentsSchema,
   nativeDepartmentSchema,
   nativePostsSchema,
+  nativePostsPageSchema,
   nativePostSchema,
   nativeMenusSchema,
   nativeMenuNodeSchema,
@@ -58,6 +59,7 @@ import {
   type NativeJobWriteInput,
   type NativeDepartment,
   type NativePost,
+  type NativePostsPage,
   type NativePostWriteInput,
   type NativeMenuNode,
   type NativeMenuRoleAssignment,
@@ -91,12 +93,42 @@ export { isXlsxFilename, XLSX_MIME_TYPE } from './userFileClient'
 import type { MonitorSnapshot } from '../../entities/monitor/types'
 const API_BASE = '/api/v1'
 const CLIENT_ID = 'web'
+type PostListFilters = { keyword?: string; status?: string; page?: number; size?: number }
 let accessToken: string | null = null
 let refreshToken: string | null = null
 let currentUser: User | null = null
 let currentSessionId: string | null = null
 let refreshPromise: Promise<string | null> | null = null
 let sessionExpiredHandler: (() => void) | null = null
+
+async function listPostsRequest(): Promise<NativePost[]>
+async function listPostsRequest(filters: PostListFilters): Promise<NativePostsPage>
+async function listPostsRequest(filters?: PostListFilters): Promise<NativePost[] | NativePostsPage> {
+  const paged = filters !== undefined
+  const page = filters?.page ?? 1
+  const size = filters?.size ?? 20
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (filters?.keyword?.trim()) params.set('keyword', filters.keyword.trim())
+  if (filters?.status?.trim()) params.set('status', filters.status.trim())
+
+  try {
+    const payload = await request<unknown>(paged ? `/posts?${params.toString()}` : '/posts')
+    return paged ? nativePostsPageSchema.parse(payload) : nativePostsSchema.parse(payload)
+  } catch (error) {
+    if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+    if (!shouldMockFallback(error)) throw error
+    const keyword = filters?.keyword?.toLocaleLowerCase() ?? ''
+    const status = filters?.status ?? ''
+    const filtered = createMockPosts().filter((post) => {
+      const matchesKeyword = !keyword || `${post.code} ${post.name}`.toLocaleLowerCase().includes(keyword)
+      const matchesStatus = !status || (status === 'enabled' ? post.enabled : !post.enabled)
+      return matchesKeyword && matchesStatus
+    })
+    if (!paged) return filtered
+    const start = (page - 1) * size
+    return { items: filtered.slice(start, start + size), page, size, total: filtered.length }
+  }
+}
 function mockFallbackEnabled(): boolean {
   return import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK !== 'false'
 }
@@ -648,15 +680,7 @@ export const apiClient = {
     }
   },
 
-  async listPosts(): Promise<NativePost[]> {
-    try {
-      return nativePostsSchema.parse(await request<unknown>('/posts'))
-    } catch (error) {
-      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
-      if (!shouldMockFallback(error)) throw error
-      return createMockPosts()
-    }
-  },
+  listPosts: listPostsRequest,
 
   async createPost(input: NativePostWriteInput): Promise<NativePost> {
     try {
