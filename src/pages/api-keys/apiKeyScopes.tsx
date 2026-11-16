@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ActionError } from '../../shared/ui'
 
 export type PermissionCatalogEntry = { permission: string; resource: string; action: string; description: string; risk: string; registered: boolean; allowed: boolean }
 
@@ -8,7 +9,7 @@ const RESOURCE_LABELS: Record<string, string> = {
 
 const ACTION_LABELS: Record<string, string> = { create: '新增', delete: '删除', export: '导出', import: '导入', manage: '管理', read: '读取', refresh: '刷新', revoke: '撤销', rotate: '轮换', run: '执行', 'reset-password': '重置密码', update: '修改', 'update-status': '修改状态', write: '写入', assign: '分配' }
 
-type Props = { entries: PermissionCatalogEntry[]; selected: string[]; loading?: boolean; error?: string | null; validationError?: string | null; disabled?: boolean; onRetry?: () => void; onChange: (scopes: string[]) => void }
+type Props = { entries: PermissionCatalogEntry[]; selected: string[]; loading?: boolean; error?: unknown; validationError?: string | null; disabled?: boolean; onRetry?: () => void; onChange: (scopes: string[]) => void }
 
 /** 从后端权限目录读取并按资源分组显示，提交值只来自 allowed 条目。 */
 export function ApiKeyScopePicker({ entries, selected, loading = false, error = null, validationError = null, disabled = false, onRetry, onChange }: Props) {
@@ -24,7 +25,7 @@ export function ApiKeyScopePicker({ entries, selected, loading = false, error = 
   return <fieldset className="api-key-scope-picker" disabled={disabled}>
     <legend>授权范围 *</legend>
     {loading ? <p className="form-help" role="status">正在读取接口权限目录…</p> : null}
-    {error ? <div className="modal-form-error" role="alert"><span>接口权限目录读取失败：{error}</span>{onRetry ? <button type="button" className="button button-ghost button-sm" onClick={onRetry}>重试</button> : null}</div> : null}
+    {error ? <div className="api-key-scope-error"><ActionError title="接口权限目录读取失败" error={error} fallback="接口权限目录读取失败，请重试" />{onRetry ? <button type="button" className="button button-ghost button-sm" onClick={onRetry}>重试</button> : null}</div> : null}
     {validationError ? <p className="modal-form-error" role="alert">{validationError}</p> : null}
     {!loading && !error ? <><div className="api-key-scope-toolbar"><input aria-label="筛选授权范围" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索权限，例如 user:read" autoComplete="off" /><span>{selected.length} 项已选择</span></div><div className="api-key-scope-groups">{groups.map((group) => <section key={group.resource} className="api-key-scope-group"><h4>{RESOURCE_LABELS[group.resource] ?? group.resource}</h4><div>{group.options.map((entry) => <label key={entry.permission} className="checkbox-label"><input type="checkbox" value={entry.permission} checked={selected.includes(entry.permission)} onChange={() => toggle(entry.permission)} /><span>{ACTION_LABELS[entry.action] ?? entry.action}</span><code>{entry.permission}</code></label>)}</div></section>)}</div>{groups.length === 0 ? <p className="form-help" role="status">没有可配置的接口权限。</p> : null}<p className="form-help">权限目录由系统 API 提供；签发时还会检查签发账号当前权限。</p></> : null}
   </fieldset>

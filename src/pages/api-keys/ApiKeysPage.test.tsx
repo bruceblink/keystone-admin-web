@@ -86,6 +86,23 @@ describe('ApiKeysPage', () => {
     expect(await screen.findByText('ks_live_once')).toBeInTheDocument()
   })
 
+  it('权限目录读取失败时显示业务错误诊断并支持重试', async () => {
+    vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([], 0))
+    const catalog = vi.spyOn(apiClient, 'listPermissionCatalog')
+      .mockRejectedValueOnce(new ApiError('catalog unavailable', 503, 'service_unavailable', null, { requestId: 'catalog-1' }))
+      .mockResolvedValueOnce([{ permission: 'user:read', resource: 'user', action: 'read', description: 'user read', risk: 'low', registered: true, allowed: true }])
+    renderPage()
+
+    await screen.findByText('没有匹配的 API Key')
+    fireEvent.click(screen.getByRole('button', { name: '签发 API Key' }))
+    expect(await screen.findByText('系统服务暂时不可用，请稍后重试')).toBeInTheDocument()
+    expect(screen.getByText(/requestId=catalog-1/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    await waitFor(() => expect(catalog).toHaveBeenCalledTimes(2))
+    expect(await screen.findByLabelText('筛选授权范围')).toBeInTheDocument()
+  })
+
   it('按服务端 total 翻页并将筛选条件写入 URL', async () => {
     const secondKey = { ...key, id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', name: '第二枚密钥' }
     const listApiKeysPage = vi.spyOn(apiClient, 'listApiKeysPage').mockImplementation(async ({ page: currentPage }) => currentPage === 1 ? page([key], 21, currentPage) : page([secondKey], 21, currentPage))

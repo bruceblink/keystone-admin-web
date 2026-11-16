@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ActionError, Button, Modal } from '../../shared/ui'
 import { ApiKeyScopePicker, validateApiKeyScopes, type PermissionCatalogEntry } from './apiKeyScopes'
 
-type Props = { open: boolean; pending: boolean; error: unknown; scopeEntries: PermissionCatalogEntry[]; scopeLoading: boolean; scopeError: string | null; onRetryScopes: () => void; onClose: () => void; onSubmit: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => Promise<void> }
+type Props = { open: boolean; pending: boolean; error: unknown; scopeEntries: PermissionCatalogEntry[]; scopeLoading: boolean; scopeError: unknown; onRetryScopes: () => void; onClose: () => void; onSubmit: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => Promise<void> }
 
 /** API Key 签发模态框；明文只在成功响应的内存提示中展示一次。 */
 export function ApiKeyIssueModal({ open, pending, error, scopeEntries, scopeLoading, scopeError, onRetryScopes, onClose, onSubmit }: Props) {
