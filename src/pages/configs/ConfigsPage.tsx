@@ -1,46 +1,59 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pencil, Plus, RefreshCw, Search, Settings2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeSystemConfig, NativeSystemConfigWriteInput } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { ConfigFormModal } from './ConfigFormModal'
 
 type ConfigFilters = { keyword: string }
 const emptyFilters: ConfigFilters = { keyword: '' }
+const PAGE_SIZE = 20
+const urlDefaults = { keyword: '', page: 1 }
+const urlOptions = { namespace: 'configs' }
 
 export function ConfigsPage() {
   const queryClient = useQueryClient()
-  const [formFilters, setFormFilters] = useState<ConfigFilters>(emptyFilters)
-  const [filters, setFilters] = useState<ConfigFilters>(emptyFilters)
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { keyword: appliedKeyword, page } = urlState
+  const [formFilters, setFormFilters] = useState<ConfigFilters>(() => ({ keyword: appliedKeyword }))
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingConfig, setEditingConfig] = useState<NativeSystemConfig | null>(null)
   const [deletingConfig, setDeletingConfig] = useState<NativeSystemConfig | null>(null)
-  const query = useQuery({ queryKey: ['system-configs'], queryFn: () => apiClient.listSystemConfigs(), staleTime: 10_000 })
+  const query = useQuery({ queryKey: ['system-configs', appliedKeyword, page], queryFn: () => apiClient.listSystemConfigsPage({ keyword: appliedKeyword, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ key, input }: { key?: string; input: NativeSystemConfigWriteInput }) => key ? apiClient.updateSystemConfig(key, input) : apiClient.createSystemConfig(input),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['system-configs'] }); setModalMode(null); setEditingConfig(null) },
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['system-configs'] }); setUrlState({ page: 1 }); setModalMode(null); setEditingConfig(null) },
   })
   const deleteMutation = useMutation({
     mutationFn: (key: string) => apiClient.deleteSystemConfig(key),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['system-configs'] })
+      setUrlState({ page: 1 })
       setDeletingConfig(null)
     },
   })
-  const configs = useMemo(() => {
-    const keyword = filters.keyword.toLocaleLowerCase()
-    return (query.data ?? []).filter((config) => !keyword || `${config.key} ${config.description ?? ''}`.toLocaleLowerCase().includes(keyword))
-  }, [filters.keyword, query.data])
+  const configs = query.data?.items ?? []
+  const total = query.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  useEffect(() => {
+    setFormFilters({ keyword: appliedKeyword })
+  }, [appliedKeyword])
+
+  useEffect(() => {
+    if (query.data && page > totalPages) setUrlState({ page: totalPages })
+  }, [page, query.data, setUrlState, totalPages])
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFilters({ keyword: formFilters.keyword.trim() })
+    setUrlState({ keyword: formFilters.keyword.trim(), page: 1 })
   }
 
   function reset() {
     setFormFilters(emptyFilters)
-    setFilters(emptyFilters)
+    setUrlState(urlDefaults)
   }
 
   function openCreate() { saveMutation.reset(); setEditingConfig(null); setModalMode('create') }
@@ -55,8 +68,9 @@ export function ConfigsPage() {
     <Card className="configs-filter-card"><form className="configs-filter-form" onSubmit={submit}><label><span>配置键或说明</span><input value={formFilters.keyword} onChange={(event) => setFormFilters({ keyword: event.target.value })} placeholder="按配置键或说明筛选" autoComplete="off" /></label><div className="configs-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
     {query.isLoading ? <div className="loading-panel configs-loading"><Spinner label="正在读取系统配置" /></div> : null}
     {query.isError && !query.data ? <InitialQueryError title="无法读取系统配置" message="系统配置读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+    {query.isError && query.data ? <StaleQueryError message="系统配置刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     <ActionError title="配置删除失败" error={deleteMutation.error} onDismiss={() => deleteMutation.reset()} />
-    {query.data ? <Card className="configs-table-card"><CardHeader title="配置列表" description={`共 ${configs.length.toLocaleString('zh-CN')} 项匹配配置`} action={<Badge tone="info">系统 API</Badge>} />{configs.length > 0 ? <div className="configs-table-wrap"><table className="configs-table"><thead><tr><th scope="col">配置键</th><th scope="col">配置值</th><th scope="col">说明</th><th scope="col">状态</th><th scope="col">更新时间</th><th scope="col">操作</th></tr></thead><tbody>{configs.map((config) => <ConfigRow key={config.id} config={config} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="configs-empty" role="status"><span className="configs-empty-icon"><Settings2 size={20} /></span><strong>没有匹配的系统配置</strong><p>调整筛选条件后重试。</p></div>}</Card> : null}
+    {query.data ? <Card className="configs-table-card"><CardHeader title="配置列表" description={`共 ${total.toLocaleString('zh-CN')} 项匹配配置`} action={<Badge tone="info">系统 API</Badge>} />{configs.length > 0 ? <div className="configs-table-wrap"><table className="configs-table"><thead><tr><th scope="col">配置键</th><th scope="col">配置值</th><th scope="col">说明</th><th scope="col">状态</th><th scope="col">更新时间</th><th scope="col">操作</th></tr></thead><tbody>{configs.map((config) => <ConfigRow key={config.id} config={config} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="configs-empty" role="status"><span className="configs-empty-icon"><Settings2 size={20} /></span><strong>没有匹配的系统配置</strong><p>调整筛选条件后重试。</p></div>}{totalPages > 1 ? <div className="configs-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}</Card> : null}
     <ConfigFormModal open={modalMode !== null} mode={modalMode ?? 'create'} config={editingConfig} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitConfig} />
     <DeleteConfirmModal open={deletingConfig !== null} resourceLabel="系统配置" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingConfig) void deleteMutation.mutateAsync(deletingConfig.key).catch(() => undefined) }} />
   </div>

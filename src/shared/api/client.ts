@@ -23,6 +23,7 @@ import {
   nativePermissionCatalogSchema,
   nativeIssuedApiKeySchema,
   nativeSystemConfigsSchema,
+  nativeSystemConfigsPageSchema,
   nativeSystemConfigSchema,
   nativeDictionaryTypesSchema,
   nativeDictionaryTypeSchema,
@@ -62,6 +63,7 @@ import {
   type NativePermissionCatalogEntry,
   type NativeIssuedApiKey,
   type NativeSystemConfig,
+  type NativeSystemConfigsPage,
   type NativeDictionaryType,
   type NativeDictionaryItem,
   type NativeNotice,
@@ -779,6 +781,20 @@ export const apiClient = {
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       return createMockSystemConfigs()
+    }
+  },
+
+  async listSystemConfigsPage(filters: { keyword?: string; page: number; size: number }): Promise<NativeSystemConfigsPage> {
+    try {
+      const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
+      if (filters.keyword) params.set('keyword', filters.keyword)
+      return nativeSystemConfigsPageSchema.parse(await request<unknown>(`/configs?${params.toString()}`))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      const keyword = filters.keyword?.toLocaleLowerCase() ?? ''
+      const filtered = createMockSystemConfigs().filter((config) => !keyword || `${config.key} ${config.description ?? ''}`.toLocaleLowerCase().includes(keyword))
+      const start = (filters.page - 1) * filters.size
+      return { items: filtered.slice(start, start + filters.size), page: filters.page, size: filters.size, total: filtered.length }
     }
   },
 

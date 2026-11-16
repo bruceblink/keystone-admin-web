@@ -586,6 +586,27 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
+  it('按 page/size 和 keyword 读取分页系统配置契约', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/configs?page=2&size=20&keyword=security')
+      return ok({
+        items: [{
+          id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', key: 'security.session.ttl', value: '300',
+          description: '访问令牌有效期', enabled: true, updatedAt: '2026-11-14T02:00:00Z',
+        }],
+        page: 2,
+        size: 20,
+        total: 21,
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await apiClient.listSystemConfigsPage({ keyword: 'security', page: 2, size: 20 })
+
+    expect(result).toMatchObject({ page: 2, size: 20, total: 21 })
+    expect(result.items[0]).toMatchObject({ key: 'security.session.ttl' })
+  })
+
   it('读取公开站内通知，不使用公告管理接口', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
