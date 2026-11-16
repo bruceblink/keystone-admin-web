@@ -37,6 +37,12 @@ export function UsersPage() {
   const [exporting, setExporting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const rolesQuery = useQuery({
+    queryKey: ['user-role-options'],
+    queryFn: () => apiClient.listRoles(),
+    staleTime: 60_000,
+    enabled: modalMode !== null,
+  })
   const importMutation = useMutation({
     mutationFn: (file: File) => stepUp.run(() => apiClient.importUsers(file)),
     onSuccess: async (result) => {
@@ -290,7 +296,19 @@ export function UsersPage() {
         onSubmit={submitImport}
       />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="用户" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={submitDelete} />
-      <UserFormModal open={modalMode !== null} mode={modalMode ?? 'create'} user={editingUser} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitUser} />
+      <UserFormModal
+        open={modalMode !== null}
+        mode={modalMode ?? 'create'}
+        user={editingUser}
+        pending={saveMutation.isPending}
+        error={saveMutation.error}
+        roles={rolesQuery.data ?? []}
+        rolesLoading={rolesQuery.isLoading}
+        rolesError={rolesQuery.error}
+        onRetryRoles={() => void rolesQuery.refetch()}
+        onClose={closeModal}
+        onSubmit={submitUser}
+      />
       <MfaStepUpModal {...stepUp.modal} />
     </div>
   )

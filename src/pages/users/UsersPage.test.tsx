@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { UsersPage } from './UsersPage'
 import { ApiError, apiClient } from '../../shared/api/client'
-import type { NativeUsersPage } from '../../shared/api/schemas'
+import type { NativeRole, NativeUsersPage } from '../../shared/api/schemas'
 
 const userPage: NativeUsersPage = {
   items: [{
@@ -25,6 +25,31 @@ const userPage: NativeUsersPage = {
   page: 1,
   size: 20,
   total: 21,
+}
+
+const roleCatalog: NativeRole[] = [
+  {
+    id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
+    code: '系统管理员',
+    name: '系统管理员',
+    enabled: true,
+    dataScope: 'ALL',
+    deptScope: null,
+    permissions: ['user:read'],
+  },
+  {
+    id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a',
+    code: 'auditor',
+    name: '审计员',
+    enabled: true,
+    dataScope: 'ALL',
+    deptScope: null,
+    permissions: ['audit:read'],
+  },
+]
+
+function mockRoleCatalog() {
+  return vi.spyOn(apiClient, 'listRoles').mockResolvedValue(roleCatalog)
 }
 
 function renderPage() {
@@ -100,6 +125,7 @@ describe('UsersPage', () => {
 
   it('通过模态框提交新增用户', async () => {
     vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    mockRoleCatalog()
     const createUser = vi.spyOn(apiClient, 'createUser').mockResolvedValue(userPage.items[0])
     renderPage()
 
@@ -109,7 +135,7 @@ describe('UsersPage', () => {
     fireEvent.change(within(dialog).getByLabelText('用户名 *'), { target: { value: 'new-user' } })
     fireEvent.change(within(dialog).getByLabelText('初始密码 *'), { target: { value: 'Strong-password-123!' } })
     fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '新用户' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+    fireEvent.click(await within(dialog).findByRole('button', { name: '保存用户' }))
 
     await waitFor(() => expect(createUser).toHaveBeenCalledWith(expect.objectContaining({ username: 'new-user', displayName: '新用户', roleCodes: [] })))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -117,6 +143,7 @@ describe('UsersPage', () => {
 
   it('保存用户失败时显示业务码诊断并保留表单', async () => {
     vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    mockRoleCatalog()
     vi.spyOn(apiClient, 'createUser').mockRejectedValue(new ApiError('temporary failure', 503, 'service_unavailable', null, { requestId: 'user-save-1' }))
     renderPage()
 
@@ -126,7 +153,7 @@ describe('UsersPage', () => {
     fireEvent.change(within(dialog).getByLabelText('用户名 *'), { target: { value: 'new-user' } })
     fireEvent.change(within(dialog).getByLabelText('初始密码 *'), { target: { value: 'Strong-password-123!' } })
     fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '新用户' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+    fireEvent.click(await within(dialog).findByRole('button', { name: '保存用户' }))
 
     await waitFor(() => expect(within(dialog).getByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument())
     expect(within(dialog).getByLabelText('用户名 *')).toHaveValue('new-user')
@@ -135,6 +162,7 @@ describe('UsersPage', () => {
 
   it('编辑用户时保留空密码和角色字段语义', async () => {
     vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    mockRoleCatalog()
     const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
     renderPage()
 
@@ -142,9 +170,42 @@ describe('UsersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
     const dialog = screen.getByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '更新名称' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+    fireEvent.click(await within(dialog).findByRole('button', { name: '保存用户' }))
 
     await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ displayName: '更新名称', password: undefined, roleCodes: null })))
+  })
+
+  it('从角色目录预选编辑用户角色并支持主动清空', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    mockRoleCatalog()
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = await screen.findByRole('dialog')
+    const adminRole = await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    expect(adminRole).toBeChecked()
+    fireEvent.click(adminRole)
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ roleCodes: [] })))
+  })
+
+  it('角色目录读取失败时显示错误并支持重试', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const listRoles = vi.spyOn(apiClient, 'listRoles')
+      .mockRejectedValueOnce(new ApiError('角色目录不可用', 503, 'service_unavailable'))
+      .mockResolvedValueOnce(roleCatalog)
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /新增用户/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('角色目录读取失败')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: '重试角色目录' }))
+    expect(await within(dialog).findByText('审计员')).toBeInTheDocument()
+    expect(listRoles).toHaveBeenCalledTimes(2)
   })
 
   it('通过模态框选择 XLSX 并显示逐行导入结果', async () => {
