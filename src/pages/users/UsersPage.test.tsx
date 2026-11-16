@@ -93,7 +93,7 @@ describe('UsersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /刷新列表/ }))
 
     expect(await screen.findByText('数据刷新失败')).toBeInTheDocument()
-    expect(screen.getByText('服务暂时不可用')).toBeInTheDocument()
+    expect(screen.getByText('系统服务暂时不可用，请稍后重试')).toBeInTheDocument()
     expect(screen.getByText('平台运维员')).toBeInTheDocument()
     expect(listUsers).toHaveBeenCalledTimes(2)
   })
@@ -182,6 +182,22 @@ describe('UsersPage', () => {
     expect(importUsers).not.toHaveBeenCalled()
   })
 
+  it('用户导入失败时显示业务码诊断', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    vi.spyOn(apiClient, 'importUsers').mockRejectedValue(new ApiError('导入服务不可用', 503, 'service_unavailable', null, { requestId: 'user-import-1' }))
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /导入 Excel/ }))
+    const dialog = screen.getByRole('dialog', { name: '导入用户' })
+    const file = new File(['xlsx'], 'users.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    fireEvent.change(within(dialog).getByLabelText('选择 XLSX 文件'), { target: { files: [file] } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '开始导入' }))
+
+    expect(await within(dialog).findByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/requestId=user-import-1/)).toBeInTheDocument()
+  })
+
   it('确认后批量删除当前页用户', async () => {
     vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
     const deleteUsers = vi.spyOn(apiClient, 'deleteUsers').mockResolvedValue({ deleted: 1 })
@@ -196,5 +212,20 @@ describe('UsersPage', () => {
 
     await waitFor(() => expect(deleteUsers).toHaveBeenCalledWith([userPage.items[0].id]))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('用户删除失败时显示业务码诊断', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    vi.spyOn(apiClient, 'deleteUsers').mockRejectedValue(new ApiError('用户仍被引用', 409, 'resource_conflict', null, { requestId: 'user-delete-1' }))
+    renderPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByLabelText('选择用户 operator'))
+    fireEvent.click(screen.getByRole('button', { name: '删除用户（1）' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
+
+    expect(await within(dialog).findByText(/resource_conflict/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/requestId=user-delete-1/)).toBeInTheDocument()
   })
 })

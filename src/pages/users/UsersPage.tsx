@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Pencil, Plus, RefreshCw, Search, Upload, UsersRound } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
+import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
@@ -239,7 +240,7 @@ export function UsersPage() {
 
       {query.isLoading ? <div className="loading-panel users-loading"><Spinner label="正在读取用户列表" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取用户列表" message="用户列表读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '用户列表刷新失败'} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
+      {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '用户列表刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
 
       {query.data ? (
         <Card className="users-table-card">
@@ -284,11 +285,11 @@ export function UsersPage() {
         open={importOpen}
         pending={importMutation.isPending}
         result={importResult}
-        error={importMutation.error instanceof Error ? importMutation.error.message : null}
+        error={importMutation.error}
         onClose={closeImport}
         onSubmit={submitImport}
       />
-      <DeleteConfirmModal open={deleteOpen} resourceLabel="用户" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={submitDelete} />
+      <DeleteConfirmModal open={deleteOpen} resourceLabel="用户" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={submitDelete} />
       <UserFormModal open={modalMode !== null} mode={modalMode ?? 'create'} user={editingUser} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitUser} />
       <MfaStepUpModal {...stepUp.modal} />
     </div>

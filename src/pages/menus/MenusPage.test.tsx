@@ -147,7 +147,7 @@ describe('MenusPage', () => {
   it('角色目录读取失败时阻止保存并允许重试', async () => {
     const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
     vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu, children: [] }])
-    const listRoles = vi.spyOn(apiClient, 'listRoles').mockRejectedValueOnce(new Error('角色目录不可用')).mockResolvedValueOnce([
+    const listRoles = vi.spyOn(apiClient, 'listRoles').mockRejectedValueOnce(new ApiError('角色目录不可用', 503, 'service_unavailable', null, { requestId: 'roles-1' })).mockResolvedValueOnce([
       { id: menu.id, code: 'admin', name: '系统管理员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
     ])
     const createMenu = vi.spyOn(apiClient, 'createMenu')
@@ -156,7 +156,9 @@ describe('MenusPage', () => {
     await screen.findByText('系统管理')
     fireEvent.click(screen.getByRole('button', { name: '新增菜单' }))
     const dialog = await screen.findByRole('dialog')
-    expect(await within(dialog).findByText('角色目录读取失败：角色目录不可用')).toBeInTheDocument()
+    expect(await within(dialog).findByText('角色目录读取失败')).toBeInTheDocument()
+    expect(within(dialog).getByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/requestId=roles-1/)).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '保存菜单' })).toBeDisabled()
 
     fireEvent.click(within(dialog).getByRole('button', { name: '重试角色目录' }))
@@ -172,13 +174,15 @@ describe('MenusPage', () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([
       { id: menu.id, code: 'admin', name: '系统管理员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
     ])
-    const listRolesForMenu = vi.spyOn(apiClient, 'listRolesForMenu').mockRejectedValueOnce(new Error('绑定读取超时')).mockResolvedValueOnce({ roleCodes: ['admin'] })
+    const listRolesForMenu = vi.spyOn(apiClient, 'listRolesForMenu').mockRejectedValueOnce(new ApiError('绑定读取超时', 503, 'service_unavailable', null, { requestId: 'menu-roles-1' })).mockResolvedValueOnce({ roleCodes: ['admin'] })
     renderPage()
 
     await screen.findByText('系统管理')
     fireEvent.click(screen.getByRole('button', { name: '编辑' }))
     const dialog = await screen.findByRole('dialog')
-    expect(await within(dialog).findByText('菜单角色绑定读取失败：绑定读取超时')).toBeInTheDocument()
+    expect(await within(dialog).findByText('菜单角色绑定读取失败')).toBeInTheDocument()
+    expect(within(dialog).getByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/requestId=menu-roles-1/)).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '保存菜单' })).toBeDisabled()
 
     fireEvent.click(within(dialog).getByRole('button', { name: '重试菜单角色绑定' }))

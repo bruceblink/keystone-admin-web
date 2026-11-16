@@ -83,6 +83,38 @@ describe('DepartmentsPage', () => {
     await waitFor(() => expect(deleteDepartment).toHaveBeenCalledWith(department.id))
   })
 
+  it('组织保存失败时显示业务码诊断并保留表单', async () => {
+    vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([])
+    vi.spyOn(apiClient, 'createDepartment').mockRejectedValue(new ApiError('组织已存在', 409, 'resource_conflict', null, { requestId: 'dept-save-1' }))
+    renderPage()
+
+    await screen.findByText('没有匹配的组织')
+    fireEvent.click(screen.getByRole('button', { name: /新增组织/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('组织编码 *'), { target: { value: 'OPS' } })
+    fireEvent.change(within(dialog).getByLabelText('组织名称 *'), { target: { value: '运营部' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存组织' }))
+
+    expect(await within(dialog).findByText(/resource_conflict · 资源状态或唯一约束发生冲突/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/requestId=dept-save-1/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('组织名称 *')).toHaveValue('运营部')
+  })
+
+  it('组织删除失败时显示业务码诊断', async () => {
+    const department = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([department])
+    vi.spyOn(apiClient, 'deleteDepartment').mockRejectedValue(new ApiError('组织仍被引用', 409, 'resource_conflict', null, { requestId: 'dept-delete-1' }))
+    renderPage()
+
+    await screen.findByText('运营部')
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
+
+    expect(await within(dialog).findByText(/resource_conflict/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/requestId=dept-delete-1/)).toBeInTheDocument()
+  })
+
   it('刷新失败时保留已有组织树并提供重试入口', async () => {
     const department = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true }
     const listDepartments = vi.spyOn(apiClient, 'listDepartments')

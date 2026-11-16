@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import type { NativeUserImportResult } from '../../shared/api/schemas'
 import { isXlsxFilename } from '../../shared/api/client'
-import { Button, Modal, Spinner } from '../../shared/ui'
+import { ActionError, Button, Modal, Spinner } from '../../shared/ui'
 
 type UserImportModalProps = {
   open: boolean
   pending: boolean
   result: NativeUserImportResult | null
-  error: string | null
+  error: unknown
   onClose: () => void
   onSubmit: (file: File) => void
 }
@@ -83,7 +83,8 @@ export function UserImportModal({ open, pending, result, error, onClose, onSubmi
           <span><strong>{file ? file.name : '选择 .xlsx 文件'}</strong><small>{file ? `${Math.max(1, Math.round(file.size / 1024))} KB` : '仅支持 Excel Open XML（.xlsx）'}</small></span>
         </button>
 
-        {validationError || error ? <div className="modal-form-error" role="alert">{validationError ?? error}</div> : null}
+        {validationError ? <div className="modal-form-error" role="alert">{validationError}</div> : null}
+        <ActionError title="用户导入失败" error={error} />
 
         {result ? (
           <section className="user-import-result" aria-label="导入结果">

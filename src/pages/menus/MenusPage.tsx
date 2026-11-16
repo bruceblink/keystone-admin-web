@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ListTree, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
+import { formatApiError } from '../../shared/api/errors'
 import type { NativeMenu, NativeMenuNode, NativeMenuWriteInput } from '../../shared/api/schemas'
 import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { MenuFormModal } from './MenuFormModal'
@@ -104,7 +105,7 @@ export function MenusPage() {
 
       {query.isLoading ? <div className="loading-panel menus-loading"><Spinner label="正在读取菜单结构" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取菜单结构" message="菜单结构读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '菜单结构刷新失败，请重试'} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+      {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '菜单结构刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="menus-table-card">
         <CardHeader title="菜单目录" description={`共 ${rows.length.toLocaleString('zh-CN')} 个菜单节点`} action={<Badge tone="info">系统 API</Badge>} />
         {rows.length > 0 ? <div className="menus-table-wrap"><table className="menus-table"><thead><tr><th scope="col">菜单名称</th><th scope="col">编码</th><th scope="col">路由</th><th scope="col">权限标识</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <MenuRowView key={row.menu.id} row={row} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="menus-empty" role="status"><span className="menus-empty-icon"><ListTree size={20} /></span><strong>没有匹配的菜单</strong><p>调整筛选条件后重试，或清空筛选条件查看完整菜单。</p></div>}
@@ -117,8 +118,8 @@ export function MenusPage() {
         roles={rolesQuery.data ?? []}
         roleCodes={menuRolesQuery.data?.roleCodes ?? []}
         rolesLoading={rolesQuery.isLoading || rolesQuery.isFetching || menuRolesQuery.isLoading || menuRolesQuery.isFetching}
-        rolesError={rolesQuery.isError ? rolesQuery.error instanceof Error ? rolesQuery.error.message : '角色目录读取失败' : null}
-        menuRolesError={menuRolesQuery.isError ? menuRolesQuery.error instanceof Error ? menuRolesQuery.error.message : '菜单角色绑定读取失败' : null}
+        rolesError={rolesQuery.isError ? rolesQuery.error : null}
+        menuRolesError={menuRolesQuery.isError ? menuRolesQuery.error : null}
         onRetryRoles={() => void rolesQuery.refetch()}
         onRetryMenuRoles={() => void menuRolesQuery.refetch()}
         pending={saveMutation.isPending || roleAssignmentMutation.isPending}

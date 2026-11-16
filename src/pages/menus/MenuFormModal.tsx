@@ -12,8 +12,8 @@ type Props = {
   roles: NativeRole[]
   roleCodes: string[]
   rolesLoading: boolean
-  rolesError: string | null
-  menuRolesError: string | null
+  rolesError: unknown
+  menuRolesError: unknown
   onRetryRoles: () => void
   onRetryMenuRoles: () => void
   onClose: () => void
@@ -67,7 +67,7 @@ export function MenuFormModal({ open, mode, menu, menus, pending, error, roles, 
       <label className="checkbox-label"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} disabled={pending} /><span>启用菜单</span></label>
       <fieldset className="menu-role-access" disabled={pending || rolesLoading}>
         <legend>可访问角色</legend>
-        {rolesLoading ? <p className="form-help">正在读取角色权限…</p> : rolesError ? <div className="modal-form-error" role="alert"><span>角色目录读取失败：{rolesError}</span><Button type="button" variant="secondary" size="sm" onClick={onRetryRoles}>重试角色目录</Button></div> : menuRolesError ? <div className="modal-form-error" role="alert"><span>菜单角色绑定读取失败：{menuRolesError}</span><Button type="button" variant="secondary" size="sm" onClick={onRetryMenuRoles}>重试菜单角色绑定</Button></div> : assignableRoles.length === 0 ? <p className="form-help">暂无启用角色可分配。</p> : <div className="menu-role-options">{assignableRoles.map((role) => <label className="checkbox-label" key={role.id}><input type="checkbox" checked={selectedRoleCodes.includes(role.code)} onChange={(event) => setSelectedRoleCodes((current) => event.target.checked ? [...new Set([...current, role.code])] : current.filter((code) => code !== role.code))} /><span>{role.name} <small>{role.code}</small></span></label>)}</div>}
+        {rolesLoading ? <p className="form-help">正在读取角色权限…</p> : rolesError ? <div className="menu-role-error"><ActionError title="角色目录读取失败" error={rolesError} /><Button type="button" variant="secondary" size="sm" onClick={onRetryRoles}>重试角色目录</Button></div> : menuRolesError ? <div className="menu-role-error"><ActionError title="菜单角色绑定读取失败" error={menuRolesError} /><Button type="button" variant="secondary" size="sm" onClick={onRetryMenuRoles}>重试菜单角色绑定</Button></div> : assignableRoles.length === 0 ? <p className="form-help">暂无启用角色可分配。</p> : <div className="menu-role-options">{assignableRoles.map((role) => <label className="checkbox-label" key={role.id}><input type="checkbox" checked={selectedRoleCodes.includes(role.code)} onChange={(event) => setSelectedRoleCodes((current) => event.target.checked ? [...new Set([...current, role.code])] : current.filter((code) => code !== role.code))} /><span>{role.name} <small>{role.code}</small></span></label>)}</div>}
         <p className="form-help">保存后会替换该菜单的角色绑定。未选择角色时，菜单不会显示给任何角色。</p>
       </fieldset>
     </form>

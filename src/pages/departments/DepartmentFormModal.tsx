@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Button, Modal } from '../../shared/ui'
+import { ActionError, Button, Modal } from '../../shared/ui'
 import type { NativeDepartment, NativeDepartmentWriteInput } from '../../shared/api/schemas'
 
-type Props = { open: boolean; mode: 'create' | 'edit'; department: NativeDepartment | null; departments: NativeDepartment[]; pending: boolean; error: string | null; onClose: () => void; onSubmit: (input: NativeDepartmentWriteInput) => Promise<void> }
+type Props = { open: boolean; mode: 'create' | 'edit'; department: NativeDepartment | null; departments: NativeDepartment[]; pending: boolean; error: unknown; onClose: () => void; onSubmit: (input: NativeDepartmentWriteInput) => Promise<void> }
 type FormValues = { code: string; name: string; parentId: string; sortOrder: string; enabled: boolean }
 const emptyValues: FormValues = { code: '', name: '', parentId: '', sortOrder: '1', enabled: true }
 
@@ -35,7 +35,8 @@ export function DepartmentFormModal({ open, mode, department, departments, pendi
           <label><span>排序</span><input type="number" min="0" step="1" value={values.sortOrder} onChange={(event) => setValues((current) => ({ ...current, sortOrder: event.target.value }))} disabled={pending} /></label>
         </div>
         <label className="checkbox-label"><input type="checkbox" checked={values.enabled} onChange={(event) => setValues((current) => ({ ...current, enabled: event.target.checked }))} disabled={pending} /><span>组织启用</span></label>
-        {validationError || error ? <div className="modal-form-error" role="alert">{validationError ?? error}</div> : null}
+        {validationError ? <div className="modal-form-error" role="alert">{validationError}</div> : null}
+        <ActionError title="组织保存失败" error={error} />
       </form>
     </Modal>
   )

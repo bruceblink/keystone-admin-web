@@ -100,8 +100,8 @@ export function DepartmentsPage() {
         <CardHeader title="组织结构" description={`共 ${rows.length.toLocaleString('zh-CN')} 个组织节点`} action={<Badge tone="info">系统 API</Badge>} />
         {rows.length > 0 ? <div className="departments-table-wrap"><table className="departments-table"><thead><tr><th scope="col">组织名称</th><th scope="col">组织编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <DepartmentRow key={row.id} row={row} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="departments-empty" role="status"><span className="departments-empty-icon"><Building2 size={20} /></span><strong>没有匹配的组织</strong><p>调整筛选条件后重试，或清空筛选条件查看完整组织结构。</p></div>}
       </Card> : null}
-      <DepartmentFormModal open={modalMode !== null} mode={modalMode ?? 'create'} department={editingDepartment} departments={query.data ?? []} pending={saveMutation.isPending} error={saveMutation.error instanceof Error ? saveMutation.error.message : null} onClose={closeModal} onSubmit={submitDepartment} />
-      <DeleteConfirmModal open={deletingDepartment !== null} resourceLabel="组织" count={1} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => { if (deletingDepartment) void deleteMutation.mutateAsync(deletingDepartment.id).catch(() => undefined) }} />
+      <DepartmentFormModal open={modalMode !== null} mode={modalMode ?? 'create'} department={editingDepartment} departments={query.data ?? []} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitDepartment} />
+      <DeleteConfirmModal open={deletingDepartment !== null} resourceLabel="组织" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingDepartment) void deleteMutation.mutateAsync(deletingDepartment.id).catch(() => undefined) }} />
     </div>
   )
 }
