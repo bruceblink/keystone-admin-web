@@ -9,9 +9,28 @@ function renderPage() {
   return render(<QueryClientProvider client={queryClient}><MenusPage /></QueryClientProvider>)
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  window.history.replaceState({}, '', '/')
+})
 
 describe('MenusPage', () => {
+  it('从 URL 恢复菜单筛选条件并同步查询和重置参数', async () => {
+    window.history.replaceState({}, '', '/menus?menus_keyword=system')
+    vi.spyOn(apiClient, 'listMenus').mockResolvedValue([])
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    renderPage()
+
+    expect(screen.getByLabelText('菜单名称、编码或权限')).toHaveValue('system')
+    fireEvent.change(screen.getByLabelText('菜单名称、编码或权限'), { target: { value: 'admin' } })
+    fireEvent.submit(screen.getByRole('button', { name: '查询' }).closest('form') as HTMLFormElement)
+    await waitFor(() => expect(window.location.search).toContain('menus_keyword=admin'))
+
+    fireEvent.click(screen.getByRole('button', { name: '重置' }))
+    await waitFor(() => expect(window.location.search).not.toContain('menus_keyword='))
+    expect(screen.getByLabelText('菜单名称、编码或权限')).toHaveValue('')
+  })
+
   it('显示菜单树和权限标识', async () => {
     vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{
       menu: { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true },

@@ -1,16 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ListTree, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeMenu, NativeMenuNode, NativeMenuWriteInput } from '../../shared/api/schemas'
 import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { MenuFormModal } from './MenuFormModal'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 type MenuRow = NativeMenuNode & { level: number }
+const urlDefaults = { keyword: '' }
+const urlOptions = { namespace: 'menus' }
 
 export function MenusPage() {
-  const [keyword, setKeyword] = useState('')
-  const [appliedKeyword, setAppliedKeyword] = useState('')
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { keyword: appliedKeyword } = urlState
+  const [keyword, setKeyword] = useState(appliedKeyword)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingMenu, setEditingMenu] = useState<NativeMenu | null>(null)
   const [deletingMenu, setDeletingMenu] = useState<NativeMenu | null>(null)
@@ -29,6 +33,10 @@ export function MenusPage() {
       setDeletingMenu(null)
     },
   })
+  useEffect(() => {
+    setKeyword(appliedKeyword)
+  }, [appliedKeyword])
+
   const rows = useMemo(() => {
     const allRows = flattenMenus(query.data ?? [])
     const normalized = appliedKeyword.toLocaleLowerCase()
@@ -51,12 +59,12 @@ export function MenusPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setAppliedKeyword(keyword.trim())
+    setUrlState({ keyword: keyword.trim() })
   }
 
   function reset() {
     setKeyword('')
-    setAppliedKeyword('')
+    setUrlState(urlDefaults)
   }
 
   function openCreate() { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(null); setModalMode('create') }
