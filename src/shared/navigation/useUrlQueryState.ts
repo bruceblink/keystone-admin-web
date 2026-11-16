@@ -15,13 +15,20 @@ function readState<T extends QueryState>(defaults: T, options: Options): T {
     const value = params.get(`${options.namespace}_${key}`)
     if (value === null || value === '') continue
     if (typeof fallback === 'number') {
-      const parsed = Number(value)
-      if (Number.isFinite(parsed)) state[key as keyof T] = parsed as T[keyof T]
+      const parsed = parseNumericQueryValue(value, fallback)
+      if (parsed !== null) state[key as keyof T] = parsed as T[keyof T]
     } else {
       state[key as keyof T] = value as T[keyof T]
     }
   }
   return state
+}
+
+function parseNumericQueryValue(value: string, fallback: number): number | null {
+  const parsed = Number(value)
+  // 页面分页参数必须是正整数；非法深链接回退到安全的默认页，避免把负数或小数传给后端。
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) return fallback >= 1 ? fallback : null
+  return parsed
 }
 
 function writeState<T extends QueryState>(state: T, defaults: T, options: Options) {
