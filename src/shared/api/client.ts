@@ -543,7 +543,7 @@ export const apiClient = {
     }
   },
 
-  listJobs: () => jobApi.listJobs(request, shouldMockFallback),
+  listJobs: (filters: { keyword?: string; page?: number; size?: number } = {}) => jobApi.listJobs(request, shouldMockFallback, filters),
 
   listJobLogs: (filters: { jobId?: string; page?: number; size?: number } = {}) => jobApi.listJobLogs(request, shouldMockFallback, filters),
 

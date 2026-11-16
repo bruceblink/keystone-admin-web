@@ -407,6 +407,14 @@ export const nativeJobSchema = z.object({
 
 export const nativeJobsSchema = z.array(nativeJobSchema)
 
+/** Native 计划任务分页响应；旧数组响应由客户端适配器转换为此结构。 */
+export const nativeJobsPageSchema = z.object({
+  items: z.array(nativeJobSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
+
 /** Native 任务手动执行响应；只确认请求已提交，不把执行日志混入写操作响应。 */
 export const nativeJobTriggerResultSchema = z.object({
   triggered: z.boolean(),
@@ -520,6 +528,7 @@ export type NativeOperationLogsPage = z.infer<typeof nativeOperationLogsPageSche
 export type NativeLoginLog = z.infer<typeof nativeLoginLogSchema>
 export type NativeLoginLogsPage = z.infer<typeof nativeLoginLogsPageSchema>
 export type NativeJob = z.infer<typeof nativeJobSchema>
+export type NativeJobsPage = z.infer<typeof nativeJobsPageSchema>
 export type NativeJobWriteInput = {
   code?: string
   name: string

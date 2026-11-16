@@ -529,7 +529,7 @@ describe('Native API client', () => {
         id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', username: 'operator', status: 'SUCCESS',
         ipAddress: '127.0.0.1', message: '登录成功', userAgent: 'Chrome', loginAt: '2026-11-14T02:00:00Z',
       }], page: 2, size: 20, total: 21 })
-      if (url.endsWith('/jobs')) return ok([{ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: '2026-11-14T02:00:00Z' }])
+      if (url.includes('/jobs?')) return ok({ items: [{ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: '2026-11-14T02:00:00Z' }], page: 1, size: 20, total: 1 })
       if (url.includes('/jobs/logs')) return ok({ items: [{ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', jobId: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', jobCode: 'heartbeat', jobName: '系统心跳', jobGroup: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', triggerType: 1, status: 1, jobMessage: '任务执行成功', exceptionInfo: null, startedAt: '2026-11-14T02:00:00Z', finishedAt: '2026-11-14T02:00:00Z', durationMs: 12, createdAt: '2026-11-14T02:00:00Z' }], page: 1, size: 20, total: 1 })
       throw new Error(`unexpected request: ${url}`)
     })
@@ -537,9 +537,9 @@ describe('Native API client', () => {
 
     const logs = await apiClient.listLoginLogs({ page: 2, username: ' operator ', status: 'SUCCESS' })
     const jobs = await apiClient.listJobs()
-    const jobLogs = await apiClient.listJobLogs({ jobId: jobs[0]?.id })
+    const jobLogs = await apiClient.listJobLogs({ jobId: jobs.items[0]?.id })
     expect(logs.items[0]).toMatchObject({ username: 'operator', status: 'SUCCESS' })
-    expect(jobs[0]).toMatchObject({ code: 'heartbeat', enabled: true })
+    expect(jobs.items[0]).toMatchObject({ code: 'heartbeat', enabled: true })
     expect(jobLogs.items[0]).toMatchObject({ jobCode: 'heartbeat', status: 1 })
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })

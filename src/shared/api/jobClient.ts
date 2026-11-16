@@ -1,4 +1,4 @@
-import { nativeBatchDeleteResultSchema, nativeJobLogsPageSchema, nativeJobsSchema, nativeJobSchema, nativeJobTriggerResultSchema, type NativeBatchDeleteResult, type NativeJob, type NativeJobLogsPage, type NativeJobTriggerResult, type NativeJobWriteInput } from './schemas'
+import { nativeBatchDeleteResultSchema, nativeJobLogsPageSchema, nativeJobsPageSchema, nativeJobsSchema, nativeJobSchema, nativeJobTriggerResultSchema, type NativeBatchDeleteResult, type NativeJob, type NativeJobLogsPage, type NativeJobTriggerResult, type NativeJobWriteInput, type NativeJobsPage } from './schemas'
 import { createMockJob, createMockJobs, triggerMockJob, updateMockJob, updateMockJobStatus } from './mock'
 import { ApiError } from './errors'
 
@@ -7,12 +7,22 @@ export type MockFallback = (error: unknown) => boolean
 
 /** 计划任务接口适配器；集中管理任务写操作和开发环境的可重复 Mock 回退。 */
 export const jobApi = {
-  async listJobs(request: ApiRequest, fallback: MockFallback): Promise<NativeJob[]> {
+  async listJobs(request: ApiRequest, fallback: MockFallback, filters: { keyword?: string; page?: number; size?: number } = {}): Promise<NativeJobsPage> {
+    const page = filters.page ?? 1
+    const size = filters.size ?? 20
+    const params = new URLSearchParams({ page: String(page), size: String(size) })
+    if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim())
+
     try {
-      return nativeJobsSchema.parse(await request<unknown>('/jobs'))
+      const payload = await request<unknown>(`/jobs?${params.toString()}`)
+      const paged = nativeJobsPageSchema.safeParse(payload)
+      if (paged.success) return paged.data
+      const legacy = nativeJobsSchema.parse(payload)
+      return { items: legacy, page, size, total: legacy.length }
     } catch (error) {
       if (!fallback(error)) throw error
-      return createMockJobs()
+      const items = createMockJobs()
+      return { items, page, size, total: items.length }
     }
   },
 
