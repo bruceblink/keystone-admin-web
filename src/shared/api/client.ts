@@ -36,6 +36,7 @@ import {
   nativeNoticesPageSchema,
   nativeNoticeSchema,
   nativeRolesSchema,
+  nativeRolesPageSchema,
   nativeRoleSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
@@ -76,6 +77,7 @@ import {
   type NativeNotice,
   type NativeNoticesPage,
   type NativeRole,
+  type NativeRolesPage,
   type NativeRoleWriteInput,
   type NativeDepartmentWriteInput,
   type NativeSystemConfigWriteInput,
@@ -94,6 +96,7 @@ import type { MonitorSnapshot } from '../../entities/monitor/types'
 const API_BASE = '/api/v1'
 const CLIENT_ID = 'web'
 type PostListFilters = { keyword?: string; status?: string; page?: number; size?: number }
+type RoleListFilters = { keyword?: string; status?: string; page?: number; size?: number }
 let accessToken: string | null = null
 let refreshToken: string | null = null
 let currentUser: User | null = null
@@ -122,6 +125,39 @@ async function listPostsRequest(filters?: PostListFilters): Promise<NativePost[]
     const filtered = createMockPosts().filter((post) => {
       const matchesKeyword = !keyword || `${post.code} ${post.name}`.toLocaleLowerCase().includes(keyword)
       const matchesStatus = !status || (status === 'enabled' ? post.enabled : !post.enabled)
+      return matchesKeyword && matchesStatus
+    })
+    if (!paged) return filtered
+    const start = (page - 1) * size
+    return { items: filtered.slice(start, start + size), page, size, total: filtered.length }
+  }
+}
+
+async function listRolesRequest(): Promise<NativeRole[]>
+async function listRolesRequest(filters: RoleListFilters): Promise<NativeRole[] | NativeRolesPage>
+async function listRolesRequest(filters?: RoleListFilters): Promise<NativeRole[] | NativeRolesPage> {
+  const paged = filters !== undefined
+  const page = filters?.page ?? 1
+  const size = filters?.size ?? 20
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (filters?.keyword?.trim()) params.set('keyword', filters.keyword.trim())
+  if (filters?.status?.trim() && filters.status !== 'all') params.set('status', filters.status.trim())
+
+  try {
+    const payload = await request<unknown>(paged ? `/roles?${params.toString()}` : '/roles')
+    const pageResult = nativeRolesPageSchema.safeParse(payload)
+    if (!paged) return pageResult.success ? pageResult.data.items : nativeRolesSchema.parse(payload)
+    if (pageResult.success) return pageResult.data
+    const legacyItems = nativeRolesSchema.parse(payload)
+    return { items: legacyItems, page, size, total: legacyItems.length }
+  } catch (error) {
+    if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+    if (!shouldMockFallback(error)) throw error
+    const keyword = filters?.keyword?.toLocaleLowerCase() ?? ''
+    const status = filters?.status ?? ''
+    const filtered = createMockRoles().filter((role) => {
+      const matchesKeyword = !keyword || `${role.code} ${role.name}`.toLocaleLowerCase().includes(keyword)
+      const matchesStatus = !status || status === 'all' || (status === 'enabled' ? role.enabled : !role.enabled)
       return matchesKeyword && matchesStatus
     })
     if (!paged) return filtered
@@ -589,14 +625,7 @@ export const apiClient = {
 
   triggerJob: (id: string) => jobApi.triggerJob(request, shouldMockFallback, id),
 
-  async listRoles(): Promise<NativeRole[]> {
-    try {
-      return nativeRolesSchema.parse(await request<unknown>('/roles'))
-    } catch (error) {
-      if (!shouldMockFallback(error)) throw error
-      return createMockRoles()
-    }
-  },
+  listRoles: listRolesRequest,
 
   async exportRoles(): Promise<{ blob: Blob; filename: string }> {
     try {

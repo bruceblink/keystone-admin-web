@@ -336,6 +336,37 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('读取 Native 角色分页契约并发送筛选参数', async () => {
+    const role = {
+      id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true,
+      dataScope: 'ALL', deptScope: null, permissions: ['audit:read'],
+    }
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/roles?page=2&size=20&keyword=auditor&status=enabled')) return ok({ items: [role], page: 2, size: 20, total: 21 })
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await apiClient.listRoles({ page: 2, size: 20, keyword: ' auditor ', status: 'enabled' })
+
+    expect(result).toMatchObject({ page: 2, size: 20, total: 21 })
+    expect(Array.isArray(result)).toBe(false)
+    if (Array.isArray(result)) throw new Error('expected a paged role response')
+    expect(result.items[0]).toMatchObject({ code: 'auditor', permissions: ['audit:read'] })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('兼容分页参数下的旧角色数组响应', async () => {
+    const role = {
+      id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', enabled: true,
+      dataScope: 'ALL', deptScope: null, permissions: [],
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => ok([role])))
+
+    await expect(apiClient.listRoles({ page: 3, size: 20 })).resolves.toEqual({ items: [role], page: 3, size: 20, total: 1 })
+  })
+
   it('读取并维护 Native 岗位，同时严格校验岗位导出文件', async () => {
     const post = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true }
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {

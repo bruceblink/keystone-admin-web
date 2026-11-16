@@ -192,6 +192,13 @@ export const nativeDepartmentSchema = z.object({
 })
 
 export const nativeRolesSchema = z.array(nativeRoleSchema)
+/** Native 角色分页响应；items 只包含当前页数据，total 表示筛选后的总数量。 */
+export const nativeRolesPageSchema = z.object({
+  items: z.array(nativeRoleSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
 export const nativeDepartmentsSchema = z.array(nativeDepartmentSchema)
 
 /** Native 岗位记录；岗位编码用于业务引用，排序和状态由管理页面维护。 */
@@ -526,6 +533,7 @@ export type NativeDictionaryTypeWriteInput = { code?: string; name: string; enab
 export type NativeDictionaryItemWriteInput = { value?: string; label: string; sortOrder?: number; enabled?: boolean }
 export type NativeNoticeWriteInput = { title: string; content: string; noticeType: string; enabled?: boolean }
 export type NativeRole = z.infer<typeof nativeRoleSchema>
+export type NativeRolesPage = z.infer<typeof nativeRolesPageSchema>
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativePost = z.infer<typeof nativePostSchema>
 export type NativePostsPage = z.infer<typeof nativePostsPageSchema>

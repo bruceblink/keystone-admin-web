@@ -1,62 +1,68 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, Pencil, Plus, RefreshCw, Search, ShieldCheck } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
-import type { NativeRole, NativeRoleWriteInput } from '../../shared/api/schemas'
+import type { NativeRole, NativeRolesPage, NativeRoleWriteInput } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { RoleFormModal } from './RoleFormModal'
 
-type RoleFilters = { keyword: string }
-const emptyFilters: RoleFilters = { keyword: '' }
-const urlDefaults = { keyword: '' }
+const PAGE_SIZE = 20
+type RoleFilters = { keyword: string; status: string }
+const emptyFilters: RoleFilters = { keyword: '', status: 'all' }
+const urlDefaults = { keyword: '', status: 'all', page: 1 }
 const urlOptions = { namespace: 'roles' }
 
 export function RolesPage() {
   const queryClient = useQueryClient()
   const stepUp = useMfaStepUp()
   const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
-  const { keyword: appliedKeyword } = urlState
-  const [formFilters, setFormFilters] = useState<RoleFilters>(() => ({ keyword: appliedKeyword }))
+  const { keyword: appliedKeyword, status: appliedStatus, page } = urlState
+  const [formFilters, setFormFilters] = useState<RoleFilters>(() => ({ keyword: appliedKeyword, status: appliedStatus }))
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingRole, setEditingRole] = useState<NativeRole | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
-  const query = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
+  const query = useQuery({ queryKey: ['roles', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listRoles({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000, placeholderData: (previousData) => previousData })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => stepUp.run(() => id ? apiClient.updateRole(id, input) : apiClient.createRole(input)),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['roles'] }); setModalMode(null); setEditingRole(null) },
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['roles'] }); setUrlState({ page: 1 }); setModalMode(null); setEditingRole(null) },
   })
   const deleteMutation = useMutation({
     mutationFn: (ids: string[]) => stepUp.run(() => apiClient.deleteRoles(ids)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['roles'] })
+      setUrlState({ page: 1 })
       setSelectedIds([])
       setDeleteOpen(false)
     },
   })
-  const roles = useMemo(() => {
-    const keyword = appliedKeyword.toLocaleLowerCase()
-    return (query.data ?? []).filter((role) => !keyword || `${role.code} ${role.name}`.toLocaleLowerCase().includes(keyword))
-  }, [appliedKeyword, query.data])
+  const rolePage = normalizeRolePage(query.data, page)
+  const roles = rolePage.items
+  const total = rolePage.total
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const allSelected = roles.length > 0 && roles.every((role) => selectedIds.includes(role.id))
 
   useEffect(() => {
     setSelectedIds([])
-  }, [appliedKeyword])
+  }, [appliedKeyword, appliedStatus, page])
 
   useEffect(() => {
-    setFormFilters({ keyword: appliedKeyword })
-  }, [appliedKeyword])
+    setFormFilters({ keyword: appliedKeyword, status: appliedStatus })
+  }, [appliedKeyword, appliedStatus])
+
+  useEffect(() => {
+    if (query.data && page > totalPages) setUrlState({ page: totalPages })
+  }, [page, query.data, setUrlState, totalPages])
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: formFilters.keyword.trim() })
+    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 })
   }
 
   function resetFilters() {
@@ -111,7 +117,8 @@ export function RolesPage() {
 
       <Card className="roles-filter-card">
         <form className="roles-filter-form" onSubmit={submitFilters}>
-          <label><span>角色名称或标识</span><input value={formFilters.keyword} onChange={(event) => setFormFilters({ keyword: event.target.value })} placeholder="按角色名称或编码筛选" autoComplete="off" /></label>
+          <label><span>角色名称或标识</span><input value={formFilters.keyword} onChange={(event) => setFormFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="按角色名称或编码筛选" autoComplete="off" /></label>
+          <label><span>角色状态</span><select value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="all">全部状态</option><option value="enabled">启用</option><option value="disabled">停用</option></select></label>
           <div className="roles-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={resetFilters}>重置</Button></div>
         </form>
       </Card>
@@ -120,14 +127,21 @@ export function RolesPage() {
       {query.isError && !query.data ? <InitialQueryError title="无法读取角色列表" message="角色列表读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '角色列表刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="roles-table-card">
-        <CardHeader title="角色列表" description={`共 ${roles.length.toLocaleString('zh-CN')} 个匹配角色`} action={<Badge tone="info">系统 API</Badge>} />
+        <CardHeader title="角色列表" description={`共 ${total.toLocaleString('zh-CN')} 个匹配角色`} action={<Badge tone="info">系统 API</Badge>} />
         {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending} onSelect={toggleRole} onEdit={openEdit} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
+        {totalPages > 1 ? <div className="roles-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="secondary" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
       </Card> : null}
       <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitRole} />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
       <MfaStepUpModal {...stepUp.modal} />
     </div>
   )
+}
+
+// 兼容旧数组响应，保证旧后端或测试数据仍可在分页页面中展示。
+function normalizeRolePage(data: NativeRole[] | NativeRolesPage | undefined, page: number): NativeRolesPage {
+  if (Array.isArray(data)) return { items: data, page, size: PAGE_SIZE, total: data.length }
+  return data ?? { items: [], page, size: PAGE_SIZE, total: 0 }
 }
 
 function RoleRow({ role, selected, pending, onSelect, onEdit }: { role: NativeRole; selected: boolean; pending: boolean; onSelect: (id: string, checked: boolean) => void; onEdit: (role: NativeRole) => void }) {

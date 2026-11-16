@@ -27,6 +27,23 @@ describe('RolesPage', () => {
     await waitFor(() => expect(window.location.search).toContain('roles_keyword=admin'))
   })
 
+  it('使用服务端分页并把当前页写入 URL', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '第一页角色', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    const listRoles = vi.spyOn(apiClient, 'listRoles')
+      .mockResolvedValueOnce({ items: [role], page: 1, size: 20, total: 21 })
+      .mockResolvedValueOnce({ items: [{ ...role, name: '第二页角色' }], page: 2, size: 20, total: 21 })
+    renderPage()
+
+    expect(await screen.findByText('第一页角色')).toBeInTheDocument()
+    expect(screen.getByText('第 1 / 2 页')).toBeInTheDocument()
+    expect(listRoles).toHaveBeenCalledWith({ keyword: '', status: '', page: 1, size: 20 })
+
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    await waitFor(() => expect(screen.getByText('第二页角色')).toBeInTheDocument())
+    expect(window.location.search).toContain('roles_page=2')
+    expect(listRoles).toHaveBeenLastCalledWith({ keyword: '', status: '', page: 2, size: 20 })
+  })
+
   it('响应浏览器前进后退恢复角色筛选条件', async () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
     renderPage()
