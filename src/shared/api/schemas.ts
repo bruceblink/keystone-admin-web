@@ -259,6 +259,13 @@ export const nativeApiKeySchema = z.object({
 })
 
 export const nativeApiKeysSchema = z.array(nativeApiKeySchema)
+/** API Key 列表分页响应；items 仅包含脱敏元数据。 */
+export const nativeApiKeysPageSchema = z.object({
+  items: z.array(nativeApiKeySchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
 
 /** API Key 可用权限目录；allowed 表示当前登录主体可以签发该范围。 */
 export const nativePermissionCatalogEntrySchema = z.object({
@@ -516,6 +523,7 @@ export type NativeJobTriggerResult = z.infer<typeof nativeJobTriggerResultSchema
 export type NativeJobLog = z.infer<typeof nativeJobLogSchema>
 export type NativeJobLogsPage = z.infer<typeof nativeJobLogsPageSchema>
 export type NativeApiKey = z.infer<typeof nativeApiKeySchema>
+export type NativeApiKeysPage = z.infer<typeof nativeApiKeysPageSchema>
 export type NativeIssuedApiKey = z.infer<typeof nativeIssuedApiKeySchema>
 export type NativeSystemConfig = z.infer<typeof nativeSystemConfigSchema>
 export type NativeSystemConfigsPage = z.infer<typeof nativeSystemConfigsPageSchema>

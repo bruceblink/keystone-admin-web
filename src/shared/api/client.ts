@@ -20,6 +20,7 @@ import {
   nativeMenusSchema,
   nativeMenuNodeSchema,
   nativeApiKeysSchema,
+  nativeApiKeysPageSchema,
   nativePermissionCatalogSchema,
   nativeIssuedApiKeySchema,
   nativeSystemConfigsSchema,
@@ -60,6 +61,7 @@ import {
   type NativeMenuRoleAssignment,
   type NativeMenuWriteInput,
   type NativeApiKey,
+  type NativeApiKeysPage,
   type NativePermissionCatalogEntry,
   type NativeIssuedApiKey,
   type NativeSystemConfig,
@@ -743,6 +745,25 @@ export const apiClient = {
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       return createMockApiKeys()
+    }
+  },
+
+  async listApiKeysPage(filters: { keyword?: string; status?: string; page: number; size: number }): Promise<NativeApiKeysPage> {
+    try {
+      const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
+      if (filters.keyword) params.set('keyword', filters.keyword)
+      if (filters.status && filters.status !== 'all') params.set('status', filters.status)
+      return nativeApiKeysPageSchema.parse(await request<unknown>(`/api-keys?${params.toString()}`))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      const keyword = filters.keyword?.toLocaleLowerCase() ?? ''
+      const filtered = createMockApiKeys().filter((key) => {
+        const matchesKeyword = !keyword || `${key.name} ${key.prefix} ${key.scopes.join(' ')}`.toLocaleLowerCase().includes(keyword)
+        const matchesStatus = !filters.status || filters.status === 'all' || (filters.status === 'revoked' ? Boolean(key.revokedAt) : !key.revokedAt)
+        return matchesKeyword && matchesStatus
+      })
+      const start = (filters.page - 1) * filters.size
+      return { items: filtered.slice(start, start + filters.size), page: filters.page, size: filters.size, total: filtered.length }
     }
   },
 

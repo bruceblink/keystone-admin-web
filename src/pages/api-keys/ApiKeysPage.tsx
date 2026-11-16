@@ -1,47 +1,56 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { KeyRound, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeApiKey, NativeIssuedApiKey } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { ApiKeyIssueModal } from './ApiKeyIssueModal'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 type ApiKeyStatus = 'all' | 'active' | 'revoked'
+const PAGE_SIZE = 20
+const urlDefaults = { keyword: '', status: 'all', page: 1 }
+const urlOptions = { namespace: 'api_keys' }
 
 export function ApiKeysPage() {
-  const [keyword, setKeyword] = useState('')
-  const [status, setStatus] = useState<ApiKeyStatus>('all')
-  const [applied, setApplied] = useState({ keyword: '', status: 'all' as ApiKeyStatus })
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { keyword: appliedKeyword, status: appliedStatus, page } = urlState
+  const [keyword, setKeyword] = useState(appliedKeyword)
+  const [status, setStatus] = useState<ApiKeyStatus>(appliedStatus as ApiKeyStatus)
   const [issueOpen, setIssueOpen] = useState(false)
   const [issuedKey, setIssuedKey] = useState<NativeIssuedApiKey | null>(null)
   const [revokingKey, setRevokingKey] = useState<NativeApiKey | null>(null)
   const stepUp = useMfaStepUp()
   const queryClient = useQueryClient()
-  const query = useQuery({ queryKey: ['api-keys'], queryFn: () => apiClient.listApiKeys(), staleTime: 10_000 })
+  const query = useQuery({ queryKey: ['api-keys', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listApiKeysPage({ keyword: appliedKeyword, status: appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const scopeQuery = useQuery({ queryKey: ['permission-catalog'], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000 })
-  const issueMutation = useMutation({ mutationFn: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => stepUp.run(() => apiClient.issueApiKey(input)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setIssuedKey(key); setIssueOpen(false) } })
-  const rotateMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.rotateApiKey(id)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setIssuedKey(key) } })
-  const revokeMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.revokeApiKey(id)), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setRevokingKey(null) } })
-  const keys = useMemo(() => {
-    const normalized = applied.keyword.toLocaleLowerCase()
-    return (query.data ?? []).filter((key) => {
-      const matchesKeyword = !normalized || `${key.name} ${key.prefix} ${key.scopes.join(' ')}`.toLocaleLowerCase().includes(normalized)
-      const matchesStatus = applied.status === 'all' || (applied.status === 'revoked' ? Boolean(key.revokedAt) : !key.revokedAt)
-      return matchesKeyword && matchesStatus
-    })
-  }, [applied, query.data])
+  const issueMutation = useMutation({ mutationFn: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => stepUp.run(() => apiClient.issueApiKey(input)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setUrlState({ page: 1 }); setIssuedKey(key); setIssueOpen(false) } })
+  const rotateMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.rotateApiKey(id)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setUrlState({ page: 1 }); setIssuedKey(key) } })
+  const revokeMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.revokeApiKey(id)), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setUrlState({ page: 1 }); setRevokingKey(null) } })
+  const keys = query.data?.items ?? []
+  const total = query.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  useEffect(() => {
+    setKeyword(appliedKeyword)
+    setStatus(appliedStatus as ApiKeyStatus)
+  }, [appliedKeyword, appliedStatus])
+
+  useEffect(() => {
+    if (query.data && page > totalPages) setUrlState({ page: totalPages })
+  }, [page, query.data, setUrlState, totalPages])
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setApplied({ keyword: keyword.trim(), status })
+    setUrlState({ keyword: keyword.trim(), status, page: 1 })
   }
 
   function reset() {
     setKeyword('')
     setStatus('all')
-    setApplied({ keyword: '', status: 'all' })
+    setUrlState(urlDefaults)
   }
 
   return (
@@ -69,9 +78,11 @@ export function ApiKeysPage() {
 
       {query.isLoading ? <div className="loading-panel api-keys-loading"><Spinner label="正在读取 API Key 列表" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取 API Key 列表" message="API Key 列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+      {query.isError && query.data ? <StaleQueryError message="API Key 列表刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="api-keys-table-card">
-        <CardHeader title="API Key 列表" description={`共 ${keys.length.toLocaleString('zh-CN')} 个匹配凭据`} action={<Badge tone="info">仅显示元数据</Badge>} />
+        <CardHeader title="API Key 列表" description={`共 ${total.toLocaleString('zh-CN')} 个匹配凭据`} action={<Badge tone="info">仅显示元数据</Badge>} />
         {keys.length > 0 ? <div className="api-keys-table-wrap"><table className="api-keys-table"><thead><tr><th scope="col">名称</th><th scope="col">密钥前缀</th><th scope="col">授权范围</th><th scope="col">创建时间</th><th scope="col">最近使用</th><th scope="col">到期时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{keys.map((key) => <ApiKeyRow key={key.id} apiKey={key} pending={rotateMutation.isPending || revokeMutation.isPending} onRotate={(id) => rotateMutation.mutate(id)} onRevoke={(target) => { revokeMutation.reset(); setRevokingKey(target) }} />)}</tbody></table></div> : <div className="api-keys-empty" role="status"><span className="api-keys-empty-icon"><KeyRound size={20} /></span><strong>没有匹配的 API Key</strong><p>调整筛选条件后重试，或清空筛选条件查看全部凭据。</p></div>}
+        {totalPages > 1 ? <div className="api-keys-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
       </Card> : null}
       <ApiKeyIssueModal open={issueOpen} pending={issueMutation.isPending} error={issueMutation.error} scopeEntries={scopeQuery.data ?? []} scopeLoading={scopeQuery.isLoading} scopeError={scopeQuery.error instanceof Error ? scopeQuery.error.message : null} onRetryScopes={() => void scopeQuery.refetch()} onClose={() => setIssueOpen(false)} onSubmit={(input) => issueMutation.mutateAsync(input).then(() => undefined)} />
       <DeleteConfirmModal open={revokingKey !== null} resourceLabel="API Key" count={1} pending={revokeMutation.isPending} error={revokeMutation.error} onClose={() => { if (!revokeMutation.isPending) setRevokingKey(null) }} onConfirm={() => { if (revokingKey) void revokeMutation.mutateAsync(revokingKey.id).catch(() => undefined) }} />

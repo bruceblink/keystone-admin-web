@@ -445,6 +445,27 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('按 page/size、keyword 和 status 读取分页 API Key 契约', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/api-keys?page=2&size=20&keyword=deploy&status=active')
+      return ok({
+        items: [{
+          id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: 'deploy', prefix: 'dep_1234', scopes: ['user:read'],
+          expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z',
+        }],
+        page: 2,
+        size: 20,
+        total: 21,
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await apiClient.listApiKeysPage({ keyword: 'deploy', status: 'active', page: 2, size: 20 })
+
+    expect(result).toMatchObject({ page: 2, size: 20, total: 21 })
+    expect(result.items[0]).toMatchObject({ name: 'deploy' })
+  })
+
   it('读取动态接口权限目录并保留 allowed 标志', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       expect(String(input)).toBe('/api/v1/permissions/catalog')
