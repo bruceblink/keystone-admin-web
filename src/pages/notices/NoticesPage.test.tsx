@@ -31,7 +31,7 @@ describe('NoticesPage', () => {
   it('发布状态更新失败时显示可关闭的错误反馈', async () => {
     const notice = { id: 'notice-1', title: '平台维护通知', content: '维护内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }
     vi.spyOn(apiClient, 'listNotices').mockResolvedValue([notice])
-    vi.spyOn(apiClient, 'publishNotice').mockRejectedValue(new Error('发布接口不可用'))
+    vi.spyOn(apiClient, 'publishNotice').mockRejectedValue(new ApiError('internal detail', 409, 'resource_conflict', null, { requestId: 'notice-publish-1' }))
     renderPage()
 
     await screen.findByText('平台维护通知')
@@ -39,7 +39,9 @@ describe('NoticesPage', () => {
 
     const error = await screen.findByRole('alert')
     expect(error).toHaveTextContent('公告状态更新失败')
-    expect(error).toHaveTextContent('发布接口不可用')
+    expect(error).toHaveTextContent('当前资源状态不允许此操作')
+    expect(error).toHaveTextContent('resource_conflict')
+    expect(error).toHaveTextContent('requestId=notice-publish-1')
     fireEvent.click(screen.getByRole('button', { name: '关闭' }))
     await waitFor(() => expect(screen.queryByText('公告状态更新失败')).not.toBeInTheDocument())
   })

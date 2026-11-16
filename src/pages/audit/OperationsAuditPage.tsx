@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Download, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { ClipboardList, Download, RefreshCw, Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeOperationLog } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 const PAGE_SIZE = 20
@@ -31,7 +31,7 @@ export function OperationsAuditPage() {
   const filters: OperationFilters = { actor, action, resource }
   const [formFilters, setFormFilters] = useState<OperationFilters>(() => filters)
   const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<unknown>(null)
   const query = useQuery({
     queryKey: ['operation-logs', filters, page],
     queryFn: () => apiClient.listOperationLogs({ ...filters, page, size: PAGE_SIZE }),
@@ -81,7 +81,7 @@ export function OperationsAuditPage() {
       anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 0)
     } catch (error) {
-      setExportError(error instanceof Error ? error.message : '操作审计导出失败')
+      setExportError(error)
     } finally {
       setExporting(false)
     }
@@ -105,7 +105,7 @@ export function OperationsAuditPage() {
         </div>
       </div>
 
-      {exportError ? <div className="error-panel audit-error" role="alert"><ShieldAlert size={19} /><div><strong>操作审计导出失败</strong><p>{exportError}</p></div></div> : null}
+      <ActionError title="操作审计导出失败" error={exportError} onDismiss={() => setExportError(null)} />
       <Card className="audit-filter-card">
         <form className="audit-filter-form" onSubmit={submitFilters}>
           <label>

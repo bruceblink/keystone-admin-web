@@ -75,4 +75,18 @@ describe('OperationsAuditPage', () => {
     fireEvent.click(exportButton)
     await waitFor(() => expect(exportOperationLogs).toHaveBeenCalledWith({ actor: '', action: '', resource: 'user' }))
   })
+
+  it('导出失败时显示业务码诊断', async () => {
+    vi.spyOn(apiClient, 'listOperationLogs').mockResolvedValue({ ...logPage, items: [], total: 0 })
+    vi.spyOn(apiClient, 'exportOperationLogs').mockRejectedValue(new ApiError('internal detail', 503, 'service_unavailable', null, { requestId: 'operation-export-1' }))
+    renderPage()
+
+    await screen.findByText('没有匹配的操作记录')
+    fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('系统服务暂时不可用，请稍后重试')
+    expect(alert).toHaveTextContent('service_unavailable')
+    expect(alert).toHaveTextContent('requestId=operation-export-1')
+  })
 })

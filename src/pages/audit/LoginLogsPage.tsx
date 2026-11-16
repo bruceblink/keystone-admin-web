@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Download, FileClock, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { Download, FileClock, RefreshCw, Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeLoginLog } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 const PAGE_SIZE = 20
@@ -25,7 +25,7 @@ export function LoginLogsPage() {
   const filters: LoginFilters = { username, status }
   const [formFilters, setFormFilters] = useState<LoginFilters>(() => filters)
   const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<unknown>(null)
   const query = useQuery({ queryKey: ['login-logs', filters, page], queryFn: () => apiClient.listLoginLogs({ ...filters, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const logs = query.data?.items ?? []
   const total = query.data?.total ?? 0
@@ -58,7 +58,7 @@ export function LoginLogsPage() {
       anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 0)
     } catch (error) {
-      setExportError(error instanceof Error ? error.message : '登录日志导出失败')
+      setExportError(error)
     } finally {
       setExporting(false)
     }
@@ -66,7 +66,7 @@ export function LoginLogsPage() {
 
   return <div className="audit-page">
     <div className="page-heading"><div><p className="eyebrow">AUDIT / LOGIN</p><h1>登录日志</h1><p className="page-description">查询登录成功、失败和会话建立记录，定位身份认证问题。</p></div><div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div></div>
-    {exportError ? <div className="error-panel audit-error" role="alert"><ShieldAlert size={19} /><div><strong>登录日志导出失败</strong><p>{exportError}</p></div></div> : null}
+    <ActionError title="登录日志导出失败" error={exportError} onDismiss={() => setExportError(null)} />
     <Card className="audit-filter-card"><form className="audit-filter-form" onSubmit={submit}><label><span>用户名</span><input value={formFilters.username} onChange={(event) => setFormFilters((current) => ({ ...current, username: event.target.value }))} placeholder="按用户名筛选" autoComplete="off" /></label><label><span>登录状态</span><input value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))} placeholder="例如 SUCCESS、FAILURE" autoComplete="off" /></label><div className="audit-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
     {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取登录日志" /></div> : null}
     {query.isError && !query.data ? <InitialQueryError title="无法读取登录日志" message="登录日志读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-react'
+import { BookOpen, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeDictionaryItem, NativeDictionaryItemWriteInput, NativeDictionaryType, NativeDictionaryTypeWriteInput } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { DictionaryItemFormModal } from './DictionaryItemFormModal'
 import { DictionaryTypeFormModal } from './DictionaryTypeFormModal'
 
@@ -80,12 +80,13 @@ export function DictionariesPage() {
     {typesQuery.isLoading ? <div className="loading-panel dictionaries-loading"><Spinner label="正在读取字典类型" /></div> : null}
     {typesQuery.isError && !typesQuery.data ? <InitialQueryError title="无法读取字典类型" message="字典类型读取失败，请重试" error={typesQuery.error} onRetry={() => void typesQuery.refetch()} retrying={typesQuery.isFetching} /> : null}
     {typesQuery.isError && typesQuery.data ? <StaleQueryError message={formatApiError(typesQuery.error, '字典类型刷新失败，请重试')} error={typesQuery.error} onRetry={() => void typesQuery.refetch()} retrying={typesQuery.isFetching} /> : null}
-    {deleteTypeMutation.error || deleteItemMutation.error ? <div className="error-panel dictionaries-error" role="alert"><ShieldAlert size={19} /><div><strong>字典删除失败</strong><p>{(deleteTypeMutation.error ?? deleteItemMutation.error) instanceof Error ? (deleteTypeMutation.error ?? deleteItemMutation.error)?.message : '请求失败'}</p></div></div> : null}
+    <ActionError title="字典类型删除失败" error={deleteTypeMutation.error} onDismiss={() => deleteTypeMutation.reset()} />
+    <ActionError title="字典条目删除失败" error={deleteItemMutation.error} onDismiss={() => deleteItemMutation.reset()} />
     {typesQuery.data ? <div className="dictionary-grid"><Card className="dictionary-types-card"><CardHeader title="字典类型" description={`共 ${types.length.toLocaleString('zh-CN')} 个匹配类型`} action={<Badge tone="info">系统 API</Badge>} />{types.length > 0 ? <div className="dictionary-types-list">{types.map((type) => <TypeRow key={type.id} type={type} selected={type.code === selectedCode} pending={deleteTypeMutation.isPending} onSelect={() => setSelectedCode(type.code)} onEdit={() => openEditType(type)} onDelete={() => openDeleteType(type)} />)}</div> : <div className="dictionaries-empty" role="status"><span className="dictionaries-empty-icon"><BookOpen size={20} /></span><strong>没有匹配的字典类型</strong><p>调整筛选条件后重试。</p></div>}</Card><DictionaryItemsCard code={selectedCode} query={itemsQuery} pending={deleteItemMutation.isPending} onRefresh={() => void itemsQuery.refetch()} onCreate={openCreateItem} onEdit={openEditItem} onDelete={openDeleteItem} /></div> : null}
     <DictionaryTypeFormModal open={typeModalMode !== null} mode={typeModalMode ?? 'create'} typeItem={editingType} pending={typeMutation.isPending} error={typeMutation.error} onClose={closeTypeModal} onSubmit={submitType} />
     <DictionaryItemFormModal open={itemModalMode !== null} mode={itemModalMode ?? 'create'} item={editingItem} pending={itemMutation.isPending} error={itemMutation.error} onClose={closeItemModal} onSubmit={submitItem} />
-    <DeleteConfirmModal open={deletingType !== null} resourceLabel="字典类型" count={1} pending={deleteTypeMutation.isPending} error={deleteTypeMutation.error instanceof Error ? deleteTypeMutation.error.message : null} onClose={closeDeleteType} onConfirm={() => { if (deletingType) void deleteTypeMutation.mutateAsync(deletingType.code).catch(() => undefined) }} />
-    <DeleteConfirmModal open={deletingItem !== null} resourceLabel="字典条目" count={1} pending={deleteItemMutation.isPending} error={deleteItemMutation.error instanceof Error ? deleteItemMutation.error.message : null} onClose={closeDeleteItem} onConfirm={() => { if (deletingItem) void deleteItemMutation.mutateAsync(deletingItem.id).catch(() => undefined) }} />
+    <DeleteConfirmModal open={deletingType !== null} resourceLabel="字典类型" count={1} pending={deleteTypeMutation.isPending} error={deleteTypeMutation.error} onClose={closeDeleteType} onConfirm={() => { if (deletingType) void deleteTypeMutation.mutateAsync(deletingType.code).catch(() => undefined) }} />
+    <DeleteConfirmModal open={deletingItem !== null} resourceLabel="字典条目" count={1} pending={deleteItemMutation.isPending} error={deleteItemMutation.error} onClose={closeDeleteItem} onConfirm={() => { if (deletingItem) void deleteItemMutation.mutateAsync(deletingItem.id).catch(() => undefined) }} />
   </div>
 }
 

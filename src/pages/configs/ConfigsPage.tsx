@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Pencil, Plus, RefreshCw, Search, Settings2, ShieldAlert } from 'lucide-react'
+import { Pencil, Plus, RefreshCw, Search, Settings2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeSystemConfig, NativeSystemConfigWriteInput } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner } from '../../shared/ui'
 import { ConfigFormModal } from './ConfigFormModal'
 
 type ConfigFilters = { keyword: string }
@@ -55,10 +55,10 @@ export function ConfigsPage() {
     <Card className="configs-filter-card"><form className="configs-filter-form" onSubmit={submit}><label><span>配置键或说明</span><input value={formFilters.keyword} onChange={(event) => setFormFilters({ keyword: event.target.value })} placeholder="按配置键或说明筛选" autoComplete="off" /></label><div className="configs-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
     {query.isLoading ? <div className="loading-panel configs-loading"><Spinner label="正在读取系统配置" /></div> : null}
     {query.isError && !query.data ? <InitialQueryError title="无法读取系统配置" message="系统配置读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-    {deleteMutation.error ? <div className="error-panel configs-error" role="alert"><ShieldAlert size={19} /><div><strong>配置删除失败</strong><p>{deleteMutation.error instanceof Error ? deleteMutation.error.message : '请求失败'}</p></div></div> : null}
+    <ActionError title="配置删除失败" error={deleteMutation.error} onDismiss={() => deleteMutation.reset()} />
     {query.data ? <Card className="configs-table-card"><CardHeader title="配置列表" description={`共 ${configs.length.toLocaleString('zh-CN')} 项匹配配置`} action={<Badge tone="info">系统 API</Badge>} />{configs.length > 0 ? <div className="configs-table-wrap"><table className="configs-table"><thead><tr><th scope="col">配置键</th><th scope="col">配置值</th><th scope="col">说明</th><th scope="col">状态</th><th scope="col">更新时间</th><th scope="col">操作</th></tr></thead><tbody>{configs.map((config) => <ConfigRow key={config.id} config={config} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="configs-empty" role="status"><span className="configs-empty-icon"><Settings2 size={20} /></span><strong>没有匹配的系统配置</strong><p>调整筛选条件后重试。</p></div>}</Card> : null}
     <ConfigFormModal open={modalMode !== null} mode={modalMode ?? 'create'} config={editingConfig} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitConfig} />
-    <DeleteConfirmModal open={deletingConfig !== null} resourceLabel="系统配置" count={1} pending={deleteMutation.isPending} error={deleteMutation.error instanceof Error ? deleteMutation.error.message : null} onClose={closeDelete} onConfirm={() => { if (deletingConfig) void deleteMutation.mutateAsync(deletingConfig.key).catch(() => undefined) }} />
+    <DeleteConfirmModal open={deletingConfig !== null} resourceLabel="系统配置" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingConfig) void deleteMutation.mutateAsync(deletingConfig.key).catch(() => undefined) }} />
   </div>
 }
 

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LoginLogsPage } from './LoginLogsPage'
-import { apiClient } from '../../shared/api/client'
+import { ApiError, apiClient } from '../../shared/api/client'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -36,5 +36,19 @@ describe('LoginLogsPage', () => {
     await waitFor(() => expect(exportButton).not.toBeDisabled())
     fireEvent.click(exportButton)
     await waitFor(() => expect(exportLoginLogs).toHaveBeenCalledWith({ username: 'operator', status: 'FAILURE' }))
+  })
+
+  it('导出失败时显示业务码诊断', async () => {
+    vi.spyOn(apiClient, 'listLoginLogs').mockResolvedValue({ items: [], page: 1, size: 20, total: 0 })
+    vi.spyOn(apiClient, 'exportLoginLogs').mockRejectedValue(new ApiError('internal detail', 503, 'service_unavailable', null, { requestId: 'login-export-1' }))
+    renderPage()
+
+    await screen.findByText('没有匹配的登录记录')
+    fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('系统服务暂时不可用，请稍后重试')
+    expect(alert).toHaveTextContent('service_unavailable')
+    expect(alert).toHaveTextContent('requestId=login-export-1')
   })
 })

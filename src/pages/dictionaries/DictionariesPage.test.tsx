@@ -73,4 +73,19 @@ describe('DictionariesPage', () => {
     await waitFor(() => expect(screen.queryByText('数据刷新失败')).not.toBeInTheDocument())
     expect(screen.getByText('中国')).toBeInTheDocument()
   })
+
+  it('删除字典类型失败时显示业务码诊断并保留确认上下文', async () => {
+    const type = { id: 'type-3', code: 'user_status', name: '用户状态', enabled: true }
+    vi.spyOn(apiClient, 'listDictionaryTypes').mockResolvedValue([type])
+    vi.spyOn(apiClient, 'listDictionaryItems').mockResolvedValue([])
+    vi.spyOn(apiClient, 'deleteDictionaryType').mockRejectedValue(new ApiError('internal detail', 409, 'resource_conflict', null, { requestId: 'dict-delete-1' }))
+    renderPage()
+
+    await screen.findByText(type.name)
+    fireEvent.click(screen.getByRole('button', { name: `删除${type.name}` }))
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+
+    expect((await screen.findAllByText(/resource_conflict/)).length).toBeGreaterThan(0)
+    expect(screen.getByRole('dialog')).toHaveTextContent('requestId=dict-delete-1')
+  })
 })
