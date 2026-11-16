@@ -216,6 +216,12 @@ a { color: inherit; text-decoration: none; }
 .config-key, .config-value, .config-time, .dictionary-item-value, .notice-time { color: #93a6c0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
 .config-value { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
 .dictionary-grid { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(420px, 1.3fr); gap: 15px; align-items: start; }
+.dictionary-items-filter-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; align-items: end; gap: 10px; padding: 0 16px 12px; }
+.dictionary-items-filter-form label { display: grid; gap: 6px; color: var(--muted-strong); font-size: 11px; font-weight: 650; }
+.dictionary-items-filter-form input { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; outline: 0; color: var(--text); background: rgba(8,17,31,.55); font-size: 11px; }
+.dictionary-items-filter-form input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(85,214,232,.1); }
+.dictionary-items-filter-form > div, .dictionary-items-pagination > div { display: flex; gap: 6px; }
+.dictionary-items-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px 18px; color: var(--muted); font-size: 11px; }
 .dictionary-types-list { display: grid; gap: 7px; padding: 12px; }
 .dictionary-type-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 12px; border: 1px solid transparent; border-radius: 9px; color: var(--muted-strong); background: rgba(8,17,31,.35); text-align: left; cursor: pointer; }
 .dictionary-type-select { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 1; min-width: 0; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
@@ -227,7 +233,7 @@ a { color: inherit; text-decoration: none; }
 .configs-error, .dictionaries-error, .notices-error { margin-bottom: 15px; }.configs-loading, .dictionaries-loading, .dictionaries-items-loading, .notices-loading { min-height: 260px; }
 @media (max-width: 850px) { .notices-filter-form { grid-template-columns: minmax(180px, 1fr) minmax(140px, .5fr); }.notices-filter-actions { grid-column: 1 / -1; justify-content: flex-end; } }
 @media (max-width: 760px) { .dictionary-grid { grid-template-columns: 1fr; }.dictionary-items-card { min-height: 260px; } }
-@media (max-width: 700px) { .configs-filter-form, .dictionaries-filter-form, .notices-filter-form { grid-template-columns: 1fr; gap: 11px; }.configs-filter-actions, .dictionaries-filter-actions, .notices-filter-actions { grid-column: auto; justify-content: flex-end; }.configs-filter-card, .dictionaries-filter-card, .notices-filter-card { padding: 15px; }.configs-table, .dictionary-items-table, .notices-table { min-width: 700px; }.notices-pagination { align-items: flex-start; flex-direction: column; padding-inline: 16px; }.notices-pagination > div { width: 100%; }.notices-pagination .button { flex: 1; } }
+@media (max-width: 700px) { .configs-filter-form, .dictionaries-filter-form, .notices-filter-form, .dictionary-items-filter-form { grid-template-columns: 1fr; gap: 11px; }.configs-filter-actions, .dictionaries-filter-actions, .notices-filter-actions { grid-column: auto; justify-content: flex-end; }.configs-filter-card, .dictionaries-filter-card, .notices-filter-card { padding: 15px; }.configs-table, .dictionary-items-table, .notices-table { min-width: 700px; }.notices-pagination, .dictionary-items-pagination { align-items: flex-start; flex-direction: column; padding-inline: 16px; }.notices-pagination > div, .dictionary-items-pagination > div { width: 100%; }.notices-pagination .button, .dictionary-items-pagination .button { flex: 1; }.dictionary-items-filter-form { padding-inline: 16px; } }
 
 .modal-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 22px; background: rgba(3, 8, 16, .78); backdrop-filter: blur(8px); }
 .modal { width: min(100%, 620px); max-height: min(760px, calc(100vh - 44px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 16px; background: linear-gradient(145deg, #132238, #0d1a2c); box-shadow: 0 28px 90px rgba(0, 0, 0, .46); }

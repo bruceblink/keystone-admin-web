@@ -339,6 +339,12 @@ export const nativeSystemConfigsPageSchema = z.object({
 })
 export const nativeDictionaryTypesSchema = z.array(nativeDictionaryTypeSchema)
 export const nativeDictionaryItemsSchema = z.array(nativeDictionaryItemSchema)
+export const nativeDictionaryItemsPageSchema = z.object({
+  items: z.array(nativeDictionaryItemSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
 export const nativeNoticesSchema = z.array(nativeNoticeSchema)
 export const nativeNoticesPageSchema = z.object({
   items: z.array(nativeNoticeSchema),
@@ -535,5 +541,6 @@ export type NativeSystemConfig = z.infer<typeof nativeSystemConfigSchema>
 export type NativeSystemConfigsPage = z.infer<typeof nativeSystemConfigsPageSchema>
 export type NativeDictionaryType = z.infer<typeof nativeDictionaryTypeSchema>
 export type NativeDictionaryItem = z.infer<typeof nativeDictionaryItemSchema>
+export type NativeDictionaryItemsPage = z.infer<typeof nativeDictionaryItemsPageSchema>
 export type NativeNotice = z.infer<typeof nativeNoticeSchema>
 export type NativeNoticesPage = z.infer<typeof nativeNoticesPageSchema>

@@ -29,6 +29,7 @@ import {
   nativeDictionaryTypesSchema,
   nativeDictionaryTypeSchema,
   nativeDictionaryItemsSchema,
+  nativeDictionaryItemsPageSchema,
   nativeDictionaryItemSchema,
   nativeNoticesSchema,
   nativeNoticesPageSchema,
@@ -69,6 +70,7 @@ import {
   type NativeSystemConfigsPage,
   type NativeDictionaryType,
   type NativeDictionaryItem,
+  type NativeDictionaryItemsPage,
   type NativeNotice,
   type NativeNoticesPage,
   type NativeRole,
@@ -105,6 +107,13 @@ function shouldMockFallback(error: unknown): boolean {
 // 统一系统配置读取入口，避免数组兼容接口和分页接口在客户端形成重复路由。
 async function requestSystemConfigs(query = ''): Promise<unknown> {
   return request<unknown>(`/configs?${query}`)
+}
+
+// 字典条目数组和分页查询共用一个请求入口，避免客户端重复登记同一路由。
+async function requestDictionaryItems(typeCode: string, query = ''): Promise<unknown> {
+  const suffix = query ? `?${query}` : ''
+  const path = `/dictionaries/${encodeURIComponent(typeCode)}/items${suffix}`
+  return request<unknown>(path)
 }
 
 // 统一 API Key 和公告读取入口，兼容数组接口并保持分页请求使用同一路由。
@@ -873,12 +882,25 @@ export const apiClient = {
   },
 
   async listDictionaryItems(typeCode: string): Promise<NativeDictionaryItem[]> {
-    const encodedTypeCode = encodeURIComponent(typeCode)
     try {
-      return nativeDictionaryItemsSchema.parse(await request<unknown>(`/dictionaries/${encodedTypeCode}/items`))
+      return nativeDictionaryItemsSchema.parse(await request<unknown>(`/dictionaries/${encodeURIComponent(typeCode)}/items`))
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       return createMockDictionaryItems(typeCode)
+    }
+  },
+
+  async listDictionaryItemsPage(typeCode: string, filters: { keyword?: string; page: number; size: number }): Promise<NativeDictionaryItemsPage> {
+    try {
+      const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
+      if (filters.keyword) params.set('keyword', filters.keyword)
+      return nativeDictionaryItemsPageSchema.parse(await requestDictionaryItems(typeCode, params.toString()))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      const keyword = filters.keyword?.toLocaleLowerCase() ?? ''
+      const filtered = createMockDictionaryItems(typeCode).filter((item) => !keyword || `${item.value} ${item.label}`.toLocaleLowerCase().includes(keyword))
+      const start = (filters.page - 1) * filters.size
+      return { items: filtered.slice(start, start + filters.size), page: filters.page, size: filters.size, total: filtered.length }
     }
   },
 

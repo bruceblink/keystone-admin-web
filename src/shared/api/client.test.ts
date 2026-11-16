@@ -590,7 +590,7 @@ describe('Native API client', () => {
         description: '访问令牌有效期', enabled: true, updatedAt: '2026-11-14T02:00:00Z',
       }])
       if (url.endsWith('/dictionaries')) return ok([{ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'user_status', name: '用户状态', enabled: true }])
-      if (url.endsWith('/dictionaries/user_status/items')) return ok([{ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', typeCode: 'user_status', value: 'enabled', label: '启用', sortOrder: 1, enabled: true }])
+      if (url.split('?')[0].endsWith('/dictionaries/user_status/items')) return ok([{ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', typeCode: 'user_status', value: 'enabled', label: '启用', sortOrder: 1, enabled: true }])
       if (url.split('?')[0].endsWith('/notices/manage')) return ok([{ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '维护通知', content: '内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }])
       throw new Error(`unexpected request: ${url}`)
     })
@@ -626,6 +626,24 @@ describe('Native API client', () => {
 
     expect(result).toMatchObject({ page: 2, size: 20, total: 21 })
     expect(result.items[0]).toMatchObject({ key: 'security.session.ttl' })
+  })
+
+  it('按 page/size 和 keyword 读取字典条目分页契约', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/dictionaries/user_status/items?page=2&size=20&keyword=%E5%90%AF')
+      return ok({
+        items: [{ id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518f2d', typeCode: 'user_status', value: 'enabled', label: '启用', sortOrder: 1, enabled: true }],
+        page: 2,
+        size: 20,
+        total: 21,
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await apiClient.listDictionaryItemsPage('user_status', { keyword: '启', page: 2, size: 20 })
+
+    expect(result).toMatchObject({ page: 2, size: 20, total: 21 })
+    expect(result.items[0]).toMatchObject({ typeCode: 'user_status', label: '启用' })
   })
 
   it('读取公开站内通知，不使用公告管理接口', async () => {
