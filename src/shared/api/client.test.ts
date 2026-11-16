@@ -522,6 +522,24 @@ describe('Native API client', () => {
     expect(calls[0]?.init?.body).toBe(JSON.stringify({ permissions: ['user:read', 'role:read'] }))
   })
 
+  it('读取并维护角色成员，规范化重复用户 ID', async () => {
+    const calls: Array<{ input: string; init?: RequestInit }> = []
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ input: String(input), init })
+      if (!init?.method) return ok(['user-1', 'user-2'])
+      return ok({ updated: true })
+    }))
+
+    await expect(apiClient.listRoleUsers('role-1', false)).resolves.toEqual(['user-1', 'user-2'])
+    await expect(apiClient.assignRoleUsers('role-1', [' user-1 ', 'user-1'])).resolves.toEqual({ updated: true })
+    await expect(apiClient.revokeRoleUsers('role-1', ['user-2', ' user-2 '])).resolves.toEqual({ updated: true })
+    expect(calls[0]?.input).toBe('/api/v1/roles/role-1/users?allocated=false')
+    expect(calls[1]?.init?.method).toBe('PUT')
+    expect(calls[1]?.init?.body).toBe(JSON.stringify({ userIds: ['user-1'] }))
+    expect(calls[2]?.init?.method).toBe('DELETE')
+    expect(calls[2]?.init?.body).toBe(JSON.stringify({ userIds: ['user-2'] }))
+  })
+
   it('发送菜单写入并只在 API Key 签发/轮换响应中接收明文', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)

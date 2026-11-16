@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, Pencil, Plus, RefreshCw, Search, ShieldCheck } from 'lucide-react'
+import { Download, Pencil, Plus, RefreshCw, Search, ShieldCheck, UsersRound, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
@@ -11,6 +11,7 @@ import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { RoleFormModal } from './RoleFormModal'
 
 const PAGE_SIZE = 20
+const MEMBER_PAGE_SIZE = 8
 type RoleFilters = { keyword: string; status: string }
 const emptyFilters: RoleFilters = { keyword: '', status: 'all' }
 const urlDefaults = { keyword: '', status: 'all', page: 1 }
@@ -24,6 +25,9 @@ export function RolesPage() {
   const [formFilters, setFormFilters] = useState<RoleFilters>(() => ({ keyword: appliedKeyword, status: appliedStatus }))
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingRole, setEditingRole] = useState<NativeRole | null>(null)
+  const [memberRole, setMemberRole] = useState<NativeRole | null>(null)
+  const [memberPages, setMemberPages] = useState({ allocated: 1, available: 1 })
+  const [memberFeedback, setMemberFeedback] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -35,6 +39,31 @@ export function RolesPage() {
   })
   const permissionMutation = useMutation({
     mutationFn: ({ id, permissions }: { id: string; permissions: string[] }) => stepUp.run(() => apiClient.updateRolePermissions(id, permissions)),
+  })
+  const allocatedMembersQuery = useQuery({
+    queryKey: ['role-users', memberRole?.id, 'allocated'],
+    queryFn: () => apiClient.listRoleUsers(memberRole!.id, true),
+    enabled: memberRole !== null,
+    staleTime: 10_000,
+  })
+  const availableMembersQuery = useQuery({
+    queryKey: ['role-users', memberRole?.id, 'available'],
+    queryFn: () => apiClient.listRoleUsers(memberRole!.id, false),
+    enabled: memberRole !== null,
+    staleTime: 10_000,
+  })
+  const memberMutation = useMutation({
+    mutationFn: ({ userId, allocated }: { userId: string; allocated: boolean }) => stepUp.run(() => allocated
+      ? apiClient.revokeRoleUsers(memberRole!.id, [userId])
+      : apiClient.assignRoleUsers(memberRole!.id, [userId])),
+    onSuccess: async (_result, variables) => {
+      setMemberFeedback(variables.allocated ? '角色成员已取消分配' : '角色成员已分配')
+      setMemberPages({ allocated: 1, available: 1 })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['role-users', memberRole?.id, 'allocated'] }),
+        queryClient.invalidateQueries({ queryKey: ['role-users', memberRole?.id, 'available'] }),
+      ])
+    },
   })
   const deleteMutation = useMutation({
     mutationFn: (ids: string[]) => stepUp.run(() => apiClient.deleteRoles(ids)),
@@ -80,6 +109,17 @@ export function RolesPage() {
   function openCreate() { saveMutation.reset(); permissionMutation.reset(); setEditingRole(null); setModalMode('create') }
   function openEdit(role: NativeRole) { saveMutation.reset(); permissionMutation.reset(); setEditingRole(role); setModalMode('edit') }
   function closeModal() { if (saveMutation.isPending || permissionMutation.isPending) return; setModalMode(null); setEditingRole(null) }
+  function openMembers(role: NativeRole) {
+    memberMutation.reset()
+    setMemberRole(role)
+    setMemberPages({ allocated: 1, available: 1 })
+    setMemberFeedback(null)
+  }
+  function closeMembers() {
+    if (memberMutation.isPending) return
+    setMemberRole(null)
+    setMemberFeedback(null)
+  }
   async function submitRole(input: NativeRoleWriteInput, permissions: string[]) {
     try {
       const saved = await saveMutation.mutateAsync({ id: editingRole?.id, input })
@@ -145,9 +185,30 @@ export function RolesPage() {
       {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '角色列表刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
       {query.data ? <Card className="roles-table-card">
         <CardHeader title="角色列表" description={`共 ${total.toLocaleString('zh-CN')} 个匹配角色`} action={<Badge tone="info">系统 API</Badge>} />
-        {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending} onSelect={toggleRole} onEdit={openEdit} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
+        {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending} onSelect={toggleRole} onEdit={openEdit} onMembers={openMembers} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
         {totalPages > 1 ? <div className="roles-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="secondary" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
       </Card> : null}
+      {memberRole ? <RoleMembersPanel
+        role={memberRole}
+        allocatedIds={allocatedMembersQuery.data ?? []}
+        availableIds={availableMembersQuery.data ?? []}
+        allocatedLoading={allocatedMembersQuery.isLoading}
+        availableLoading={availableMembersQuery.isLoading}
+        allocatedError={allocatedMembersQuery.error}
+        availableError={availableMembersQuery.error}
+        allocatedFetching={allocatedMembersQuery.isFetching}
+        availableFetching={availableMembersQuery.isFetching}
+        allocatedPage={memberPages.allocated}
+        availablePage={memberPages.available}
+        feedback={memberFeedback}
+        pending={memberMutation.isPending}
+        error={memberMutation.error}
+        onClose={closeMembers}
+        onRetryAllocated={() => void allocatedMembersQuery.refetch()}
+        onRetryAvailable={() => void availableMembersQuery.refetch()}
+        onPageChange={(kind, pageNumber) => setMemberPages((current) => ({ ...current, [kind]: pageNumber }))}
+        onChange={(userId, allocated) => void memberMutation.mutateAsync({ userId, allocated }).catch(() => undefined)}
+      /> : null}
       <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending || permissionMutation.isPending} error={saveMutation.error} permissionsError={permissionMutation.error} permissionEntries={permissionCatalogQuery.data ?? []} permissionsLoading={permissionCatalogQuery.isLoading || permissionCatalogQuery.isFetching} permissionsErrorState={permissionCatalogQuery.error} onRetryPermissions={() => void permissionCatalogQuery.refetch()} onClose={closeModal} onSubmit={submitRole} />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
       <MfaStepUpModal {...stepUp.modal} />
@@ -161,8 +222,58 @@ function normalizeRolePage(data: NativeRole[] | NativeRolesPage | undefined, pag
   return data ?? { items: [], page, size: PAGE_SIZE, total: 0 }
 }
 
-function RoleRow({ role, selected, pending, onSelect, onEdit }: { role: NativeRole; selected: boolean; pending: boolean; onSelect: (id: string, checked: boolean) => void; onEdit: (role: NativeRole) => void }) {
-  return <tr><td><input type="checkbox" aria-label={`选择角色 ${role.code}`} checked={selected} onChange={(event) => onSelect(role.id, event.target.checked)} disabled={pending} /></td><td><div className="role-cell"><span className="role-cell-icon"><ShieldCheck size={16} /></span><div><strong>{role.name}</strong><small>{role.code}</small></div></div></td><td><Badge tone="neutral">{formatScope(role.dataScope)}</Badge></td><td>{role.deptScope || '—'}</td><td>{role.permissions.length}</td><td><Badge tone={role.enabled ? 'success' : 'warning'}>{role.enabled ? '启用' : '停用'}</Badge></td><td><Button variant="ghost" size="sm" onClick={() => onEdit(role)} disabled={pending}><Pencil size={14} /> 编辑</Button></td></tr>
+function RoleRow({ role, selected, pending, onSelect, onEdit, onMembers }: { role: NativeRole; selected: boolean; pending: boolean; onSelect: (id: string, checked: boolean) => void; onEdit: (role: NativeRole) => void; onMembers: (role: NativeRole) => void }) {
+  return <tr><td><input type="checkbox" aria-label={`选择角色 ${role.code}`} checked={selected} onChange={(event) => onSelect(role.id, event.target.checked)} disabled={pending} /></td><td><div className="role-cell"><span className="role-cell-icon"><ShieldCheck size={16} /></span><div><strong>{role.name}</strong><small>{role.code}</small></div></div></td><td><Badge tone="neutral">{formatScope(role.dataScope)}</Badge></td><td>{role.deptScope || '—'}</td><td>{role.permissions.length}</td><td><Badge tone={role.enabled ? 'success' : 'warning'}>{role.enabled ? '启用' : '停用'}</Badge></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={() => onMembers(role)} disabled={pending}><UsersRound size={14} /> 成员</Button><Button variant="ghost" size="sm" onClick={() => onEdit(role)} disabled={pending}><Pencil size={14} /> 编辑</Button></div></td></tr>
+}
+
+type RoleMembersPanelProps = {
+  role: NativeRole
+  allocatedIds: string[]
+  availableIds: string[]
+  allocatedLoading: boolean
+  availableLoading: boolean
+  allocatedError: unknown
+  availableError: unknown
+  allocatedFetching: boolean
+  availableFetching: boolean
+  allocatedPage: number
+  availablePage: number
+  feedback: string | null
+  pending: boolean
+  error: unknown
+  onClose: () => void
+  onRetryAllocated: () => void
+  onRetryAvailable: () => void
+  onPageChange: (kind: 'allocated' | 'available', page: number) => void
+  onChange: (userId: string, allocated: boolean) => void
+}
+
+function RoleMembersPanel(props: RoleMembersPanelProps) {
+  const allocatedPages = Math.max(1, Math.ceil(props.allocatedIds.length / MEMBER_PAGE_SIZE))
+  const availablePages = Math.max(1, Math.ceil(props.availableIds.length / MEMBER_PAGE_SIZE))
+  return <Card className="role-members-card">
+    <CardHeader title={`角色成员：${props.role.name}`} description="管理当前角色的用户分配；用户 ID 来自系统 API。" action={<Button variant="ghost" size="sm" onClick={props.onClose} disabled={props.pending}><X size={15} /> 关闭</Button>} />
+    {props.feedback ? <p className="action-success" role="status">{props.feedback}</p> : null}
+    <ActionError title="角色成员更新失败" error={props.error} />
+    <div className="role-members-grid">
+      <RoleMemberList title="已分配用户" ids={props.allocatedIds} page={props.allocatedPage} totalPages={allocatedPages} loading={props.allocatedLoading} fetching={props.allocatedFetching} error={props.allocatedError} actionLabel="取消分配" actionTone="danger" onRetry={props.onRetryAllocated} onPageChange={(page) => props.onPageChange('allocated', page)} onChange={(id) => props.onChange(id, true)} pending={props.pending} />
+      <RoleMemberList title="可分配用户" ids={props.availableIds} page={props.availablePage} totalPages={availablePages} loading={props.availableLoading} fetching={props.availableFetching} error={props.availableError} actionLabel="分配" actionTone="secondary" onRetry={props.onRetryAvailable} onPageChange={(page) => props.onPageChange('available', page)} onChange={(id) => props.onChange(id, false)} pending={props.pending} />
+    </div>
+  </Card>
+}
+
+function RoleMemberList({ title, ids, page, totalPages, loading, fetching, error, actionLabel, actionTone, onRetry, onPageChange, onChange, pending }: { title: string; ids: string[]; page: number; totalPages: number; loading: boolean; fetching: boolean; error: unknown; actionLabel: string; actionTone: 'danger' | 'secondary'; onRetry: () => void; onPageChange: (page: number) => void; onChange: (id: string) => void; pending: boolean }) {
+  const visibleIds = ids.slice((page - 1) * MEMBER_PAGE_SIZE, page * MEMBER_PAGE_SIZE)
+  const initialError = Boolean(error && ids.length === 0)
+  return <section className="role-members-column" aria-labelledby={`${actionTone}-role-members-title`}>
+    <div className="role-members-column-heading"><div><h3 id={`${actionTone}-role-members-title`}>{title}</h3><span>{ids.length} 个用户</span></div>{fetching ? <Spinner label="刷新中" /> : null}</div>
+    {loading ? <div className="loading-panel"><Spinner label="正在读取角色成员" /></div> : null}
+    {initialError ? <InitialQueryError title={`${title}读取失败`} message="角色成员读取失败，请重试" error={error} onRetry={onRetry} retrying={fetching} /> : null}
+    {!loading && !initialError && error ? <StaleQueryError message={formatApiError(error, `${title}刷新失败，请重试`)} error={error} onRetry={onRetry} retrying={fetching} /> : null}
+    {!loading && !initialError && visibleIds.length === 0 ? <div className="role-members-empty" role="status">暂无用户</div> : null}
+    {visibleIds.length > 0 ? <div className="role-members-table-wrap"><table className="role-members-table"><thead><tr><th scope="col">用户 ID</th><th scope="col">操作</th></tr></thead><tbody>{visibleIds.map((userId) => <tr key={userId}><td><code>{userId}</code></td><td><Button variant={actionTone} size="sm" onClick={() => onChange(userId)} disabled={pending}>{actionLabel}</Button></td></tr>)}</tbody></table></div> : null}
+    {totalPages > 1 ? <div className="role-members-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1 || fetching || pending}>上一页</Button><Button variant="secondary" size="sm" onClick={() => onPageChange(Math.min(totalPages, page + 1))} disabled={page >= totalPages || fetching || pending}>下一页</Button></div></div> : null}
+  </section>
 }
 
 // 只转换展示文字，实际范围标识继续使用 Native 返回值。

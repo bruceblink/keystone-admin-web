@@ -38,6 +38,7 @@ import {
   nativeRolesSchema,
   nativeRolesPageSchema,
   nativeRoleSchema,
+  nativeRoleUserIdsSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
@@ -78,6 +79,7 @@ import {
   type NativeNoticesPage,
   type NativeRole,
   type NativeRolesPage,
+  type NativeRoleUserIds,
   type NativeRoleWriteInput,
   type NativeDepartmentWriteInput,
   type NativeSystemConfigWriteInput,
@@ -669,6 +671,50 @@ export const apiClient = {
       }))
     } catch (error) {
       if (error instanceof ApiError && error.status !== 0) throw error
+      if (!shouldMockFallback(error)) throw error
+      return { updated: true }
+    }
+  },
+
+  /** 查询角色已分配或可分配的用户 ID；两个后端保持相同的数组响应。 */
+  async listRoleUsers(id: string, allocated = true): Promise<NativeRoleUserIds> {
+    const query = new URLSearchParams({ allocated: String(allocated) }).toString()
+    try {
+      return nativeRoleUserIdsSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}/users?${query}`))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!shouldMockFallback(error)) throw error
+      return []
+    }
+  },
+
+  /** 原子追加角色成员；服务端会执行权限和 MFA 校验。 */
+  async assignRoleUsers(id: string, userIds: string[]): Promise<{ updated: boolean }> {
+    const normalized = [...new Set(userIds.map((userId) => userId.trim()).filter(Boolean))]
+    if (normalized.length === 0) throw new Error('至少选择一个用户')
+    try {
+      return nativeUpdatedResultSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}/users`, {
+        method: 'PUT',
+        body: JSON.stringify({ userIds: normalized }),
+      }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!shouldMockFallback(error)) throw error
+      return { updated: true }
+    }
+  },
+
+  /** 原子移除角色成员；服务端保持重复移除幂等。 */
+  async revokeRoleUsers(id: string, userIds: string[]): Promise<{ updated: boolean }> {
+    const normalized = [...new Set(userIds.map((userId) => userId.trim()).filter(Boolean))]
+    if (normalized.length === 0) throw new Error('至少选择一个用户')
+    try {
+      return nativeUpdatedResultSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}/users`, {
+        method: 'DELETE',
+        body: JSON.stringify({ userIds: normalized }),
+      }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!shouldMockFallback(error)) throw error
       return { updated: true }
     }

@@ -101,6 +101,25 @@ describe('RolesPage', () => {
     await waitFor(() => expect(updateRolePermissions).toHaveBeenCalledWith(role.id, ['role:update', 'user:read']))
   })
 
+  it('查看角色成员并通过 MFA 保护分配和取消分配', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    vi.spyOn(apiClient, 'listRoleUsers').mockImplementation(async (_roleId, allocated = true) => allocated ? ['user-allocated'] : ['user-available'])
+    const assignRoleUsers = vi.spyOn(apiClient, 'assignRoleUsers').mockResolvedValue({ updated: true })
+    const revokeRoleUsers = vi.spyOn(apiClient, 'revokeRoleUsers').mockResolvedValue({ updated: true })
+    renderPage()
+
+    await screen.findByText('审计员')
+    fireEvent.click(screen.getByRole('button', { name: '成员' }))
+    expect(await screen.findByText('user-allocated')).toBeInTheDocument()
+    expect(screen.getByText('user-available')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '分配' }))
+    await waitFor(() => expect(assignRoleUsers).toHaveBeenCalledWith(role.id, ['user-available']))
+    fireEvent.click(screen.getByRole('button', { name: '取消分配' }))
+    await waitFor(() => expect(revokeRoleUsers).toHaveBeenCalledWith(role.id, ['user-allocated']))
+  })
+
   it('保存角色失败时显示业务码诊断并保留表单', async () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
     vi.spyOn(apiClient, 'createRole').mockRejectedValue(new ApiError('temporary failure', 503, 'service_unavailable', null, { requestId: 'role-save-1' }))

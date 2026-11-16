@@ -199,6 +199,8 @@ export const nativeRolesPageSchema = z.object({
   size: z.number().int().positive(),
   total: z.number().int().nonnegative(),
 })
+/** Native 角色成员接口返回用户 ID 数组；分配和移除使用相同的 ID 集合。 */
+export const nativeRoleUserIdsSchema = z.array(z.string())
 export const nativeDepartmentsSchema = z.array(nativeDepartmentSchema)
 
 /** Native 岗位记录；岗位编码用于业务引用，排序和状态由管理页面维护。 */
@@ -534,6 +536,7 @@ export type NativeDictionaryItemWriteInput = { value?: string; label: string; so
 export type NativeNoticeWriteInput = { title: string; content: string; noticeType: string; enabled?: boolean }
 export type NativeRole = z.infer<typeof nativeRoleSchema>
 export type NativeRolesPage = z.infer<typeof nativeRolesPageSchema>
+export type NativeRoleUserIds = z.infer<typeof nativeRoleUserIdsSchema>
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativePost = z.infer<typeof nativePostSchema>
 export type NativePostsPage = z.infer<typeof nativePostsPageSchema>
