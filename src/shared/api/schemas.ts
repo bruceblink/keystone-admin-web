@@ -340,6 +340,12 @@ export const nativeSystemConfigsPageSchema = z.object({
 export const nativeDictionaryTypesSchema = z.array(nativeDictionaryTypeSchema)
 export const nativeDictionaryItemsSchema = z.array(nativeDictionaryItemSchema)
 export const nativeNoticesSchema = z.array(nativeNoticeSchema)
+export const nativeNoticesPageSchema = z.object({
+  items: z.array(nativeNoticeSchema),
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
 
 /** Native 操作审计记录；详情字段只用于查询展示，不在前端执行解析或写入。 */
 export const nativeOperationLogSchema = z.object({
@@ -530,3 +536,4 @@ export type NativeSystemConfigsPage = z.infer<typeof nativeSystemConfigsPageSche
 export type NativeDictionaryType = z.infer<typeof nativeDictionaryTypeSchema>
 export type NativeDictionaryItem = z.infer<typeof nativeDictionaryItemSchema>
 export type NativeNotice = z.infer<typeof nativeNoticeSchema>
+export type NativeNoticesPage = z.infer<typeof nativeNoticesPageSchema>

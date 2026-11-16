@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Megaphone, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
@@ -6,41 +6,42 @@ import type { NativeNotice, NativeNoticeWriteInput } from '../../shared/api/sche
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
 import { formatApiError } from '../../shared/api/errors'
 import { NoticeFormModal } from './NoticeFormModal'
+import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
-// 公告查询在前端完成状态筛选，Native 管理接口继续作为唯一数据来源。
 type NoticeFilters = { keyword: string; status: string }
-const emptyFilters: NoticeFilters = { keyword: '', status: '' }
+const PAGE_SIZE = 20
+const urlDefaults = { keyword: '', status: 'all', page: 1 }
+const urlOptions = { namespace: 'notices' }
 
 export function NoticesPage() {
   const queryClient = useQueryClient()
-  const [formFilters, setFormFilters] = useState<NoticeFilters>(emptyFilters)
-  const [filters, setFilters] = useState<NoticeFilters>(emptyFilters)
+  const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
+  const { keyword: appliedKeyword, status: appliedStatus, page } = urlState
+  const [formFilters, setFormFilters] = useState<NoticeFilters>({ keyword: appliedKeyword, status: appliedStatus })
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingNotice, setEditingNotice] = useState<NativeNotice | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const query = useQuery({ queryKey: ['notices'], queryFn: () => apiClient.listNotices(), staleTime: 10_000 })
-  const saveMutation = useMutation({ mutationFn: ({ id, input }: { id?: string; input: NativeNoticeWriteInput }) => id ? apiClient.updateNotice(id, input) : apiClient.createNotice(input), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['notices'] }); setModalMode(null); setEditingNotice(null) } })
-  const publishMutation = useMutation({ mutationFn: ({ id, published }: { id: string; published: boolean }) => apiClient.publishNotice(id, published), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notices'] }) })
-  const deleteMutation = useMutation({ mutationFn: (ids: string[]) => apiClient.deleteNotices(ids), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['notices'] }); setSelectedIds([]); setDeleteOpen(false) } })
-  const notices = useMemo(() => (query.data ?? []).filter((notice) => {
-    const keyword = filters.keyword.toLocaleLowerCase()
-    const matchesKeyword = !keyword || `${notice.title} ${notice.content} ${notice.noticeType}`.toLocaleLowerCase().includes(keyword)
-    const matchesStatus = !filters.status || (filters.status === 'published' ? notice.published : !notice.published)
-    return matchesKeyword && matchesStatus
-  }), [filters, query.data])
+  const query = useQuery({ queryKey: ['notices', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listNoticesPage({ keyword: appliedKeyword, status: appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000 })
+  const saveMutation = useMutation({ mutationFn: ({ id, input }: { id?: string; input: NativeNoticeWriteInput }) => id ? apiClient.updateNotice(id, input) : apiClient.createNotice(input), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['notices'] }); setUrlState({ page: 1 }); setModalMode(null); setEditingNotice(null) } })
+  const publishMutation = useMutation({ mutationFn: ({ id, published }: { id: string; published: boolean }) => apiClient.publishNotice(id, published), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['notices'] }); setUrlState({ page: 1 }) } })
+  const deleteMutation = useMutation({ mutationFn: (ids: string[]) => apiClient.deleteNotices(ids), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['notices'] }); setUrlState({ page: 1 }); setSelectedIds([]); setDeleteOpen(false) } })
+  const notices = query.data?.items ?? []
+  const total = query.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const allSelected = notices.length > 0 && notices.every((notice) => selectedIds.includes(notice.id))
 
-  useEffect(() => { setSelectedIds([]) }, [filters])
+  useEffect(() => { setFormFilters({ keyword: appliedKeyword, status: appliedStatus }); setSelectedIds([]) }, [appliedKeyword, appliedStatus])
+  useEffect(() => { if (query.data && page > totalPages) setUrlState({ page: totalPages }) }, [page, query.data, setUrlState, totalPages])
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFilters({ keyword: formFilters.keyword.trim(), status: formFilters.status })
+    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 })
   }
 
   function reset() {
-    setFormFilters(emptyFilters)
-    setFilters(emptyFilters)
+    setFormFilters({ keyword: '', status: 'all' })
+    setUrlState(urlDefaults)
   }
 
   function openCreate() { saveMutation.reset(); setEditingNotice(null); setModalMode('create') }
@@ -64,7 +65,7 @@ export function NoticesPage() {
     {query.isLoading ? <div className="loading-panel notices-loading"><Spinner label="正在读取通知公告" /></div> : null}
     {query.isError && !query.data ? <InitialQueryError title="无法读取通知公告" message="通知公告读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '通知公告刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-    {query.data ? <Card className="notices-table-card"><CardHeader title="公告列表" description={`共 ${notices.length.toLocaleString('zh-CN')} 条匹配公告`} action={<Badge tone="info">系统 API</Badge>} />{notices.length > 0 ? <div className="notices-table-wrap"><table className="notices-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前公告" checked={allSelected} onChange={(event) => toggleAllNotices(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">公告</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">发布人</th><th scope="col">发布时间</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody>{notices.map((notice) => <NoticeRow key={notice.id} notice={notice} selected={selectedIds.includes(notice.id)} pending={publishMutation.isPending || deleteMutation.isPending} onSelect={toggleNotice} onEdit={() => openEdit(notice)} onPublish={() => publishNotice(notice)} />)}</tbody></table></div> : <div className="notices-empty" role="status"><span className="notices-empty-icon"><Megaphone size={20} /></span><strong>没有匹配的公告</strong><p>调整筛选条件后重试。</p></div>}</Card> : null}
+    {query.data ? <Card className="notices-table-card"><CardHeader title="公告列表" description={`共 ${total.toLocaleString('zh-CN')} 条匹配公告`} action={<Badge tone="info">系统 API</Badge>} />{notices.length > 0 ? <div className="notices-table-wrap"><table className="notices-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前公告" checked={allSelected} onChange={(event) => toggleAllNotices(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">公告</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">发布人</th><th scope="col">发布时间</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody>{notices.map((notice) => <NoticeRow key={notice.id} notice={notice} selected={selectedIds.includes(notice.id)} pending={publishMutation.isPending || deleteMutation.isPending} onSelect={toggleNotice} onEdit={() => openEdit(notice)} onPublish={() => publishNotice(notice)} />)}</tbody></table></div> : <div className="notices-empty" role="status"><span className="notices-empty-icon"><Megaphone size={20} /></span><strong>没有匹配的公告</strong><p>调整筛选条件后重试。</p></div>}{totalPages > 1 ? <div className="notices-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}</Card> : null}
     <NoticeFormModal open={modalMode !== null} mode={modalMode ?? 'create'} notice={editingNotice} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitNotice} />
     <DeleteConfirmModal open={deleteOpen} resourceLabel="公告" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
   </div>

@@ -643,6 +643,22 @@ describe('Native API client', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/notices', expect.anything())
   })
 
+  it('按 page/size、keyword 和 status 读取分页公告契约', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/notices/manage?page=2&size=20&keyword=maintenance&status=published')
+      return ok({ items: [{
+        id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '维护公告', content: '内容', noticeType: 'announcement',
+        published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z',
+      }], page: 2, size: 20, total: 21 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await apiClient.listNoticesPage({ keyword: 'maintenance', status: 'published', page: 2, size: 20 })
+
+    expect(result).toMatchObject({ page: 2, size: 20, total: 21 })
+    expect(result.items[0]).toMatchObject({ title: '维护公告', published: true })
+  })
+
   it('按 Native 契约发送用户、角色、公告和任务批量删除请求并去重 ID', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)

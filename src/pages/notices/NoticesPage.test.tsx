@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NoticesPage } from './NoticesPage'
 import { ApiError, apiClient } from '../../shared/api/client'
+import type { NativeNotice } from '../../shared/api/schemas'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -10,11 +11,14 @@ function renderPage() {
 }
 
 afterEach(() => vi.restoreAllMocks())
+beforeEach(() => window.history.replaceState({}, '', '/notices'))
+
+const notice: NativeNotice = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '平台维护通知', content: '维护内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }
+const page = (items = [notice], total = items.length, currentPage = 1) => ({ items, page: currentPage, size: 20, total })
 
 describe('NoticesPage', () => {
   it('确认后批量删除公告', async () => {
-    const notice = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '平台维护通知', content: '维护内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }
-    vi.spyOn(apiClient, 'listNotices').mockResolvedValue([notice])
+    const listNoticesPage = vi.spyOn(apiClient, 'listNoticesPage').mockResolvedValue(page())
     const deleteNotices = vi.spyOn(apiClient, 'deleteNotices').mockResolvedValue({ deleted: 1 })
     renderPage()
 
@@ -25,12 +29,12 @@ describe('NoticesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
 
     await waitFor(() => expect(deleteNotices).toHaveBeenCalledWith([notice.id]))
+    expect(listNoticesPage).toHaveBeenCalledWith({ keyword: '', status: 'all', page: 1, size: 20 })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('发布状态更新失败时显示可关闭的错误反馈', async () => {
-    const notice = { id: 'notice-1', title: '平台维护通知', content: '维护内容', noticeType: 'announcement', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }
-    vi.spyOn(apiClient, 'listNotices').mockResolvedValue([notice])
+    vi.spyOn(apiClient, 'listNoticesPage').mockResolvedValue(page())
     vi.spyOn(apiClient, 'publishNotice').mockRejectedValue(new ApiError('internal detail', 409, 'resource_conflict', null, { requestId: 'notice-publish-1' }))
     renderPage()
 
@@ -47,11 +51,11 @@ describe('NoticesPage', () => {
   })
 
   it('刷新失败时保留旧公告并提供带错误码语义的重试入口', async () => {
-    const notice = { id: 'notice-2', title: '例行维护', content: '维护内容', noticeType: 'announcement', published: false, enabled: true, publishAt: null, createdBy: 'operator', createdAt: '2026-11-14T02:00:00Z' }
-    const listNotices = vi.spyOn(apiClient, 'listNotices')
-      .mockResolvedValueOnce([notice])
+    const staleNotice = { ...notice, id: 'notice-2', title: '例行维护', published: false, publishAt: null }
+    const listNotices = vi.spyOn(apiClient, 'listNoticesPage')
+      .mockResolvedValueOnce(page([staleNotice]))
       .mockRejectedValueOnce(new ApiError('temporary failure', 503, 'service_unavailable'))
-      .mockResolvedValueOnce([notice])
+      .mockResolvedValueOnce(page([staleNotice]))
     renderPage()
 
     await screen.findByText('例行维护')
@@ -66,5 +70,18 @@ describe('NoticesPage', () => {
     await waitFor(() => expect(listNotices).toHaveBeenCalledTimes(3))
     await waitFor(() => expect(screen.queryByText('数据刷新失败')).not.toBeInTheDocument())
     expect(screen.getByText('例行维护')).toBeInTheDocument()
+  })
+
+  it('按服务端 total 翻页并保存筛选条件到 URL', async () => {
+    const secondNotice = { ...notice, id: 'notice-3', title: '第二页公告' }
+    const listNoticesPage = vi.spyOn(apiClient, 'listNoticesPage').mockImplementation(async ({ page: currentPage }) => currentPage === 1 ? page([notice], 21, currentPage) : page([secondNotice], 21, currentPage))
+    renderPage()
+
+    await screen.findByText(notice.title)
+    expect(screen.getByText('第 1 / 2 页')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    await screen.findByText(secondNotice.title)
+    expect(listNoticesPage).toHaveBeenLastCalledWith({ keyword: '', status: 'all', page: 2, size: 20 })
+    expect(window.location.search).toContain('notices_page=2')
   })
 })

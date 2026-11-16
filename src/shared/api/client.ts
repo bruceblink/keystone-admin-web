@@ -31,6 +31,7 @@ import {
   nativeDictionaryItemsSchema,
   nativeDictionaryItemSchema,
   nativeNoticesSchema,
+  nativeNoticesPageSchema,
   nativeNoticeSchema,
   nativeRolesSchema,
   nativeRoleSchema,
@@ -69,6 +70,7 @@ import {
   type NativeDictionaryType,
   type NativeDictionaryItem,
   type NativeNotice,
+  type NativeNoticesPage,
   type NativeRole,
   type NativeRoleWriteInput,
   type NativeDepartmentWriteInput,
@@ -942,6 +944,25 @@ export const apiClient = {
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       return createMockNotices()
+    }
+  },
+
+  async listNoticesPage(filters: { keyword?: string; status?: string; page: number; size: number }): Promise<NativeNoticesPage> {
+    try {
+      const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
+      if (filters.keyword) params.set('keyword', filters.keyword)
+      if (filters.status && filters.status !== 'all') params.set('status', filters.status)
+      return nativeNoticesPageSchema.parse(await request<unknown>(`/notices/manage?${params.toString()}`))
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      const keyword = filters.keyword?.toLocaleLowerCase() ?? ''
+      const filtered = createMockNotices().filter((notice) => {
+        const matchesKeyword = !keyword || `${notice.title} ${notice.content} ${notice.noticeType}`.toLocaleLowerCase().includes(keyword)
+        const matchesStatus = !filters.status || filters.status === 'all' || (filters.status === 'published' ? notice.published : !notice.published)
+        return matchesKeyword && matchesStatus
+      })
+      const start = (filters.page - 1) * filters.size
+      return { items: filtered.slice(start, start + filters.size), page: filters.page, size: filters.size, total: filtered.length }
     }
   },
 
