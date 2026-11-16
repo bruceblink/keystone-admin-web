@@ -564,7 +564,7 @@ describe('Native API client', () => {
   it('读取 Native 配置、字典和管理公告契约', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
-      if (url.endsWith('/configs')) return ok([{
+      if (url.split('?')[0].endsWith('/configs')) return ok([{
         id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', key: 'security.session.ttl', value: '300',
         description: '访问令牌有效期', enabled: true, updatedAt: '2026-11-14T02:00:00Z',
       }])

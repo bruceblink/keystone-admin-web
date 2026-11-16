@@ -98,6 +98,11 @@ function shouldMockFallback(error: unknown): boolean {
   return mockFallbackEnabled() && error instanceof ApiError && error.status === 0
 }
 
+// 统一系统配置读取入口，避免数组兼容接口和分页接口在客户端形成重复路由。
+async function requestSystemConfigs(query = ''): Promise<unknown> {
+  return request<unknown>(`/configs?${query}`)
+}
+
 function serverApiError(envelope: ReturnType<typeof apiEnvelopeSchema.parse>, status: number): ApiError {
   const error = envelope.error
   const hasServerCode = typeof error?.code === 'string' && error.code.trim() !== ''
@@ -777,7 +782,7 @@ export const apiClient = {
 
   async listSystemConfigs(): Promise<NativeSystemConfig[]> {
     try {
-      return nativeSystemConfigsSchema.parse(await request<unknown>('/configs'))
+      return nativeSystemConfigsSchema.parse(await requestSystemConfigs())
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       return createMockSystemConfigs()
@@ -788,7 +793,7 @@ export const apiClient = {
     try {
       const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
       if (filters.keyword) params.set('keyword', filters.keyword)
-      return nativeSystemConfigsPageSchema.parse(await request<unknown>(`/configs?${params.toString()}`))
+      return nativeSystemConfigsPageSchema.parse(await requestSystemConfigs(params.toString()))
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
       const keyword = filters.keyword?.toLocaleLowerCase() ?? ''
