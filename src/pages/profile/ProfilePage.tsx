@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { LockKeyhole, RefreshCw, Save } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
+import { formatApiError } from '../../shared/api/errors'
 import type { NativeProfile, NativeProfileWriteInput } from '../../shared/api/schemas'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
@@ -62,7 +63,7 @@ export function ProfilePage() {
     <div className="page-heading"><div><p className="eyebrow">ACCOUNT / PROFILE</p><h1>个人资料</h1><p className="page-description">维护当前账号资料和登录凭据。</p></div><div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void profileQuery.refetch()} disabled={profileQuery.isFetching}><RefreshCw size={15} className={profileQuery.isFetching ? 'spin' : ''} /> 刷新资料</Button></div></div>
     {profileQuery.isLoading ? <div className="loading-panel"><Spinner label="正在读取个人资料" /></div> : null}
     {profileQuery.isError && !profileQuery.data ? <InitialQueryError title="无法读取个人资料" message="个人资料读取失败，请重试" error={profileQuery.error} onRetry={() => void profileQuery.refetch()} retrying={profileQuery.isFetching} /> : null}
-    {profileQuery.isError && profileQuery.data ? <StaleQueryError message={profileQuery.error instanceof Error ? profileQuery.error.message : '个人资料刷新失败'} error={profileQuery.error} onRetry={() => void profileQuery.refetch()} retrying={profileQuery.isFetching} /> : null}
+    {profileQuery.isError && profileQuery.data ? <StaleQueryError message={formatApiError(profileQuery.error, '个人资料刷新失败，请重试')} error={profileQuery.error} onRetry={() => void profileQuery.refetch()} retrying={profileQuery.isFetching} /> : null}
     {message ? <div className="form-status" role="status">{message}</div> : null}
     <ActionError title="资料操作失败" error={error} onDismiss={() => setError(null)} />
     {profileQuery.data ? <>

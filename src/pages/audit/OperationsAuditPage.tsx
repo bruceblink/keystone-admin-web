@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Download, RefreshCw, Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
+import { formatApiError } from '../../shared/api/errors'
 import type { NativeOperationLog } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
@@ -148,7 +149,7 @@ export function OperationsAuditPage() {
 
       {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取操作审计" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取操作审计" message="操作审计读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={query.error instanceof Error ? query.error.message : '操作审计刷新失败'} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
+      {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '操作审计刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
 
       {query.data ? (
         <Card className="audit-table-card">

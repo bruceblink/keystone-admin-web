@@ -45,4 +45,16 @@ describe('ProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '关闭' }))
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
+
+  it('刷新资料失败时显示安全错误并保留旧资料', async () => {
+    vi.spyOn(apiClient, 'getProfile').mockResolvedValueOnce(profile).mockRejectedValueOnce(new ApiError('internal detail', 503, 'service_unavailable'))
+    renderPage()
+
+    await screen.findByDisplayValue('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /刷新资料/ }))
+
+    expect(await screen.findByText('数据刷新失败')).toBeInTheDocument()
+    expect(screen.getByText('系统服务暂时不可用，请稍后重试')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('平台运维员')).toBeInTheDocument()
+  })
 })

@@ -89,4 +89,16 @@ describe('OperationsAuditPage', () => {
     expect(alert).toHaveTextContent('service_unavailable')
     expect(alert).toHaveTextContent('requestId=operation-export-1')
   })
+
+  it('刷新失败时显示安全错误并保留旧审计记录', async () => {
+    vi.spyOn(apiClient, 'listOperationLogs').mockResolvedValueOnce(logPage).mockRejectedValueOnce(new ApiError('internal detail', 503, 'service_unavailable'))
+    renderPage()
+
+    await screen.findByText('更新用户资料')
+    fireEvent.click(screen.getByRole('button', { name: '刷新列表' }))
+
+    expect(await screen.findByText('数据刷新失败')).toBeInTheDocument()
+    expect(screen.getByText('系统服务暂时不可用，请稍后重试')).toBeInTheDocument()
+    expect(screen.getByText('更新用户资料')).toBeInTheDocument()
+  })
 })

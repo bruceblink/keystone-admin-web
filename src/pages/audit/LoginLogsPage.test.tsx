@@ -51,4 +51,17 @@ describe('LoginLogsPage', () => {
     expect(alert).toHaveTextContent('service_unavailable')
     expect(alert).toHaveTextContent('requestId=login-export-1')
   })
+
+  it('刷新失败时显示安全错误并保留旧日志', async () => {
+    const log = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', username: 'operator', status: 'SUCCESS', ipAddress: '127.0.0.1', message: '登录成功', userAgent: 'Chrome', loginAt: '2026-11-14T02:00:00Z' }
+    vi.spyOn(apiClient, 'listLoginLogs').mockResolvedValueOnce({ items: [log], page: 1, size: 20, total: 1 }).mockRejectedValueOnce(new ApiError('internal detail', 503, 'service_unavailable'))
+    renderPage()
+
+    await screen.findByText('登录成功')
+    fireEvent.click(screen.getByRole('button', { name: '刷新列表' }))
+
+    expect(await screen.findByText('数据刷新失败')).toBeInTheDocument()
+    expect(screen.getByText('系统服务暂时不可用，请稍后重试')).toBeInTheDocument()
+    expect(screen.getByText('登录成功')).toBeInTheDocument()
+  })
 })
