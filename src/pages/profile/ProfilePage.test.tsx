@@ -57,4 +57,33 @@ describe('ProfilePage', () => {
     expect(screen.getByText('系统服务暂时不可用，请稍后重试')).toBeInTheDocument()
     expect(screen.getByDisplayValue('平台运维员')).toBeInTheDocument()
   })
+
+  it('刷新时保留未保存修改，保存后重新启用服务器资料同步', async () => {
+    const getProfile = vi.spyOn(apiClient, 'getProfile')
+      .mockResolvedValueOnce(profile)
+      .mockResolvedValueOnce({ ...profile, email: 'server-refresh@example.com' })
+      .mockResolvedValueOnce({ ...profile, displayName: '已保存的展示名' })
+      .mockResolvedValueOnce({ ...profile, displayName: '刷新后的展示名' })
+    vi.spyOn(apiClient, 'updateProfile').mockResolvedValue({ ...profile, displayName: '已保存的展示名' })
+    renderPage()
+
+    await screen.findByDisplayValue('平台运维员')
+    fireEvent.change(screen.getByLabelText('展示名 *'), { target: { value: '未保存的展示名' } })
+    fireEvent.click(screen.getByRole('button', { name: /刷新资料/ }))
+
+    expect(await screen.findByText('资料已重新读取；未保存的修改仍保留。')).toBeInTheDocument()
+    expect(screen.getByLabelText('展示名 *')).toHaveValue('未保存的展示名')
+    expect(screen.getByLabelText('邮箱')).toHaveValue('operator@example.com')
+    expect(getProfile).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getByRole('button', { name: '保存资料' }))
+    expect(await screen.findByText('个人资料已保存')).toBeInTheDocument()
+    await waitFor(() => expect(getProfile).toHaveBeenCalledTimes(3))
+    fireEvent.click(screen.getByRole('button', { name: /刷新资料/ }))
+
+    expect(await screen.findByDisplayValue('刷新后的展示名')).toBeInTheDocument()
+    expect(await screen.findByText('个人资料已刷新。')).toBeInTheDocument()
+    expect(screen.queryByText('资料已重新读取；未保存的修改仍保留。')).not.toBeInTheDocument()
+    expect(getProfile).toHaveBeenCalledTimes(4)
+  })
 })
