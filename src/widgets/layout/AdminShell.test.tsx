@@ -29,5 +29,6 @@ describe('AdminShell', () => {
     expect(container.querySelector('.topbar-context .context-kicker')).toHaveTextContent('Keystone')
     expect(container.querySelector('.topbar-context .context-separator')).toHaveTextContent('/')
     expect(container.querySelector('.topbar-context')).not.toHaveTextContent('管理工作台')
+    expect(container.querySelector('.logout-button')).toHaveAttribute('aria-label', '退出')
   })
 })
