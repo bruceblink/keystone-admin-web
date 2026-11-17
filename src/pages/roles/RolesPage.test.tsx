@@ -251,6 +251,28 @@ describe('RolesPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it.each([
+    ['role_has_members', '角色存在用户，不能删除'],
+    ['role_protected', '管理员角色不能删除'],
+  ])('删除失败时显示 %s 并在取消后清除错误', async (code, message) => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    vi.spyOn(apiClient, 'deleteRoles').mockRejectedValue(new ApiError(message, 422, code))
+    renderPage()
+
+    await screen.findByText('审计员')
+    fireEvent.click(screen.getByLabelText('选择角色 auditor'))
+    fireEvent.click(screen.getByRole('button', { name: '删除角色（1）' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除 1 条' }))
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent(message))
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(code)
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('选择角色 auditor')).toBeChecked()
+  })
+
   it('提供角色 XLSX 导出操作', async () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
     const exportRoles = vi.spyOn(apiClient, 'exportRoles').mockResolvedValue({ blob: new Blob(['xlsx']), filename: 'roles.xlsx' })

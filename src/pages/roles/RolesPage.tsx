@@ -174,7 +174,7 @@ export function RolesPage() {
   function toggleRole(id: string, checked: boolean) { setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)) }
   function toggleAllRoles(checked: boolean) { setSelectedIds(checked ? roles.map((role) => role.id) : []) }
   function openDelete() { deleteMutation.reset(); setDeleteOpen(true) }
-  function closeDelete() { if (!deleteMutation.isPending) setDeleteOpen(false) }
+  function closeDelete() { if (!deleteMutation.isPending) { setDeleteOpen(false); deleteMutation.reset() } }
 
   async function exportRoles() {
     setExportError(null)
@@ -205,7 +205,6 @@ export function RolesPage() {
       </div>
 
       <ActionError title="角色导出失败" error={exportError} />
-      <ActionError title="角色删除失败" error={deleteMutation.error} />
 
       <Card className="roles-filter-card">
         <form className="roles-filter-form" onSubmit={submitFilters}>
