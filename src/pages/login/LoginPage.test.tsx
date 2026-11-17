@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LoginPage } from './LoginPage'
 import { ApiError } from '../../shared/api/errors'
@@ -13,11 +13,24 @@ afterEach(() => {
   useSessionStore.setState({ user: null, isHydrated: false, message: null })
 })
 
-function renderPage() {
-  return render(<MemoryRouter><LoginPage /></MemoryRouter>)
+function CurrentLocation() {
+  const location = useLocation()
+  return <output data-testid="current-location">{`${location.pathname}${location.search}${location.hash}`}</output>
+}
+
+function renderPage(from?: unknown) {
+  return render(
+    <MemoryRouter initialEntries={[{ pathname: '/login', state: { from } }]}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<CurrentLocation />} />
+      </Routes>
+    </MemoryRouter>,
+  )
 }
 
 describe('LoginPage', () => {
+  // 密码、改密、MFA 和已有会话都必须回到守卫记录的安全站内地址。
   // 验证活动会话冲突和 MFA 接管标志在页面层保持一致。
   it('活动会话冲突时允许取消或强制接管', async () => {
     const login = vi.fn()
@@ -42,7 +55,7 @@ describe('LoginPage', () => {
       .mockRejectedValueOnce(new ApiError('需要二次认证', 401, 'mfa_required', challenge))
     const verifyMfaLogin = vi.fn().mockResolvedValue(undefined)
     useSessionStore.setState({ isHydrated: true, login, verifyMfaLogin })
-    renderPage()
+    renderPage({ pathname: '/dictionaries', search: '?dictionaries_keyword=notice', hash: '' })
 
     fireEvent.click(screen.getByRole('button', { name: /登录/ }))
     await screen.findByRole('dialog', { name: '账号已有活动会话' })
@@ -53,6 +66,31 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /验证并登录/ }))
 
     await waitFor(() => expect(verifyMfaLogin).toHaveBeenCalledWith('operator', challenge.challengeId, challenge.clientId, '123456', true))
+    expect(await screen.findByTestId('current-location')).toHaveTextContent('/dictionaries?dictionaries_keyword=notice')
+  })
+
+  it('普通密码登录成功后返回原页面并保留查询参数', async () => {
+    const login = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({ isHydrated: true, login })
+    renderPage({ pathname: '/dictionaries', search: '?dictionaries_keyword=notice', hash: '' })
+
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+
+    expect(await screen.findByTestId('current-location')).toHaveTextContent('/dictionaries?dictionaries_keyword=notice')
+  })
+
+  it('普通 MFA 登录成功后返回原页面并保留查询参数', async () => {
+    const challenge = { challengeId: 'challenge-login', clientId: 'web', expiresAt: '2026-11-15T03:00:00Z' }
+    const login = vi.fn().mockRejectedValue(new ApiError('需要二次认证', 401, 'mfa_required', challenge))
+    const verifyMfaLogin = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({ isHydrated: true, login, verifyMfaLogin })
+    renderPage({ pathname: '/dictionaries', search: '?dictionaries_keyword=notice', hash: '#results' })
+
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+    fireEvent.change(await screen.findByLabelText('一次性验证码'), { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: /验证并登录/ }))
+
+    expect(await screen.findByTestId('current-location')).toHaveTextContent('/dictionaries?dictionaries_keyword=notice#results')
   })
 
   it('MFA 校验阶段发现活动会话时复用验证码确认强制接管', async () => {
@@ -75,11 +113,13 @@ describe('LoginPage', () => {
   })
 
   // 首次密码、策略错误、取消和未更新状态都必须返回可继续操作的登录表单。
-  it('服务端要求首次改密时展示表单并在成功后返回登录', async () => {
-    const login = vi.fn().mockRejectedValue(new ApiError('请先修改初始密码', 428, 'precondition_required'))
+  it('首次改密后重新登录会返回原页面并保留查询参数', async () => {
+    const login = vi.fn()
+      .mockRejectedValueOnce(new ApiError('请先修改初始密码', 428, 'precondition_required'))
+      .mockResolvedValueOnce(undefined)
     const changePassword = vi.spyOn(apiClient, 'changeInitialPassword').mockResolvedValue({ updated: true })
     useSessionStore.setState({ isHydrated: true, login })
-    renderPage()
+    renderPage({ pathname: '/dictionaries', search: '?dictionaries_keyword=notice', hash: '' })
 
     fireEvent.click(screen.getByRole('button', { name: /登录/ }))
     expect(await screen.findByRole('heading', { name: '设置新密码' })).toBeInTheDocument()
@@ -93,6 +133,10 @@ describe('LoginPage', () => {
     expect(await screen.findByText('密码已更新，请使用新密码登录。')).toBeInTheDocument()
     expect(screen.getByLabelText('密码')).toHaveValue('')
     expect(screen.queryByLabelText('新密码')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'New-Strong-Password-9!' } })
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+    expect(await screen.findByTestId('current-location')).toHaveTextContent('/dictionaries?dictionaries_keyword=notice')
   })
 
   it('初始改密校验两次新密码并允许清除输入后取消', async () => {
@@ -155,11 +199,20 @@ describe('LoginPage', () => {
     expect(changePassword).toHaveBeenCalledOnce()
   })
 
-  it('已有当前会话时不再显示登录表单', () => {
+  it('已有当前会话时直接返回原页面', () => {
     useSessionStore.setState({ isHydrated: true, user })
-    renderPage()
+    renderPage({ pathname: '/dictionaries', search: '?dictionaries_keyword=notice', hash: '' })
 
-    expect(screen.getByText('正在进入管理台')).toBeInTheDocument()
-    expect(screen.queryByLabelText('用户名')).not.toBeInTheDocument()
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/dictionaries?dictionaries_keyword=notice')
+  })
+
+  it('登录成功时拒绝外部返回地址并进入监控页', async () => {
+    const login = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({ isHydrated: true, login })
+    renderPage({ pathname: 'https://attacker.example/path', search: '', hash: '' })
+
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+
+    expect(await screen.findByTestId('current-location')).toHaveTextContent('/monitor')
   })
 })

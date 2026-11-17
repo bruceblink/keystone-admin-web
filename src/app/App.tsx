@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { AdminShell } from '../widgets/layout/AdminShell'
 import { LoginPage } from '../pages/login/LoginPage'
 import { useSessionStore } from '../shared/state/session'
@@ -22,10 +22,13 @@ const DictionariesPage = lazy(() => import('../pages/dictionaries/DictionariesPa
 const NoticesPage = lazy(() => import('../pages/notices/NoticesPage').then(({ NoticesPage }) => ({ default: NoticesPage })))
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage').then(({ ProfilePage }) => ({ default: ProfilePage })))
 
-function RequireAuth() {
+export function RequireAuth() {
   const { user, isHydrated } = useSessionStore()
+  const location = useLocation()
   if (!isHydrated) return <div className="page-center"><Spinner label="正在恢复会话" /></div>
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: { pathname: location.pathname, search: location.search, hash: location.hash } }} />
+  }
   return <Outlet />
 }
 

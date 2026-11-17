@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Activity, ArrowRight, KeyRound, LockKeyhole, UserRound } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError, formatApiError, isActiveSessionConflict } from '../../shared/api/errors'
 import { apiClient, getMfaLoginChallenge } from '../../shared/api/client'
 import type { NativeMfaLoginChallenge } from '../../shared/api/schemas'
 import { useSessionStore } from '../../shared/state/session'
+import { getSafeReturnPath } from '../../shared/routing/safeReturnPath'
 import { Button, Card, Modal, Spinner } from '../../shared/ui'
 
 function isInitialPasswordChangeRequired(error: unknown): boolean {
@@ -13,6 +14,8 @@ function isInitialPasswordChangeRequired(error: unknown): boolean {
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = getSafeReturnPath(location.state)
   const login = useSessionStore((state) => state.login)
   const user = useSessionStore((state) => state.user)
   const isHydrated = useSessionStore((state) => state.isHydrated)
@@ -38,8 +41,8 @@ export function LoginPage() {
   const [isMfaSubmitting, setIsMfaSubmitting] = useState(false)
 
   useEffect(() => {
-    if (isHydrated && user) navigate('/monitor', { replace: true })
-  }, [isHydrated, navigate, user])
+    if (isHydrated && user) navigate(returnTo, { replace: true })
+  }, [isHydrated, navigate, returnTo, user])
 
   async function submitLogin(forceLogin: boolean) {
     setError(null)
@@ -50,7 +53,7 @@ export function LoginPage() {
       await login(username.trim(), password, forceLogin)
       setForceLoginOpen(false)
       setForceLoginMode(null)
-      navigate('/monitor', { replace: true })
+      navigate(returnTo, { replace: true })
     } catch (submitError) {
       const challenge = getMfaLoginChallenge(submitError)
       if (challenge) {
@@ -100,7 +103,7 @@ export function LoginPage() {
       await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim(), true)
       setForceLoginOpen(false)
       setForceLoginMode(null)
-      navigate('/monitor', { replace: true })
+      navigate(returnTo, { replace: true })
     } catch (submitError) {
       setMfaError(formatApiError(submitError, '二次认证失败，请重试'))
     } finally {
@@ -115,7 +118,7 @@ export function LoginPage() {
     setIsMfaSubmitting(true)
     try {
       await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim(), mfaForceLogin)
-      navigate('/monitor', { replace: true })
+      navigate(returnTo, { replace: true })
     } catch (submitError) {
       if (isActiveSessionConflict(submitError)) {
         setForceLoginMode('mfa')
