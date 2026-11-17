@@ -3,7 +3,7 @@ import { Download, Pencil, Plus, RefreshCw, Search, BriefcaseBusiness } from 'lu
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativePost, NativePostWriteInput } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { PostFormModal } from './PostFormModal'
 
@@ -119,11 +119,6 @@ export function PostsPage() {
           <h1>岗位管理</h1>
           <p className="page-description">查询岗位编码、显示排序和启用状态。新增和编辑在模态框中完成。</p>
         </div>
-        <div className="heading-actions">
-          <Button variant="secondary" size="sm" onClick={() => void exportPosts()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button>
-          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增岗位</Button>
-          <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新岗位</Button>
-        </div>
       </div>
 
       <ActionError title="岗位导出失败" error={exportError} />
@@ -135,6 +130,13 @@ export function PostsPage() {
           <div className="posts-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={resetFilters}>重置</Button></div>
         </form>
       </Card>
+
+      {/* 操作入口独立于查询结果，首次加载和初查失败时仍可使用。 */}
+      <ListToolbar>
+        <Button variant="secondary" size="sm" onClick={() => void exportPosts()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button>
+        <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增岗位</Button>
+        <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新岗位</Button>
+      </ListToolbar>
 
       {query.isLoading ? <div className="loading-panel posts-loading"><Spinner label="正在读取岗位列表" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取岗位列表" message="岗位列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}

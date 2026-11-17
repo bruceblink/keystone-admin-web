@@ -3,7 +3,7 @@ import { Megaphone, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeNotice, NativeNoticeWriteInput } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { formatApiError } from '../../shared/api/errors'
 import { NoticeFormModal } from './NoticeFormModal'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
@@ -58,10 +58,15 @@ export function NoticesPage() {
   }
 
   return <div className="notices-page">
-    <div className="page-heading"><div><p className="eyebrow">SYSTEM / NOTICES</p><h1>通知公告</h1><p className="page-description">查询管理公告、发布状态和创建信息。新增和编辑在模态框中完成。</p></div><div className="heading-actions"><Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除公告（{selectedIds.length}）</Button><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增公告</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新公告</Button></div></div>
+    <div className="page-heading"><div><p className="eyebrow">SYSTEM / NOTICES</p><h1>通知公告</h1><p className="page-description">查询管理公告、发布状态和创建信息。新增和编辑在模态框中完成。</p></div></div>
     <ActionError title="公告状态更新失败" error={publishMutation.error} onDismiss={() => publishMutation.reset()} />
     <ActionError title="公告删除失败" error={deleteMutation.error} onDismiss={() => deleteMutation.reset()} />
     <Card className="notices-filter-card"><form className="notices-filter-form" onSubmit={submit}><label><span>标题或内容</span><input value={formFilters.keyword} onChange={(event) => setFormFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="按标题、内容或类型筛选" autoComplete="off" /></label><label><span>发布状态</span><select value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="">全部状态</option><option value="published">已发布</option><option value="unpublished">未发布</option></select></label><div className="notices-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
+    <ListToolbar label="通知公告列表操作">
+      <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增公告</Button>
+      <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除公告（{selectedIds.length}）</Button>
+      <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新公告</Button>
+    </ListToolbar>
     {query.isLoading ? <div className="loading-panel notices-loading"><Spinner label="正在读取通知公告" /></div> : null}
     {query.isError && !query.data ? <InitialQueryError title="无法读取通知公告" message="通知公告读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '通知公告刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}

@@ -6,7 +6,7 @@ import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { UserFormModal } from './UserFormModal'
 import { UserImportModal } from './UserImportModal'
@@ -198,17 +198,6 @@ export function UsersPage() {
           <h1>用户管理</h1>
           <p className="page-description">查询用户身份、组织归属和授权角色。新增和编辑在模态框中完成。</p>
         </div>
-        <div className="heading-actions">
-          <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除用户（{selectedIds.length}）</Button>
-          <Button variant="secondary" size="sm" onClick={openImport} disabled={importMutation.isPending || exporting}><Upload size={15} />导入 Excel</Button>
-          <Button variant="secondary" size="sm" onClick={() => void exportUsers()} disabled={exporting || importMutation.isPending}>
-            <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
-          </Button>
-          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增用户</Button>
-          <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
-            <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
-          </Button>
-        </div>
       </div>
 
       <ActionError title="用户导出失败" error={exportError} />
@@ -243,6 +232,19 @@ export function UsersPage() {
           </div>
         </form>
       </Card>
+
+      {/* 操作入口独立于查询结果，首次加载和初查失败时仍可使用。 */}
+      <ListToolbar>
+        <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增用户</Button>
+        <Button variant="secondary" size="sm" onClick={openImport} disabled={importMutation.isPending || exporting}><Upload size={15} />导入 Excel</Button>
+        <Button variant="secondary" size="sm" onClick={() => void exportUsers()} disabled={exporting || importMutation.isPending}>
+          <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
+        </Button>
+        <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除用户（{selectedIds.length}）</Button>
+        <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
+          <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
+        </Button>
+      </ListToolbar>
 
       {query.isLoading ? <div className="loading-panel users-loading"><Spinner label="正在读取用户列表" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取用户列表" message="用户列表读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}

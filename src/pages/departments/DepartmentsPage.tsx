@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeDepartment, NativeDepartmentWriteInput } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { DepartmentFormModal } from './DepartmentFormModal'
 
@@ -83,7 +83,6 @@ export function DepartmentsPage() {
           <h1>组织结构</h1>
           <p className="page-description">按层级查看部门、组织编码和启用状态。新增和编辑在模态框中完成。</p>
         </div>
-        <div className="heading-actions"><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增组织</Button><Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新结构</Button></div>
       </div>
 
       <Card className="departments-filter-card">
@@ -92,6 +91,12 @@ export function DepartmentsPage() {
           <div className="departments-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div>
         </form>
       </Card>
+
+      {/* 操作入口独立于查询结果，首次加载和初查失败时仍可使用。 */}
+      <ListToolbar>
+        <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增组织</Button>
+        <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新结构</Button>
+      </ListToolbar>
 
       {query.isLoading ? <div className="loading-panel departments-loading"><Spinner label="正在读取组织结构" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取组织结构" message="组织结构读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}

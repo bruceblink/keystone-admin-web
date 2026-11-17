@@ -38,6 +38,17 @@ describe('DepartmentsPage', () => {
     expect(screen.getByText('OPS')).toBeInTheDocument()
   })
 
+  it('首次读取失败时仍显示列表操作工具栏', async () => {
+    vi.spyOn(apiClient, 'listDepartments').mockRejectedValue(new ApiError('服务暂时不可用', 503, 'service_unavailable'))
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法读取组织结构')
+    expect(screen.getByRole('group', { name: '列表操作' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /新增组织/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '刷新结构' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
+  })
+
   it('通过模态框提交新增组织', async () => {
     vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([])
     const createDepartment = vi.spyOn(apiClient, 'createDepartment').mockResolvedValue({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true })

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeMenu, NativeMenuNode, NativeMenuWriteInput } from '../../shared/api/schemas'
-import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { MenuFormModal } from './MenuFormModal'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
@@ -93,7 +93,6 @@ export function MenusPage() {
           <h1>菜单与权限</h1>
           <p className="page-description">查询菜单层级、路由和权限标识。新增和编辑在模态框中完成，删除操作需要确认。</p>
         </div>
-        <div className="heading-actions"><Button size="sm" onClick={openCreate}>新增菜单</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新菜单</Button></div>
       </div>
 
       <Card className="menus-filter-card">
@@ -102,6 +101,11 @@ export function MenusPage() {
           <div className="menus-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div>
         </form>
       </Card>
+
+      <ListToolbar label="菜单列表操作">
+        <Button size="sm" onClick={openCreate}>新增菜单</Button>
+        <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新菜单</Button>
+      </ListToolbar>
 
       {query.isLoading ? <div className="loading-panel menus-loading"><Spinner label="正在读取菜单结构" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取菜单结构" message="菜单结构读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}

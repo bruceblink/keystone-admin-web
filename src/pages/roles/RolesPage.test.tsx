@@ -54,6 +54,21 @@ describe('RolesPage', () => {
     await waitFor(() => expect(screen.getByLabelText('角色名称或标识')).toHaveValue('operator'))
   })
 
+  it('首次读取失败时仍显示列表操作工具栏', async () => {
+    vi.spyOn(apiClient, 'listRoles').mockRejectedValue(new ApiError('服务暂时不可用', 503, 'service_unavailable'))
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法读取角色列表')
+    expect(screen.getByRole('group', { name: '列表操作' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /导出 Excel/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /新增角色/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '删除角色（0）' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '刷新列表' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: '列表操作' })).getAllByRole('button').map((button) => button.textContent?.replace(/\s/g, '')))
+      .toEqual(['新增角色', '导出Excel', '删除角色（0）', '刷新列表'])
+  })
+
   it('显示角色、数据范围和权限数量', async () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([{
       id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'admin', name: '系统管理员', enabled: true,

@@ -3,7 +3,7 @@ import { Pencil, Plus, RefreshCw, Search, Settings2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import type { NativeSystemConfig, NativeSystemConfigWriteInput } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { ConfigFormModal } from './ConfigFormModal'
 
@@ -64,8 +64,9 @@ export function ConfigsPage() {
   function closeDelete() { if (!deleteMutation.isPending) setDeletingConfig(null) }
 
   return <div className="configs-page">
-    <div className="page-heading"><div><p className="eyebrow">SYSTEM / CONFIGURATION</p><h1>系统配置</h1><p className="page-description">查询运行参数、开关状态和配置更新时间。新增和编辑在模态框中完成。</p></div><div className="heading-actions"><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增配置</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新配置</Button></div></div>
+    <div className="page-heading"><div><p className="eyebrow">SYSTEM / CONFIGURATION</p><h1>系统配置</h1><p className="page-description">查询运行参数、开关状态和配置更新时间。新增和编辑在模态框中完成。</p></div></div>
     <Card className="configs-filter-card"><form className="configs-filter-form" onSubmit={submit}><label><span>配置键或说明</span><input value={formFilters.keyword} onChange={(event) => setFormFilters({ keyword: event.target.value })} placeholder="按配置键或说明筛选" autoComplete="off" /></label><div className="configs-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
+    <ListToolbar label="系统配置列表操作"><Button size="sm" onClick={openCreate}><Plus size={15} /> 新增配置</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新配置</Button></ListToolbar>
     {query.isLoading ? <div className="loading-panel configs-loading"><Spinner label="正在读取系统配置" /></div> : null}
     {query.isError && !query.data ? <InitialQueryError title="无法读取系统配置" message="系统配置读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
     {query.isError && query.data ? <StaleQueryError message="系统配置刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}

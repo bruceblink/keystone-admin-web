@@ -108,6 +108,23 @@ describe('UsersPage', () => {
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
   })
 
+  it('首次读取失败时仍显示列表操作工具栏', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockRejectedValue(new ApiError('服务暂时不可用', 503, 'service_unavailable'))
+    mockRoleCatalog()
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法读取用户列表')
+    expect(screen.getByRole('group', { name: '列表操作' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /新增用户/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /导入 Excel/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /导出 Excel/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /刷新列表/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '删除用户（0）' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: '列表操作' })).getAllByRole('button').map((button) => button.textContent?.replace(/\s/g, '')))
+      .toEqual(['新增用户', '导入Excel', '导出Excel', '删除用户（0）', '刷新列表'])
+  })
+
   it('刷新已有用户数据失败时保留列表并提供重试入口', async () => {
     const listUsers = vi.spyOn(apiClient, 'listUsers')
       .mockResolvedValueOnce(userPage)

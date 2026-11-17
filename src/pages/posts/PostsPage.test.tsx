@@ -28,6 +28,18 @@ describe('PostsPage', () => {
     await waitFor(() => expect(listPosts).toHaveBeenLastCalledWith({ keyword: '', status: 'enabled', page: 1, size: 20 }))
   })
 
+  it('首次读取失败时仍显示列表操作工具栏', async () => {
+    vi.spyOn(apiClient, 'listPosts').mockRejectedValue(new ApiError('服务暂时不可用', 503, 'service_unavailable'))
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法读取岗位列表')
+    expect(screen.getByRole('group', { name: '列表操作' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导出 Excel' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /新增岗位/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '刷新岗位' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
+  })
+
   it('通过模态框提交新增岗位', async () => {
     vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([]))
     const createPost = vi.spyOn(apiClient, 'createPost').mockResolvedValue({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true })

@@ -1,6 +1,7 @@
 export * from './Badge'
 export * from './Button'
 export * from './Card'
+export * from './ListToolbar'
 export * from './Spinner'
 export * from './Modal'
 export * from './DeleteConfirmModal'

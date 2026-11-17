@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeLoginLog } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 const PAGE_SIZE = 20
@@ -66,9 +66,13 @@ export function LoginLogsPage() {
   }
 
   return <div className="audit-page">
-    <div className="page-heading"><div><p className="eyebrow">AUDIT / LOGIN</p><h1>登录日志</h1><p className="page-description">查询登录成功、失败和会话建立记录，定位身份认证问题。</p></div><div className="heading-actions"><Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button></div></div>
+    <div className="page-heading"><div><p className="eyebrow">AUDIT / LOGIN</p><h1>登录日志</h1><p className="page-description">查询登录成功、失败和会话建立记录，定位身份认证问题。</p></div></div>
     <ActionError title="登录日志导出失败" error={exportError} onDismiss={() => setExportError(null)} />
     <Card className="audit-filter-card"><form className="audit-filter-form" onSubmit={submit}><label><span>用户名</span><input value={formFilters.username} onChange={(event) => setFormFilters((current) => ({ ...current, username: event.target.value }))} placeholder="按用户名筛选" autoComplete="off" /></label><label><span>登录状态</span><input value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))} placeholder="例如 SUCCESS、FAILURE" autoComplete="off" /></label><div className="audit-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={reset}>重置</Button></div></form></Card>
+    <ListToolbar label="登录日志列表操作">
+      <Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button>
+      <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button>
+    </ListToolbar>
     {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取登录日志" /></div> : null}
     {query.isError && !query.data ? <InitialQueryError title="无法读取登录日志" message="登录日志读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '登录日志刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}

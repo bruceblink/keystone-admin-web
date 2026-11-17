@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeOperationLog } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 const PAGE_SIZE = 20
@@ -96,14 +96,6 @@ export function OperationsAuditPage() {
           <h1>操作审计</h1>
           <p className="page-description">查询管理操作、执行主体和资源变更记录，支持按条件定位审计事件。</p>
         </div>
-        <div className="heading-actions">
-          <Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}>
-            <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
-            <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
-          </Button>
-        </div>
       </div>
 
       <ActionError title="操作审计导出失败" error={exportError} onDismiss={() => setExportError(null)} />
@@ -146,6 +138,15 @@ export function OperationsAuditPage() {
           </div>
         </form>
       </Card>
+
+      <ListToolbar label="操作审计列表操作">
+        <Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}>
+          <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
+          <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
+        </Button>
+      </ListToolbar>
 
       {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取操作审计" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取操作审计" message="操作审计读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
