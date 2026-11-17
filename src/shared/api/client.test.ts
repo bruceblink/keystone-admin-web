@@ -559,6 +559,18 @@ describe('Native API client', () => {
     expect(calls[2]?.init?.body).toBe(JSON.stringify({ userIds: ['user-2'] }))
   })
 
+  it('读取角色成员名称并兼容只返回 ID 的旧后端', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok([{ id: 'user-1', username: 'alice', displayName: '爱丽丝' }]))
+      .mockResolvedValueOnce(ok(['user-2']))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.listRoleMembers('role-1')).resolves.toEqual([{ id: 'user-1', username: 'alice', displayName: '爱丽丝' }])
+    await expect(apiClient.listRoleMembers('role-1', false)).resolves.toEqual([{ id: 'user-2', username: null, displayName: null }])
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/roles/role-1/users?allocated=true&include=identity')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/roles/role-1/users?allocated=false&include=identity')
+  })
+
   it('发送菜单写入并只在 API Key 签发/轮换响应中接收明文', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)

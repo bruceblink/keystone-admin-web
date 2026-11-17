@@ -5,7 +5,7 @@ import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
-import type { NativeRole, NativeRolesPage, NativeRoleWriteInput } from '../../shared/api/schemas'
+import type { NativeRole, NativeRoleMember, NativeRolesPage, NativeRoleWriteInput } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Modal, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { RoleFormModal } from './RoleFormModal'
@@ -43,13 +43,13 @@ export function RolesPage() {
   })
   const allocatedMembersQuery = useQuery({
     queryKey: ['role-users', memberRole?.id, 'allocated'],
-    queryFn: () => apiClient.listRoleUsers(memberRole!.id, true),
+    queryFn: () => apiClient.listRoleMembers(memberRole!.id, true),
     enabled: memberRole !== null,
     staleTime: 10_000,
   })
   const availableMembersQuery = useQuery({
     queryKey: ['role-users', memberRole?.id, 'available'],
-    queryFn: () => apiClient.listRoleUsers(memberRole!.id, false),
+    queryFn: () => apiClient.listRoleMembers(memberRole!.id, false),
     enabled: memberRole !== null,
     staleTime: 10_000,
   })
@@ -58,6 +58,8 @@ export function RolesPage() {
     allocated: Math.min(memberPages.allocated, Math.max(1, Math.ceil((allocatedMembersQuery.data?.length ?? 0) / MEMBER_PAGE_SIZE))),
     available: Math.min(memberPages.available, Math.max(1, Math.ceil((availableMembersQuery.data?.length ?? 0) / MEMBER_PAGE_SIZE))),
   }
+  // 确认框显示被移除的用户名称，写操作仍使用稳定的用户 ID。
+  const revokingMember = allocatedMembersQuery.data?.find((member) => member.id === revokingUserId)
   useEffect(() => {
     // 刷新或其他管理员修改成员后，页码必须落在新列表范围内。
     setMemberPages((current) => {
@@ -224,8 +226,8 @@ export function RolesPage() {
       </Card> : null}
       {memberRole ? <RoleMembersPanel
         role={memberRole}
-        allocatedIds={allocatedMembersQuery.data ?? []}
-        availableIds={availableMembersQuery.data ?? []}
+        allocatedMembers={allocatedMembersQuery.data ?? []}
+        availableMembers={availableMembersQuery.data ?? []}
         allocatedLoading={allocatedMembersQuery.isLoading}
         availableLoading={availableMembersQuery.isLoading}
         allocatedError={allocatedMembersQuery.error}
@@ -260,6 +262,7 @@ export function RolesPage() {
           <div>
             <strong>将从“{memberRole?.name ?? '当前角色'}”移除此用户</strong>
             <p>确认后，该用户将不再拥有此角色关联的权限。</p>
+            {revokingMember?.username || revokingMember?.displayName ? <p>{revokingMember.username || revokingMember.displayName}{revokingMember.username && revokingMember.displayName && revokingMember.username !== revokingMember.displayName ? `（${revokingMember.displayName}）` : ''}</p> : null}
             {revokingUserId ? <code>{revokingUserId}</code> : null}
           </div>
         </div>
@@ -284,8 +287,8 @@ function RoleRow({ role, selected, pending, onSelect, onEdit, onMembers }: { rol
 
 type RoleMembersPanelProps = {
   role: NativeRole
-  allocatedIds: string[]
-  availableIds: string[]
+  allocatedMembers: NativeRoleMember[]
+  availableMembers: NativeRoleMember[]
   allocatedLoading: boolean
   availableLoading: boolean
   allocatedError: unknown
@@ -305,29 +308,30 @@ type RoleMembersPanelProps = {
 }
 
 function RoleMembersPanel(props: RoleMembersPanelProps) {
-  const allocatedPages = Math.max(1, Math.ceil(props.allocatedIds.length / MEMBER_PAGE_SIZE))
-  const availablePages = Math.max(1, Math.ceil(props.availableIds.length / MEMBER_PAGE_SIZE))
+  const allocatedPages = Math.max(1, Math.ceil(props.allocatedMembers.length / MEMBER_PAGE_SIZE))
+  const availablePages = Math.max(1, Math.ceil(props.availableMembers.length / MEMBER_PAGE_SIZE))
   return <Card className="role-members-card">
-    <CardHeader title={`角色成员：${props.role.name}`} description="管理当前角色的用户分配；用户 ID 来自系统 API。" action={<Button variant="ghost" size="sm" onClick={props.onClose} disabled={props.pending}><X size={15} /> 关闭</Button>} />
+    <CardHeader title={`角色成员：${props.role.name}`} description="管理当前角色的用户分配。" action={<Button variant="ghost" size="sm" onClick={props.onClose} disabled={props.pending}><X size={15} /> 关闭</Button>} />
     {props.feedback ? <p className="action-success" role="status">{props.feedback}</p> : null}
     <ActionError title="角色成员更新失败" error={props.error} />
     <div className="role-members-grid">
-      <RoleMemberList title="已分配用户" ids={props.allocatedIds} page={props.allocatedPage} totalPages={allocatedPages} loading={props.allocatedLoading} fetching={props.allocatedFetching} error={props.allocatedError} actionLabel="取消分配" actionTone="danger" onRetry={props.onRetryAllocated} onPageChange={(page) => props.onPageChange('allocated', page)} onChange={(id) => props.onChange(id, true)} pending={props.pending} />
-      <RoleMemberList title="可分配用户" ids={props.availableIds} page={props.availablePage} totalPages={availablePages} loading={props.availableLoading} fetching={props.availableFetching} error={props.availableError} actionLabel="分配" actionTone="secondary" onRetry={props.onRetryAvailable} onPageChange={(page) => props.onPageChange('available', page)} onChange={(id) => props.onChange(id, false)} pending={props.pending} />
+      <RoleMemberList title="已分配用户" members={props.allocatedMembers} page={props.allocatedPage} totalPages={allocatedPages} loading={props.allocatedLoading} fetching={props.allocatedFetching} error={props.allocatedError} actionLabel="取消分配" actionTone="danger" onRetry={props.onRetryAllocated} onPageChange={(page) => props.onPageChange('allocated', page)} onChange={(id) => props.onChange(id, true)} pending={props.pending} />
+      <RoleMemberList title="可分配用户" members={props.availableMembers} page={props.availablePage} totalPages={availablePages} loading={props.availableLoading} fetching={props.availableFetching} error={props.availableError} actionLabel="分配" actionTone="secondary" onRetry={props.onRetryAvailable} onPageChange={(page) => props.onPageChange('available', page)} onChange={(id) => props.onChange(id, false)} pending={props.pending} />
     </div>
   </Card>
 }
 
-function RoleMemberList({ title, ids, page, totalPages, loading, fetching, error, actionLabel, actionTone, onRetry, onPageChange, onChange, pending }: { title: string; ids: string[]; page: number; totalPages: number; loading: boolean; fetching: boolean; error: unknown; actionLabel: string; actionTone: 'danger' | 'secondary'; onRetry: () => void; onPageChange: (page: number) => void; onChange: (id: string) => void; pending: boolean }) {
-  const visibleIds = ids.slice((page - 1) * MEMBER_PAGE_SIZE, page * MEMBER_PAGE_SIZE)
-  const initialError = Boolean(error && ids.length === 0)
+function RoleMemberList({ title, members, page, totalPages, loading, fetching, error, actionLabel, actionTone, onRetry, onPageChange, onChange, pending }: { title: string; members: NativeRoleMember[]; page: number; totalPages: number; loading: boolean; fetching: boolean; error: unknown; actionLabel: string; actionTone: 'danger' | 'secondary'; onRetry: () => void; onPageChange: (page: number) => void; onChange: (id: string) => void; pending: boolean }) {
+  // 新接口显示用户名和展示名；旧接口缺少名称时保留 ID 以支持成员操作。
+  const visibleMembers = members.slice((page - 1) * MEMBER_PAGE_SIZE, page * MEMBER_PAGE_SIZE)
+  const initialError = Boolean(error && members.length === 0)
   return <section className="role-members-column" aria-labelledby={`${actionTone}-role-members-title`}>
-    <div className="role-members-column-heading"><div><h3 id={`${actionTone}-role-members-title`}>{title}</h3><span>{ids.length} 个用户</span></div>{fetching ? <Spinner label="刷新中" /> : null}</div>
+    <div className="role-members-column-heading"><div><h3 id={`${actionTone}-role-members-title`}>{title}</h3><span>{members.length} 个用户</span></div>{fetching ? <Spinner label="刷新中" /> : null}</div>
     {loading ? <div className="loading-panel"><Spinner label="正在读取角色成员" /></div> : null}
     {initialError ? <InitialQueryError title={`${title}读取失败`} message="角色成员读取失败，请重试" error={error} onRetry={onRetry} retrying={fetching} /> : null}
     {!loading && !initialError && error ? <StaleQueryError message={formatApiError(error, `${title}刷新失败，请重试`)} error={error} onRetry={onRetry} retrying={fetching} /> : null}
-    {!loading && !initialError && visibleIds.length === 0 ? <div className="role-members-empty" role="status">暂无用户</div> : null}
-    {visibleIds.length > 0 ? <div className="role-members-table-wrap"><table className="role-members-table"><thead><tr><th scope="col">用户 ID</th><th scope="col">操作</th></tr></thead><tbody>{visibleIds.map((userId) => <tr key={userId}><td><code>{userId}</code></td><td><Button variant={actionTone} size="sm" onClick={() => onChange(userId)} disabled={pending}>{actionLabel}</Button></td></tr>)}</tbody></table></div> : null}
+    {!loading && !initialError && visibleMembers.length === 0 ? <div className="role-members-empty" role="status">暂无用户</div> : null}
+    {visibleMembers.length > 0 ? <div className="role-members-table-wrap"><table className="role-members-table"><thead><tr><th scope="col">用户</th><th scope="col">操作</th></tr></thead><tbody>{visibleMembers.map((member) => <tr key={member.id}><td>{member.username || member.displayName ? <><strong>{member.username || member.displayName}</strong>{member.username && member.displayName && member.username !== member.displayName ? <div>{member.displayName}</div> : null}</> : <code>{member.id}</code>}</td><td><Button variant={actionTone} size="sm" onClick={() => onChange(member.id)} disabled={pending}>{actionLabel}</Button></td></tr>)}</tbody></table></div> : null}
     {totalPages > 1 ? <div className="role-members-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1 || fetching || pending}>上一页</Button><Button variant="secondary" size="sm" onClick={() => onPageChange(Math.min(totalPages, page + 1))} disabled={page >= totalPages || fetching || pending}>下一页</Button></div></div> : null}
   </section>
 }

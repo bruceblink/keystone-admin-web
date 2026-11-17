@@ -39,6 +39,7 @@ import {
   nativeRolesPageSchema,
   nativeRoleSchema,
   nativeRoleUserIdsSchema,
+  nativeRoleMembersResponseSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
@@ -80,6 +81,7 @@ import {
   type NativeRole,
   type NativeRolesPage,
   type NativeRoleUserIds,
+  type NativeRoleMember,
   type NativeRoleWriteInput,
   type NativeDepartmentWriteInput,
   type NativeSystemConfigWriteInput,
@@ -689,6 +691,19 @@ export const apiClient = {
     const query = new URLSearchParams({ allocated: String(allocated) }).toString()
     try {
       return nativeRoleUserIdsSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}/users?${query}`))
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
+      if (!shouldMockFallback(error)) throw error
+      return []
+    }
+  },
+
+  /** 获取成员名称；旧版后端只返回 ID 时保留可操作的成员记录。 */
+  async listRoleMembers(id: string, allocated = true): Promise<NativeRoleMember[]> {
+    const query = new URLSearchParams({ allocated: String(allocated), include: 'identity' }).toString()
+    try {
+      const members = nativeRoleMembersResponseSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}/users?${query}`))
+      return members.map((member) => typeof member === 'string' ? { id: member, username: null, displayName: null } : member)
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!shouldMockFallback(error)) throw error

@@ -104,14 +104,15 @@ describe('RolesPage', () => {
   it('查看角色成员并在确认后分配或取消分配', async () => {
     const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
-    vi.spyOn(apiClient, 'listRoleUsers').mockImplementation(async (_roleId, allocated = true) => allocated ? ['user-allocated'] : ['user-available'])
+    vi.spyOn(apiClient, 'listRoleMembers').mockImplementation(async (_roleId, allocated = true) => allocated ? [{ id: 'user-allocated', username: 'alice', displayName: '爱丽丝' }] : [{ id: 'user-available', username: null, displayName: null }])
     const assignRoleUsers = vi.spyOn(apiClient, 'assignRoleUsers').mockResolvedValue({ updated: true })
     const revokeRoleUsers = vi.spyOn(apiClient, 'revokeRoleUsers').mockResolvedValue({ updated: true })
     renderPage()
 
     await screen.findByText('审计员')
     fireEvent.click(screen.getByRole('button', { name: '成员' }))
-    expect(await screen.findByText('user-allocated')).toBeInTheDocument()
+    expect(await screen.findByText('alice')).toBeInTheDocument()
+    expect(screen.getByText('爱丽丝')).toBeInTheDocument()
     expect(screen.getByText('user-available')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '分配' }))
@@ -119,6 +120,7 @@ describe('RolesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '取消分配' }))
     const dialog = await screen.findByRole('dialog', { name: '取消角色成员分配' })
     expect(dialog).toHaveTextContent('将从“审计员”移除此用户')
+    expect(dialog).toHaveTextContent('alice（爱丽丝）')
     expect(revokeRoleUsers).not.toHaveBeenCalled()
 
     fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
@@ -136,7 +138,7 @@ describe('RolesPage', () => {
     const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
     let firstAttempt = true
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
-    vi.spyOn(apiClient, 'listRoleUsers').mockImplementation(async (_roleId, allocated = true) => allocated ? (firstAttempt ? ['user-allocated'] : []) : ['user-available'])
+    vi.spyOn(apiClient, 'listRoleMembers').mockImplementation(async (_roleId, allocated = true) => (allocated ? (firstAttempt ? ['user-allocated'] : []) : ['user-available']).map((id) => ({ id, username: null, displayName: null })))
     const revokeRoleUsers = vi.spyOn(apiClient, 'revokeRoleUsers').mockImplementation(async () => {
       if (firstAttempt) {
         firstAttempt = false
@@ -167,7 +169,7 @@ describe('RolesPage', () => {
     let allocatedIds = Array.from({ length: 17 }, (_, index) => `allocated-${index + 1}`)
     let availableIds = Array.from({ length: 17 }, (_, index) => `available-${index + 1}`)
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
-    const listRoleUsers = vi.spyOn(apiClient, 'listRoleUsers').mockImplementation(async (_roleId, allocated = true) => allocated ? allocatedIds : availableIds)
+    const listRoleUsers = vi.spyOn(apiClient, 'listRoleMembers').mockImplementation(async (_roleId, allocated = true) => (allocated ? allocatedIds : availableIds).map((id) => ({ id, username: null, displayName: null })))
     const { queryClient } = renderPage()
 
     await screen.findByText('审计员')
