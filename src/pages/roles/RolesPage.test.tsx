@@ -251,6 +251,74 @@ describe('RolesPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it.each(['mfa_required', 'mfa_step_up_required'])('删除需要 %s 时验证后重试原操作', async (code) => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    const remove = vi.spyOn(apiClient, 'deleteRoles').mockRejectedValueOnce(new ApiError('MFA required', 403, code)).mockResolvedValueOnce({ deleted: 1 })
+    const begin = vi.spyOn(apiClient, 'beginMfaStepUp').mockResolvedValue({ challengeId: 'test-challenge', clientId: 'web', expiresAt: '2030-01-01T00:00:00Z' })
+    const verify = vi.spyOn(apiClient, 'verifyMfaStepUp').mockResolvedValue({ accessToken: 'test-token', expiresIn: 300, authenticationLevel: 'AAL2', amr: 'otp' })
+    renderPage()
+
+    await screen.findByText('审计员')
+    fireEvent.click(screen.getByLabelText('选择角色 auditor'))
+    fireEvent.click(screen.getByRole('button', { name: '删除角色（1）' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+    const dialog = await screen.findByRole('dialog', { name: '需要 MFA 二次验证' })
+    fireEvent.change(within(dialog).getByLabelText('验证码或恢复码 *'), { target: { value: '123456' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '验证并继续' }))
+
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(2))
+    expect(begin).toHaveBeenCalledOnce()
+    expect(verify).toHaveBeenCalledWith('test-challenge', '123456')
+    expect(remove).toHaveBeenLastCalledWith([role.id])
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '删除角色' })).not.toBeInTheDocument())
+  })
+
+  it('取消二次认证时不重试删除并保留已选角色', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    const remove = vi.spyOn(apiClient, 'deleteRoles').mockRejectedValue(new ApiError('MFA required', 403, 'mfa_required'))
+    vi.spyOn(apiClient, 'beginMfaStepUp').mockResolvedValue({ challengeId: 'test-challenge', clientId: 'web', expiresAt: '2030-01-01T00:00:00Z' })
+    renderPage()
+
+    await screen.findByText('审计员')
+    fireEvent.click(screen.getByLabelText('选择角色 auditor'))
+    fireEvent.click(screen.getByRole('button', { name: '删除角色（1）' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+    const dialog = await screen.findByRole('dialog', { name: '需要 MFA 二次验证' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '需要 MFA 二次验证' })).not.toBeInTheDocument())
+    expect(remove).toHaveBeenCalledOnce()
+    expect(screen.getByLabelText('选择角色 auditor')).toBeChecked()
+  })
+
+  it('验证码错误后允许重新验证，成功前不重试删除', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    const remove = vi.spyOn(apiClient, 'deleteRoles').mockRejectedValueOnce(new ApiError('MFA required', 403, 'mfa_required')).mockResolvedValueOnce({ deleted: 1 })
+    vi.spyOn(apiClient, 'beginMfaStepUp').mockResolvedValue({ challengeId: 'test-challenge', clientId: 'web', expiresAt: '2030-01-01T00:00:00Z' })
+    const verify = vi.spyOn(apiClient, 'verifyMfaStepUp').mockRejectedValueOnce(new ApiError('invalid code', 401, 'mfa_invalid_code')).mockResolvedValueOnce({ accessToken: 'test-token', expiresIn: 300, authenticationLevel: 'AAL2', amr: 'otp' })
+    renderPage()
+
+    await screen.findByText('审计员')
+    fireEvent.click(screen.getByLabelText('选择角色 auditor'))
+    fireEvent.click(screen.getByRole('button', { name: '删除角色（1）' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+    const dialog = await screen.findByRole('dialog', { name: '需要 MFA 二次验证' })
+    const input = within(dialog).getByLabelText('验证码或恢复码 *')
+    fireEvent.change(input, { target: { value: '111111' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '验证并继续' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('验证码错误，请重试')
+    expect(remove).toHaveBeenCalledOnce()
+    expect(input).toHaveValue('')
+    fireEvent.change(input, { target: { value: '222222' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '验证并继续' }))
+
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(2))
+    expect(verify).toHaveBeenLastCalledWith('test-challenge', '222222')
+  })
+
   it.each([
     ['role_has_members', '角色存在用户，不能删除'],
     ['role_protected', '管理员角色不能删除'],
