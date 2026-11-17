@@ -61,6 +61,94 @@ describe('ApiKeysPage', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('requestId=revoke-1')
   })
 
+  it.each([
+    { code: 'api_key_name_invalid', message: 'API Key 名称必须为 1 到 128 个字符。', name: 'n'.repeat(129), expiresAt: '2030-01-02T13:45' },
+    { code: 'api_key_expiry_invalid', message: 'API Key 到期时间格式无效，请重新选择时间。', name: 'deploy', expiresAt: '2026-12-01T12:00' },
+    { code: 'api_key_expiry_out_of_range', message: 'API Key 到期时间必须晚于当前时间且不超过 90 天。', name: 'deploy', expiresAt: '2030-01-01T12:00' },
+  ])('签发失败 $code 时显示独立原因和诊断码', async ({ code, message, name, expiresAt }) => {
+    vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([], 0))
+    vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([
+      { permission: 'api-key:create', resource: 'api-key', action: 'create', description: 'api-key create', risk: 'medium', registered: true, allowed: true },
+    ])
+    const issueApiKey = vi.spyOn(apiClient, 'issueApiKey').mockRejectedValue(new ApiError('server validation detail', 422, code))
+    renderPage()
+
+    await screen.findByText('没有匹配的 API Key')
+    fireEvent.click(screen.getByRole('button', { name: '签发 API Key' }))
+    const dialog = screen.getByRole('dialog', { name: '签发 API Key' })
+    fireEvent.change(within(dialog).getByLabelText('密钥名称 *'), { target: { value: name } })
+    const expiryField = within(dialog).getByLabelText('到期时间')
+    if (expiresAt) fireEvent.input(expiryField, { target: { value: expiresAt } })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /api-key:create/ }))
+    if (expiresAt) expect(expiryField).toHaveValue(expiresAt)
+    fireEvent.click(within(dialog).getByRole('button', { name: '签发密钥' }))
+
+    expect(await within(dialog).findByText(message)).toBeInTheDocument()
+    if (expiresAt) expect(expiryField).toHaveValue(expiresAt)
+    expect(within(dialog).getByText(new RegExp(`诊断：${code} · `))).toBeInTheDocument()
+    expect(issueApiKey).toHaveBeenCalledWith({
+      name: name.trim(),
+      scopes: ['api-key:create'],
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+    })
+  })
+
+  it('名称校验失败后新增到期时间并修改权限时保留日期用于重试', async () => {
+    vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([], 0))
+    vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([
+      { permission: 'api-key:create', resource: 'api-key', action: 'create', description: 'api-key create', risk: 'medium', registered: true, allowed: true },
+      { permission: 'user:read', resource: 'user', action: 'read', description: 'user read', risk: 'low', registered: true, allowed: true },
+    ])
+    const issueApiKey = vi.spyOn(apiClient, 'issueApiKey')
+      .mockRejectedValueOnce(new ApiError('name invalid', 422, 'api_key_name_invalid'))
+      .mockRejectedValueOnce(new ApiError('expiry out of range', 422, 'api_key_expiry_out_of_range'))
+    renderPage()
+
+    await screen.findByText('没有匹配的 API Key')
+    fireEvent.click(screen.getByRole('button', { name: '签发 API Key' }))
+    const dialog = screen.getByRole('dialog', { name: '签发 API Key' })
+    fireEvent.change(within(dialog).getByLabelText('密钥名称 *'), { target: { value: 'n'.repeat(129) } })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /api-key:create/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '签发密钥' }))
+    expect(await within(dialog).findByText('API Key 名称必须为 1 到 128 个字符。')).toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText('密钥名称 *'), { target: { value: 'deploy' } })
+    const expiryField = within(dialog).getByLabelText('到期时间')
+    fireEvent.input(expiryField, { target: { value: '2030-01-02T13:45' } })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /user:read/ }))
+    expect(expiryField).toHaveValue('2030-01-02T13:45')
+    fireEvent.click(within(dialog).getByRole('button', { name: '签发密钥' }))
+
+    expect(await within(dialog).findByText('API Key 到期时间必须晚于当前时间且不超过 90 天。')).toBeInTheDocument()
+    expect(issueApiKey).toHaveBeenNthCalledWith(1, { name: 'n'.repeat(129), scopes: ['api-key:create'], expiresAt: null })
+    expect(issueApiKey).toHaveBeenNthCalledWith(2, {
+      name: 'deploy',
+      scopes: ['api-key:create', 'user:read'],
+      expiresAt: new Date('2030-01-02T13:45').toISOString(),
+    })
+  })
+
+  it('关闭后重新打开签发弹窗会清空到期时间', async () => {
+    vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([], 0))
+    vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([
+      { permission: 'api-key:create', resource: 'api-key', action: 'create', description: 'api-key create', risk: 'medium', registered: true, allowed: true },
+    ])
+    renderPage()
+
+    await screen.findByText('没有匹配的 API Key')
+    fireEvent.click(screen.getByRole('button', { name: '签发 API Key' }))
+    const dialog = screen.getByRole('dialog', { name: '签发 API Key' })
+    const expiryField = within(dialog).getByLabelText('到期时间')
+    fireEvent.input(expiryField, { target: { value: '2026-12-01T12:00' } })
+    expect(expiryField).toHaveValue('2026-12-01T12:00')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(screen.queryByRole('dialog', { name: '签发 API Key' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '签发 API Key' }))
+
+    expect(within(screen.getByRole('dialog', { name: '签发 API Key' })).getByLabelText('到期时间')).toHaveValue('')
+  })
+
   it('API Key 签发收到 step-up 要求后验证并重试原操作', async () => {
     vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([], 0))
     vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([{ permission: 'api-key:create', resource: 'api-key', action: 'create', description: 'api-key create', risk: 'medium', registered: true, allowed: true }, { permission: 'user:read', resource: 'user', action: 'read', description: 'user read', risk: 'low', registered: true, allowed: true }])
