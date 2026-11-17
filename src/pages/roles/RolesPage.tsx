@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Download, Pencil, Plus, RefreshCw, Search, ShieldCheck, UsersRound, X } from 'lucide-react'
+import { AlertTriangle, Download, Pencil, Plus, RefreshCw, Search, ShieldCheck, UsersRound, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeRole, NativeRolesPage, NativeRoleWriteInput } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, Modal, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { RoleFormModal } from './RoleFormModal'
 
@@ -27,6 +27,7 @@ export function RolesPage() {
   const [editingRole, setEditingRole] = useState<NativeRole | null>(null)
   const [memberRole, setMemberRole] = useState<NativeRole | null>(null)
   const [memberPages, setMemberPages] = useState({ allocated: 1, available: 1 })
+  const [revokingUserId, setRevokingUserId] = useState<string | null>(null)
   const [memberFeedback, setMemberFeedback] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -52,12 +53,21 @@ export function RolesPage() {
     enabled: memberRole !== null,
     staleTime: 10_000,
   })
+  useEffect(() => {
+    // 刷新或其他管理员修改成员后，页码必须落在新列表范围内。
+    setMemberPages((current) => {
+      const allocated = Math.min(current.allocated, Math.max(1, Math.ceil((allocatedMembersQuery.data?.length ?? 0) / MEMBER_PAGE_SIZE)))
+      const available = Math.min(current.available, Math.max(1, Math.ceil((availableMembersQuery.data?.length ?? 0) / MEMBER_PAGE_SIZE)))
+      return allocated === current.allocated && available === current.available ? current : { allocated, available }
+    })
+  }, [allocatedMembersQuery.data, availableMembersQuery.data])
   const memberMutation = useMutation({
     mutationFn: ({ userId, allocated }: { userId: string; allocated: boolean }) => stepUp.run(() => allocated
       ? apiClient.revokeRoleUsers(memberRole!.id, [userId])
       : apiClient.assignRoleUsers(memberRole!.id, [userId])),
     onSuccess: async (_result, variables) => {
       setMemberFeedback(variables.allocated ? '角色成员已取消分配' : '角色成员已分配')
+      if (variables.allocated) setRevokingUserId(null)
       setMemberPages({ allocated: 1, available: 1 })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['role-users', memberRole?.id, 'allocated'] }),
@@ -119,6 +129,25 @@ export function RolesPage() {
     if (memberMutation.isPending) return
     setMemberRole(null)
     setMemberFeedback(null)
+  }
+  function requestMemberRevocation(userId: string) {
+    memberMutation.reset()
+    setMemberFeedback(null)
+    setRevokingUserId(userId)
+  }
+  function closeMemberRevocation() {
+    if (memberMutation.isPending) return
+    setRevokingUserId(null)
+    memberMutation.reset()
+  }
+  function changeRoleMember(userId: string, allocated: boolean) {
+    if (allocated) {
+      requestMemberRevocation(userId)
+      return
+    }
+    memberMutation.reset()
+    setMemberFeedback(null)
+    void memberMutation.mutateAsync({ userId, allocated: false }).catch(() => undefined)
   }
   async function submitRole(input: NativeRoleWriteInput, permissions: string[]) {
     try {
@@ -202,13 +231,35 @@ export function RolesPage() {
         availablePage={memberPages.available}
         feedback={memberFeedback}
         pending={memberMutation.isPending}
-        error={memberMutation.error}
+        error={revokingUserId ? null : memberMutation.error}
         onClose={closeMembers}
         onRetryAllocated={() => void allocatedMembersQuery.refetch()}
         onRetryAvailable={() => void availableMembersQuery.refetch()}
         onPageChange={(kind, pageNumber) => setMemberPages((current) => ({ ...current, [kind]: pageNumber }))}
-        onChange={(userId, allocated) => void memberMutation.mutateAsync({ userId, allocated }).catch(() => undefined)}
+        onChange={changeRoleMember}
       /> : null}
+      <Modal
+        open={revokingUserId !== null}
+        title="取消角色成员分配"
+        description="请确认是否移除此用户的角色分配。"
+        onClose={closeMemberRevocation}
+        footer={(
+          <>
+            <Button variant="ghost" onClick={closeMemberRevocation} disabled={memberMutation.isPending}>取消</Button>
+            <Button variant="danger" onClick={() => { if (revokingUserId) void memberMutation.mutateAsync({ userId: revokingUserId, allocated: true }).catch(() => undefined) }} disabled={memberMutation.isPending}>{memberMutation.isPending ? '处理中…' : '确认取消分配'}</Button>
+          </>
+        )}
+      >
+        <div className="delete-confirm-panel">
+          <div className="delete-confirm-icon"><AlertTriangle size={21} /></div>
+          <div>
+            <strong>将从“{memberRole?.name ?? '当前角色'}”移除此用户</strong>
+            <p>确认后，该用户将不再拥有此角色关联的权限。</p>
+            {revokingUserId ? <code>{revokingUserId}</code> : null}
+          </div>
+        </div>
+        <ActionError title="角色成员更新失败" error={memberMutation.error} />
+      </Modal>
       <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending || permissionMutation.isPending} error={saveMutation.error} permissionsError={permissionMutation.error} permissionEntries={permissionCatalogQuery.data ?? []} permissionsLoading={permissionCatalogQuery.isLoading || permissionCatalogQuery.isFetching} permissionsErrorState={permissionCatalogQuery.error} onRetryPermissions={() => void permissionCatalogQuery.refetch()} onClose={closeModal} onSubmit={submitRole} />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
       <MfaStepUpModal {...stepUp.modal} />

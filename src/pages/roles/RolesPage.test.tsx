@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RolesPage } from './RolesPage'
@@ -7,7 +7,7 @@ import { ApiError } from '../../shared/api/errors'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><RolesPage /></QueryClientProvider>)
+  return { ...render(<QueryClientProvider client={queryClient}><RolesPage /></QueryClientProvider>), queryClient }
 }
 
 afterEach(() => {
@@ -101,7 +101,7 @@ describe('RolesPage', () => {
     await waitFor(() => expect(updateRolePermissions).toHaveBeenCalledWith(role.id, ['role:update', 'user:read']))
   })
 
-  it('查看角色成员并通过 MFA 保护分配和取消分配', async () => {
+  it('查看角色成员并在确认后分配或取消分配', async () => {
     const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
     vi.spyOn(apiClient, 'listRoleUsers').mockImplementation(async (_roleId, allocated = true) => allocated ? ['user-allocated'] : ['user-available'])
@@ -117,7 +117,87 @@ describe('RolesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '分配' }))
     await waitFor(() => expect(assignRoleUsers).toHaveBeenCalledWith(role.id, ['user-available']))
     fireEvent.click(screen.getByRole('button', { name: '取消分配' }))
+    const dialog = await screen.findByRole('dialog', { name: '取消角色成员分配' })
+    expect(dialog).toHaveTextContent('将从“审计员”移除此用户')
+    expect(revokeRoleUsers).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(screen.queryByRole('dialog', { name: '取消角色成员分配' })).not.toBeInTheDocument()
+    expect(revokeRoleUsers).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '取消分配' }))
+    const confirmation = await screen.findByRole('dialog', { name: '取消角色成员分配' })
+    fireEvent.click(within(confirmation).getByRole('button', { name: '确认取消分配' }))
     await waitFor(() => expect(revokeRoleUsers).toHaveBeenCalledWith(role.id, ['user-allocated']))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '取消角色成员分配' })).not.toBeInTheDocument())
+  })
+
+  it('撤销成员失败后保留确认上下文并允许重试', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    let firstAttempt = true
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    vi.spyOn(apiClient, 'listRoleUsers').mockImplementation(async (_roleId, allocated = true) => allocated ? (firstAttempt ? ['user-allocated'] : []) : ['user-available'])
+    const revokeRoleUsers = vi.spyOn(apiClient, 'revokeRoleUsers').mockImplementation(async () => {
+      if (firstAttempt) {
+        firstAttempt = false
+        throw new ApiError('temporary failure', 503, 'service_unavailable', null, { requestId: 'role-revoke-1' })
+      }
+      return { updated: true }
+    })
+    renderPage()
+
+    await screen.findByText('审计员')
+    fireEvent.click(screen.getByRole('button', { name: '成员' }))
+    await screen.findByText('user-allocated')
+    fireEvent.click(screen.getByRole('button', { name: '取消分配' }))
+    let dialog = await screen.findByRole('dialog', { name: '取消角色成员分配' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认取消分配' }))
+
+    expect(await within(dialog).findByText(/service_unavailable/)).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('requestId=role-revoke-1')
+    expect(within(dialog).getByRole('button', { name: '确认取消分配' })).toBeEnabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认取消分配' }))
+
+    await waitFor(() => expect(revokeRoleUsers).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '取消角色成员分配' })).not.toBeInTheDocument())
+  })
+
+  it('成员查询刷新后分别将两组列表页码钳制到有效页', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    let allocatedIds = Array.from({ length: 17 }, (_, index) => `allocated-${index + 1}`)
+    let availableIds = Array.from({ length: 17 }, (_, index) => `available-${index + 1}`)
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    const listRoleUsers = vi.spyOn(apiClient, 'listRoleUsers').mockImplementation(async (_roleId, allocated = true) => allocated ? allocatedIds : availableIds)
+    const { queryClient } = renderPage()
+
+    await screen.findByText('审计员')
+    fireEvent.click(screen.getByRole('button', { name: '成员' }))
+    const allocatedColumn = screen.getByRole('heading', { name: '已分配用户' }).closest('section') as HTMLElement
+    const availableColumn = screen.getByRole('heading', { name: '可分配用户' }).closest('section') as HTMLElement
+    await within(allocatedColumn).findByText('allocated-1')
+    await within(availableColumn).findByText('available-1')
+
+    fireEvent.click(within(allocatedColumn).getByRole('button', { name: '下一页' }))
+    fireEvent.click(within(allocatedColumn).getByRole('button', { name: '下一页' }))
+    fireEvent.click(within(availableColumn).getByRole('button', { name: '下一页' }))
+    expect(within(allocatedColumn).getByText('第 3 / 3 页')).toBeInTheDocument()
+    expect(within(availableColumn).getByText('第 2 / 3 页')).toBeInTheDocument()
+
+    allocatedIds = allocatedIds.slice(0, 6)
+    availableIds = availableIds.slice(0, 6)
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ['role-users', role.id], type: 'active' })
+    })
+    await waitFor(() => expect(listRoleUsers).toHaveBeenCalledTimes(4))
+
+    expect(within(allocatedColumn).getByText('allocated-1')).toBeInTheDocument()
+    expect(within(allocatedColumn).getByText('allocated-6')).toBeInTheDocument()
+    expect(within(allocatedColumn).queryByText('allocated-17')).not.toBeInTheDocument()
+    expect(within(allocatedColumn).queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument()
+    expect(within(availableColumn).getByText('available-1')).toBeInTheDocument()
+    expect(within(availableColumn).getByText('available-6')).toBeInTheDocument()
+    expect(within(availableColumn).queryByText('available-17')).not.toBeInTheDocument()
+    expect(within(availableColumn).queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument()
   })
 
   it('保存角色失败时显示业务码诊断并保留表单', async () => {
