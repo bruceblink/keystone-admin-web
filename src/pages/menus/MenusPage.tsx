@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ListTree, RefreshCw, Search } from 'lucide-react'
+import { ListTree, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
@@ -102,18 +102,19 @@ export function MenusPage() {
         </form>
       </Card>
 
-      <ListToolbar label="菜单列表操作">
-        <Button size="sm" onClick={openCreate}>新增菜单</Button>
-        <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新菜单</Button>
-      </ListToolbar>
-
-      {query.isLoading ? <div className="loading-panel menus-loading"><Spinner label="正在读取菜单结构" /></div> : null}
-      {query.isError && !query.data ? <InitialQueryError title="无法读取菜单结构" message="菜单结构读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '菜单结构刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.data ? <Card className="menus-table-card">
-        <CardHeader title="菜单目录" description={`共 ${rows.length.toLocaleString('zh-CN')} 个菜单节点`} action={<Badge tone="info">系统 API</Badge>} />
+      <Card className="menus-table-card">
+        <ListToolbar label="菜单列表操作">
+          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增菜单</Button>
+          <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新菜单</Button>
+        </ListToolbar>
+        <CardHeader title="菜单目录" description={query.data ? `共 ${rows.length.toLocaleString('zh-CN')} 个菜单节点` : undefined} action={<Badge tone="info">系统 API</Badge>} />
+        {query.isLoading ? <div className="loading-panel menus-loading"><Spinner label="正在读取菜单结构" /></div> : null}
+        {query.isError && !query.data ? <InitialQueryError title="无法读取菜单结构" message="菜单结构读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+        {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '菜单结构刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+        {query.data ? <>
         {rows.length > 0 ? <div className="menus-table-wrap"><table className="menus-table"><thead><tr><th scope="col">菜单名称</th><th scope="col">编码</th><th scope="col">路由</th><th scope="col">权限标识</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <MenuRowView key={row.menu.id} row={row} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="menus-empty" role="status"><span className="menus-empty-icon"><ListTree size={20} /></span><strong>没有匹配的菜单</strong><p>调整筛选条件后重试，或清空筛选条件查看完整菜单。</p></div>}
-      </Card> : null}
+        </> : null}
+      </Card>
       <MenuFormModal
         open={modalMode !== null}
         mode={modalMode ?? 'create'}

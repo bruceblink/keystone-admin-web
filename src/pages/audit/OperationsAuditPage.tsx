@@ -139,22 +139,20 @@ export function OperationsAuditPage() {
         </form>
       </Card>
 
-      <ListToolbar label="操作审计列表操作">
-        <Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}>
-          <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
-          <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
-        </Button>
-      </ListToolbar>
-
-      {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取操作审计" /></div> : null}
-      {query.isError && !query.data ? <InitialQueryError title="无法读取操作审计" message="操作审计读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '操作审计刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
-
-      {query.data ? (
-        <Card className="audit-table-card">
-          <CardHeader title="操作记录" description={resultDescription} action={<Badge tone="info">系统 API</Badge>} />
+      <Card className="audit-table-card">
+        <ListToolbar label="操作审计列表操作">
+          <Button variant="secondary" size="sm" onClick={() => void exportLogs()} disabled={exporting || query.isFetching}>
+            <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
+            <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
+          </Button>
+        </ListToolbar>
+        <CardHeader title="操作记录" description={resultDescription} action={<Badge tone="info">系统 API</Badge>} />
+        {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取操作审计" /></div> : null}
+        {query.isError && !query.data ? <InitialQueryError title="无法读取操作审计" message="操作审计读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
+        {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '操作审计刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
+        {query.data ? <>
           {logs.length > 0 ? (
             <div className="audit-table-wrap">
               <table className="audit-table">
@@ -187,8 +185,8 @@ export function OperationsAuditPage() {
               <Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button>
             </div>
           </div>
-        </Card>
-      ) : null}
+        </> : null}
+      </Card>
     </div>
   )
 }

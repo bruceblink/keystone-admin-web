@@ -80,6 +80,9 @@ describe('UsersPage', () => {
     expect(await screen.findByText('平台运维员')).toBeInTheDocument()
     expect(screen.getByText('2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce')).toBeInTheDocument()
     expect(screen.getByText('系统管理员')).toBeInTheDocument()
+    const listCard = screen.getByRole('group', { name: '列表操作' }).closest('section')
+    expect(listCard).toContainElement(screen.getByRole('heading', { name: '用户列表' }))
+    expect(listCard).toContainElement(screen.getByRole('table'))
 
     fireEvent.change(screen.getByLabelText('用户名'), { target: { value: 'operator' } })
     fireEvent.click(screen.getByRole('button', { name: /查询/ }))

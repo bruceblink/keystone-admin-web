@@ -233,26 +233,23 @@ export function UsersPage() {
         </form>
       </Card>
 
-      {/* 操作入口独立于查询结果，首次加载和初查失败时仍可使用。 */}
-      <ListToolbar>
-        <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增用户</Button>
-        <Button variant="secondary" size="sm" onClick={openImport} disabled={importMutation.isPending || exporting}><Upload size={15} />导入 Excel</Button>
-        <Button variant="secondary" size="sm" onClick={() => void exportUsers()} disabled={exporting || importMutation.isPending}>
-          <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
-        </Button>
-        <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除用户（{selectedIds.length}）</Button>
-        <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
-          <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
-        </Button>
-      </ListToolbar>
-
-      {query.isLoading ? <div className="loading-panel users-loading"><Spinner label="正在读取用户列表" /></div> : null}
-      {query.isError && !query.data ? <InitialQueryError title="无法读取用户列表" message="用户列表读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '用户列表刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
-
-      {query.data ? (
-        <Card className="users-table-card">
-          <CardHeader title="用户列表" description={resultDescription} action={<Badge tone="info">系统 API</Badge>} />
+      <Card className="users-table-card">
+        <ListToolbar>
+          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增用户</Button>
+          <Button variant="secondary" size="sm" onClick={openImport} disabled={importMutation.isPending || exporting}><Upload size={15} />导入 Excel</Button>
+          <Button variant="secondary" size="sm" onClick={() => void exportUsers()} disabled={exporting || importMutation.isPending}>
+            <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
+          </Button>
+          <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除用户（{selectedIds.length}）</Button>
+          <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
+            <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
+          </Button>
+        </ListToolbar>
+        <CardHeader title="用户列表" description={query.data ? resultDescription : undefined} action={<Badge tone="info">系统 API</Badge>} />
+        {query.isLoading ? <div className="loading-panel users-loading"><Spinner label="正在读取用户列表" /></div> : null}
+        {query.isError && !query.data ? <InitialQueryError title="无法读取用户列表" message="用户列表读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
+        {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '用户列表刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
+        {query.data ? <>
           {users.length > 0 ? (
             <div className="users-table-wrap">
               <table className="users-table">
@@ -287,8 +284,8 @@ export function UsersPage() {
               <Button variant="secondary" size="sm" onClick={() => setUrlState({ page: Math.min(totalPages, page + 1) })} disabled={page >= totalPages || query.isFetching}>下一页</Button>
             </div>
           </div>
-        </Card>
-      ) : null}
+        </> : null}
+      </Card>
       <UserImportModal
         open={importOpen}
         pending={importMutation.isPending}

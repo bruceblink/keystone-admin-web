@@ -92,19 +92,19 @@ export function DepartmentsPage() {
         </form>
       </Card>
 
-      {/* 操作入口独立于查询结果，首次加载和初查失败时仍可使用。 */}
-      <ListToolbar>
-        <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增组织</Button>
-        <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新结构</Button>
-      </ListToolbar>
-
-      {query.isLoading ? <div className="loading-panel departments-loading"><Spinner label="正在读取组织结构" /></div> : null}
-      {query.isError && !query.data ? <InitialQueryError title="无法读取组织结构" message="组织结构读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '组织结构刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
-      {query.data ? <Card className="departments-table-card">
-        <CardHeader title="组织结构" description={`共 ${rows.length.toLocaleString('zh-CN')} 个组织节点`} action={<Badge tone="info">系统 API</Badge>} />
+      <Card className="departments-table-card">
+        <ListToolbar>
+          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增组织</Button>
+          <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新结构</Button>
+        </ListToolbar>
+        <CardHeader title="组织结构" description={query.data ? `共 ${rows.length.toLocaleString('zh-CN')} 个组织节点` : undefined} action={<Badge tone="info">系统 API</Badge>} />
+        {query.isLoading ? <div className="loading-panel departments-loading"><Spinner label="正在读取组织结构" /></div> : null}
+        {query.isError && !query.data ? <InitialQueryError title="无法读取组织结构" message="组织结构读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
+        {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '组织结构刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
+        {query.data ? <>
         {rows.length > 0 ? <div className="departments-table-wrap"><table className="departments-table"><thead><tr><th scope="col">组织名称</th><th scope="col">组织编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <DepartmentRow key={row.id} row={row} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="departments-empty" role="status"><span className="departments-empty-icon"><Building2 size={20} /></span><strong>没有匹配的组织</strong><p>调整筛选条件后重试，或清空筛选条件查看完整组织结构。</p></div>}
-      </Card> : null}
+        </> : null}
+      </Card>
       <DepartmentFormModal open={modalMode !== null} mode={modalMode ?? 'create'} department={editingDepartment} departments={query.data ?? []} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitDepartment} />
       <DeleteConfirmModal open={deletingDepartment !== null} resourceLabel="组织" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingDepartment) void deleteMutation.mutateAsync(deletingDepartment.id).catch(() => undefined) }} />
     </div>

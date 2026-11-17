@@ -131,21 +131,21 @@ export function PostsPage() {
         </form>
       </Card>
 
-      {/* 操作入口独立于查询结果，首次加载和初查失败时仍可使用。 */}
-      <ListToolbar>
-        <Button variant="secondary" size="sm" onClick={() => void exportPosts()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button>
-        <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增岗位</Button>
-        <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新岗位</Button>
-      </ListToolbar>
-
-      {query.isLoading ? <div className="loading-panel posts-loading"><Spinner label="正在读取岗位列表" /></div> : null}
-      {query.isError && !query.data ? <InitialQueryError title="无法读取岗位列表" message="岗位列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message="岗位列表刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.data ? <Card className="posts-table-card">
-        <CardHeader title="岗位列表" description={`共 ${total.toLocaleString('zh-CN')} 个匹配岗位`} action={<Badge tone="info">系统 API</Badge>} />
+      <Card className="posts-table-card">
+        <ListToolbar>
+          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增岗位</Button>
+          <Button variant="secondary" size="sm" onClick={() => void exportPosts()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button>
+          <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新岗位</Button>
+        </ListToolbar>
+        <CardHeader title="岗位列表" description={query.data ? `共 ${total.toLocaleString('zh-CN')} 个匹配岗位` : undefined} action={<Badge tone="info">系统 API</Badge>} />
+        {query.isLoading ? <div className="loading-panel posts-loading"><Spinner label="正在读取岗位列表" /></div> : null}
+        {query.isError && !query.data ? <InitialQueryError title="无法读取岗位列表" message="岗位列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+        {query.isError && query.data ? <StaleQueryError message="岗位列表刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+        {query.data ? <>
         {posts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{posts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
         {totalPages > 1 ? <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setUrlState({ page: page - 1 })} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setUrlState({ page: page + 1 })} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div> : null}
-      </Card> : null}
+        </> : null}
+      </Card>
 
       <PostFormModal open={modalMode !== null} mode={modalMode ?? 'create'} post={editingPost} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitPost} />
       <DeleteConfirmModal open={deletingPost !== null} resourceLabel="岗位" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingPost) void deleteMutation.mutateAsync(deletingPost.id).catch(() => undefined) }} />

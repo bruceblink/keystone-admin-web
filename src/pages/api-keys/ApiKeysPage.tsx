@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { KeyRound, RefreshCw, Search } from 'lucide-react'
+import { KeyRound, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
@@ -75,19 +75,20 @@ export function ApiKeysPage() {
         </form>
       </Card>
 
-      <ListToolbar label="API Key 列表操作">
-        <Button size="sm" onClick={() => { issueMutation.reset(); setIssueOpen(true) }}>签发 API Key</Button>
-        <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button>
-      </ListToolbar>
-
-      {query.isLoading ? <div className="loading-panel api-keys-loading"><Spinner label="正在读取 API Key 列表" /></div> : null}
-      {query.isError && !query.data ? <InitialQueryError title="无法读取 API Key 列表" message="API Key 列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.isError && query.data ? <StaleQueryError message="API Key 列表刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.data ? <Card className="api-keys-table-card">
-        <CardHeader title="API Key 列表" description={`共 ${total.toLocaleString('zh-CN')} 个匹配凭据`} action={<Badge tone="info">仅显示元数据</Badge>} />
+      <Card className="api-keys-table-card">
+        <ListToolbar label="API Key 列表操作">
+          <Button size="sm" onClick={() => { issueMutation.reset(); setIssueOpen(true) }}><Plus size={15} /> 签发 API Key</Button>
+          <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button>
+        </ListToolbar>
+        <CardHeader title="API Key 列表" description={query.data ? `共 ${total.toLocaleString('zh-CN')} 个匹配凭据` : undefined} action={<Badge tone="info">仅显示元数据</Badge>} />
+        {query.isLoading ? <div className="loading-panel api-keys-loading"><Spinner label="正在读取 API Key 列表" /></div> : null}
+        {query.isError && !query.data ? <InitialQueryError title="无法读取 API Key 列表" message="API Key 列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+        {query.isError && query.data ? <StaleQueryError message="API Key 列表刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
+        {query.data ? <>
         {keys.length > 0 ? <div className="api-keys-table-wrap"><table className="api-keys-table"><thead><tr><th scope="col">名称</th><th scope="col">密钥前缀</th><th scope="col">授权范围</th><th scope="col">创建时间</th><th scope="col">最近使用</th><th scope="col">到期时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{keys.map((key) => <ApiKeyRow key={key.id} apiKey={key} pending={rotateMutation.isPending || revokeMutation.isPending} onRotate={(id) => rotateMutation.mutate(id)} onRevoke={(target) => { revokeMutation.reset(); setRevokingKey(target) }} />)}</tbody></table></div> : <div className="api-keys-empty" role="status"><span className="api-keys-empty-icon"><KeyRound size={20} /></span><strong>没有匹配的 API Key</strong><p>调整筛选条件后重试，或清空筛选条件查看全部凭据。</p></div>}
         {totalPages > 1 ? <div className="api-keys-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
-      </Card> : null}
+        </> : null}
+      </Card>
       <ApiKeyIssueModal open={issueOpen} pending={issueMutation.isPending} error={issueMutation.error} scopeEntries={scopeQuery.data ?? []} scopeLoading={scopeQuery.isLoading} scopeError={scopeQuery.error} onRetryScopes={() => void scopeQuery.refetch()} onClose={() => setIssueOpen(false)} onSubmit={(input) => issueMutation.mutateAsync(input).then(() => undefined)} />
       <DeleteConfirmModal open={revokingKey !== null} resourceLabel="API Key" count={1} pending={revokeMutation.isPending} error={revokeMutation.error} onClose={() => { if (!revokeMutation.isPending) setRevokingKey(null) }} onConfirm={() => { if (revokingKey) void revokeMutation.mutateAsync(revokingKey.id).catch(() => undefined) }} />
       <MfaStepUpModal {...stepUp.modal} />

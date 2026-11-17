@@ -4,7 +4,7 @@
 
 | 能力 | 实现位置 | 行为 |
 | --- | --- | --- |
-| 列表操作 | `src/shared/ui/ListToolbar.tsx`、`src/shared/ui/Button.tsx` | 位于查询条件之后、列表标题之前；操作按新增、导入、导出、删除、刷新排序，缺失项跳过。 |
+| 列表操作 | `src/shared/ui/ListToolbar.tsx`、`src/shared/ui/Button.tsx` | 位于查询条件之后、所属列表卡片的标题之前；操作按新增、导入、导出、删除、刷新排序，缺失项跳过。 |
 | 查询和分页 | 各页面表单、`src/shared/navigation/useUrlQueryState.ts` | 保留页面已有筛选、分页和 URL 状态；工具栏迁移不改变查询提交行为。 |
 | 删除确认 | `src/shared/ui/DeleteConfirmModal.tsx` | 沿用页面已有的确认、禁用和失败处理。 |
 | 加载与错误 | `Spinner`、`InitialQueryError`、`StaleQueryError` | 初次加载和错误时，列表操作入口仍然存在；读取失败保留重试方式。 |
