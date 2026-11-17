@@ -120,6 +120,26 @@ describe('JobsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('删除当前查看日志的任务后清除详情选择和 URL 状态', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    const listJobs = vi.spyOn(apiClient, 'listJobs').mockResolvedValueOnce({ items: [job], page: 1, size: 20, total: 1 }).mockResolvedValue({ items: [], page: 1, size: 20, total: 0 })
+    vi.spyOn(apiClient, 'listJobLogs').mockResolvedValue({ items: [], page: 1, size: 20, total: 0 })
+    vi.spyOn(apiClient, 'deleteJobs').mockResolvedValue({ deleted: 1 })
+    renderPage()
+
+    await screen.findByText('系统心跳')
+    fireEvent.click(screen.getByRole('button', { name: /日志/ }))
+    await waitFor(() => expect(apiClient.listJobLogs).toHaveBeenCalledWith({ jobId: job.id, page: 1, size: 20 }))
+    fireEvent.click(screen.getByLabelText('选择任务 系统心跳'))
+    fireEvent.click(screen.getByRole('button', { name: '删除任务（1）' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(listJobs).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(window.location.search).not.toContain('jobs_selectedJobId'))
+    expect(screen.queryByText(/系统心跳 · 执行日志/)).not.toBeInTheDocument()
+    expect(screen.queryByText('无法读取任务详情')).not.toBeInTheDocument()
+  })
+
   it('任务操作失败时显示业务错误诊断', async () => {
     const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
     vi.spyOn(apiClient, 'listJobs').mockResolvedValue({ items: [job], page: 1, size: 20, total: 1 })

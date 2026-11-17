@@ -54,7 +54,20 @@ export function JobsPage() {
       setUrlState({ jobPage: 1 })
     },
   })
-  const deleteMutation = useMutation({ mutationFn: (ids: string[]) => apiClient.deleteJobs(ids), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['jobs'] }); setUrlState({ jobPage: 1 }); setSelectedIds([]); setDeleteOpen(false) } })
+  const deleteMutation = useMutation({
+    mutationFn: (ids: string[]) => apiClient.deleteJobs(ids),
+    onSuccess: async (_, ids) => {
+      // 删除当前查看的任务时，先清除日志选择，避免继续读取已删除任务。
+      if (selectedJobId && ids.includes(selectedJobId)) {
+        setSelectedJob(null)
+        setUrlState({ selectedJobId: '', logPage: 1 })
+      }
+      await queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      setUrlState({ jobPage: 1 })
+      setSelectedIds([])
+      setDeleteOpen(false)
+    },
+  })
   const jobs = query.data?.items ?? []
   const jobTotal = query.data?.total ?? 0
   const selectedJobQuery = useQuery({ queryKey: ['job', selectedJobId], queryFn: () => apiClient.getJob(selectedJobId), enabled: Boolean(selectedJobId) && !selectedJob, staleTime: 10_000 })
