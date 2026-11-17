@@ -53,6 +53,11 @@ export function RolesPage() {
     enabled: memberRole !== null,
     staleTime: 10_000,
   })
+  // 刷新后的同一次渲染先钳制展示页，避免旧页码短暂显示空列表。
+  const visibleMemberPages = {
+    allocated: Math.min(memberPages.allocated, Math.max(1, Math.ceil((allocatedMembersQuery.data?.length ?? 0) / MEMBER_PAGE_SIZE))),
+    available: Math.min(memberPages.available, Math.max(1, Math.ceil((availableMembersQuery.data?.length ?? 0) / MEMBER_PAGE_SIZE))),
+  }
   useEffect(() => {
     // 刷新或其他管理员修改成员后，页码必须落在新列表范围内。
     setMemberPages((current) => {
@@ -227,8 +232,8 @@ export function RolesPage() {
         availableError={availableMembersQuery.error}
         allocatedFetching={allocatedMembersQuery.isFetching}
         availableFetching={availableMembersQuery.isFetching}
-        allocatedPage={memberPages.allocated}
-        availablePage={memberPages.available}
+        allocatedPage={visibleMemberPages.allocated}
+        availablePage={visibleMemberPages.available}
         feedback={memberFeedback}
         pending={memberMutation.isPending}
         error={revokingUserId ? null : memberMutation.error}
@@ -246,7 +251,7 @@ export function RolesPage() {
         footer={(
           <>
             <Button variant="ghost" onClick={closeMemberRevocation} disabled={memberMutation.isPending}>取消</Button>
-            <Button variant="danger" onClick={() => { if (revokingUserId) void memberMutation.mutateAsync({ userId: revokingUserId, allocated: true }).catch(() => undefined) }} disabled={memberMutation.isPending}>{memberMutation.isPending ? '处理中…' : '确认取消分配'}</Button>
+            <Button variant="danger" onClick={() => { if (revokingUserId) void memberMutation.mutateAsync({ userId: revokingUserId, allocated: true }).catch(() => undefined) }} disabled={memberMutation.isPending}>{memberMutation.isPending ? '处理中…' : '确认移除'}</Button>
           </>
         )}
       >

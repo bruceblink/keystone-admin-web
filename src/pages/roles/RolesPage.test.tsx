@@ -127,7 +127,7 @@ describe('RolesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '取消分配' }))
     const confirmation = await screen.findByRole('dialog', { name: '取消角色成员分配' })
-    fireEvent.click(within(confirmation).getByRole('button', { name: '确认取消分配' }))
+    fireEvent.click(within(confirmation).getByRole('button', { name: '确认移除' }))
     await waitFor(() => expect(revokeRoleUsers).toHaveBeenCalledWith(role.id, ['user-allocated']))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '取消角色成员分配' })).not.toBeInTheDocument())
   })
@@ -151,12 +151,12 @@ describe('RolesPage', () => {
     await screen.findByText('user-allocated')
     fireEvent.click(screen.getByRole('button', { name: '取消分配' }))
     let dialog = await screen.findByRole('dialog', { name: '取消角色成员分配' })
-    fireEvent.click(within(dialog).getByRole('button', { name: '确认取消分配' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认移除' }))
 
     expect(await within(dialog).findByText(/service_unavailable/)).toBeInTheDocument()
     expect(dialog).toHaveTextContent('requestId=role-revoke-1')
-    expect(within(dialog).getByRole('button', { name: '确认取消分配' })).toBeEnabled()
-    fireEvent.click(within(dialog).getByRole('button', { name: '确认取消分配' }))
+    expect(within(dialog).getByRole('button', { name: '确认移除' })).toBeEnabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认移除' }))
 
     await waitFor(() => expect(revokeRoleUsers).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '取消角色成员分配' })).not.toBeInTheDocument())
@@ -190,11 +190,11 @@ describe('RolesPage', () => {
     })
     await waitFor(() => expect(listRoleUsers).toHaveBeenCalledTimes(4))
 
-    expect(within(allocatedColumn).getByText('allocated-1')).toBeInTheDocument()
+    expect(await within(allocatedColumn).findByText('allocated-1')).toBeInTheDocument()
     expect(within(allocatedColumn).getByText('allocated-6')).toBeInTheDocument()
     expect(within(allocatedColumn).queryByText('allocated-17')).not.toBeInTheDocument()
     expect(within(allocatedColumn).queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument()
-    expect(within(availableColumn).getByText('available-1')).toBeInTheDocument()
+    expect(await within(availableColumn).findByText('available-1')).toBeInTheDocument()
     expect(within(availableColumn).getByText('available-6')).toBeInTheDocument()
     expect(within(availableColumn).queryByText('available-17')).not.toBeInTheDocument()
     expect(within(availableColumn).queryByText(/第 \d+ \/ \d+ 页/)).not.toBeInTheDocument()
