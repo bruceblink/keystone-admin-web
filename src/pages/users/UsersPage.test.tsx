@@ -73,6 +73,52 @@ describe('UsersPage', () => {
     await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith({ username: 'alice', displayName: 'Alice', page: 2, size: 20 }))
   })
 
+  // 最后一页数据被删除后，应按新总数请求有效页并保留筛选条件。
+  it('删除最后一页最后一条用户后回到最后有效页并保留筛选条件', async () => {
+    window.history.replaceState({}, '', '/users?users_username=alice&users_displayName=Alice&users_page=2')
+    const alice = { ...userPage.items[0], username: 'alice', displayName: 'Alice' }
+    const listUsers = vi.spyOn(apiClient, 'listUsers')
+      .mockResolvedValueOnce({ ...userPage, items: [alice], page: 2, total: 21 })
+      .mockResolvedValueOnce({ ...userPage, items: [], page: 2, total: 20 })
+      .mockResolvedValueOnce({ ...userPage, items: [alice], page: 1, total: 20 })
+    const deleteUsers = vi.spyOn(apiClient, 'deleteUsers').mockResolvedValue({ deleted: 1 })
+    renderPage()
+
+    expect(await screen.findByText('Alice')).toBeInTheDocument()
+    expect(screen.getByLabelText('用户名')).toHaveValue('alice')
+    expect(screen.getByLabelText('展示名')).toHaveValue('Alice')
+    expect(listUsers).toHaveBeenLastCalledWith({ username: 'alice', displayName: 'Alice', page: 2, size: 20 })
+
+    fireEvent.click(screen.getByLabelText('选择用户 alice'))
+    fireEvent.click(screen.getByRole('button', { name: '删除用户（1）' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '确认删除 1 条' }))
+
+    await waitFor(() => expect(deleteUsers).toHaveBeenCalledWith([alice.id]))
+    await waitFor(() => expect(listUsers).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith({ username: 'alice', displayName: 'Alice', page: 1, size: 20 }))
+    expect(window.location.search).toContain('users_username=alice')
+    expect(window.location.search).toContain('users_displayName=Alice')
+    expect(window.location.search).not.toContain('users_page=')
+    expect(screen.getByLabelText('用户名')).toHaveValue('alice')
+    expect(screen.getByLabelText('展示名')).toHaveValue('Alice')
+  })
+
+  // 失败响应不能被当作新总数，页码和用户输入条件都应保留。
+  it('读取过期页失败时不改写页码或筛选条件', async () => {
+    window.history.replaceState({}, '', '/users?users_username=alice&users_displayName=Alice&users_page=2')
+    const listUsers = vi.spyOn(apiClient, 'listUsers').mockRejectedValue(new ApiError('暂时不可用', 503, 'service_unavailable'))
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法读取用户列表')
+    expect(listUsers).toHaveBeenCalledTimes(1)
+    expect(listUsers).toHaveBeenCalledWith({ username: 'alice', displayName: 'Alice', page: 2, size: 20 })
+    expect(window.location.search).toContain('users_username=alice')
+    expect(window.location.search).toContain('users_displayName=Alice')
+    expect(window.location.search).toContain('users_page=2')
+    expect(screen.getByLabelText('用户名')).toHaveValue('alice')
+    expect(screen.getByLabelText('展示名')).toHaveValue('Alice')
+  })
+
   it('显示 Native 用户并按筛选条件查询下一页', async () => {
     const listUsers = vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
     renderPage()

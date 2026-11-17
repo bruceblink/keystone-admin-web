@@ -84,6 +84,11 @@ export function UsersPage() {
     setFormFilters({ username, displayName })
   }, [username, displayName])
 
+  useEffect(() => {
+    // 只在当前页请求成功结束后修正过期页码，避免用旧数据或失败响应改写深链。
+    if (query.isSuccess && !query.isFetching && page > totalPages) setUrlState({ page: totalPages })
+  }, [page, query.isFetching, query.isSuccess, setUrlState, totalPages])
+
   const resultDescription = useMemo(() => {
     if (query.isLoading) return '正在读取系统 API'
     if (query.isError) return '读取失败，请检查服务连接'
