@@ -67,4 +67,20 @@ describe('AdminShell', () => {
     await waitFor(() => expect(apiClient.readNotification).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
+
+  it('通知已移除时可从详情刷新并回到最新列表', async () => {
+    const notice = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', type: 'api_key.created', title: '已移除的通知', content: '原通知内容。', createdAt: '2026-11-18T01:00:00Z', readAt: null }
+    vi.mocked(apiClient.listNotifications).mockResolvedValue({ items: [notice], unreadCount: 1 })
+    vi.mocked(apiClient.readNotification).mockReset().mockRejectedValue(new Error('not found'))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+
+    fireEvent.click(await screen.findByRole('button', { name: '通知，1 条未读' }))
+    fireEvent.click(await screen.findByRole('button', { name: /已移除的通知/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法标记已读')
+    vi.mocked(apiClient.listNotifications).mockResolvedValue({ items: [], unreadCount: 0 })
+    fireEvent.click(screen.getByRole('button', { name: '刷新通知列表' }))
+    expect(await screen.findByText('暂无站内通知')).toBeInTheDocument()
+    expect(screen.queryByText('原通知内容。')).not.toBeInTheDocument()
+  })
 })

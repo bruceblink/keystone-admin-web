@@ -26,11 +26,16 @@ describe('NotificationPopover', () => {
 
   it('标记已读失败时保留详情并支持重试', () => {
     const onSelect = vi.fn()
-    render(<NotificationPopover notices={[notice]} loading={false} error={null} refreshError={null} selected={notice} readError="无法标记已读，请重试" onSelect={onSelect} onBack={vi.fn()} onRetry={vi.fn()} onClose={vi.fn()} />)
+    const onBack = vi.fn()
+    const onRetry = vi.fn()
+    render(<NotificationPopover notices={[notice]} loading={false} error={null} refreshError={null} selected={notice} readError="无法标记已读，请重试" onSelect={onSelect} onBack={onBack} onRetry={onRetry} onClose={vi.fn()} />)
     expect(screen.getByRole('alert')).toHaveTextContent('无法标记已读')
     expect(screen.getByText('今晚进行系统维护。')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
     expect(onSelect).toHaveBeenCalledWith(notice)
+    fireEvent.click(screen.getByRole('button', { name: '刷新通知列表' }))
+    expect(onBack).toHaveBeenCalledOnce()
+    expect(onRetry).toHaveBeenCalledOnce()
   })
 
   it('刷新失败时保留先前通知并允许重试', () => {
