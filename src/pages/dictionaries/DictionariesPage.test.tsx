@@ -94,6 +94,33 @@ describe('DictionariesPage', () => {
     expect(window.location.search).toContain('dictionaries_itemPage=2')
   })
 
+  // 验证查询条件可通过链接恢复，不依赖页面内存状态。
+  it('提交字典类型筛选后把条件写入 URL 并在重新进入时恢复', async () => {
+    const types = [
+      { id: 'type-status', code: 'user_status', name: '用户状态', enabled: true },
+      { id: 'type-region', code: 'region', name: '区域', enabled: true },
+    ]
+    vi.spyOn(apiClient, 'listDictionaryTypes').mockResolvedValue(types)
+    vi.spyOn(apiClient, 'listDictionaryItemsPage').mockResolvedValue(itemPage())
+    const firstPage = renderPage()
+
+    await screen.findByText('用户状态')
+    const typeFilter = screen.getByLabelText('类型编码或名称')
+    fireEvent.change(typeFilter, { target: { value: 'region' } })
+    fireEvent.submit(typeFilter.closest('form')!)
+
+    expect(await screen.findByText('区域')).toBeInTheDocument()
+    expect(screen.queryByText('用户状态')).not.toBeInTheDocument()
+    expect(window.location.search).toContain('dictionaries_keyword=region')
+
+    firstPage.unmount()
+    renderPage()
+
+    expect(await screen.findByLabelText('类型编码或名称')).toHaveValue('region')
+    expect(await screen.findByText('区域')).toBeInTheDocument()
+    expect(screen.queryByText('用户状态')).not.toBeInTheDocument()
+  })
+
   it('删除字典类型失败时显示业务码诊断并保留确认上下文', async () => {
     const type = { id: 'type-3', code: 'user_status', name: '用户状态', enabled: true }
     vi.spyOn(apiClient, 'listDictionaryTypes').mockResolvedValue([type])

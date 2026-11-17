@@ -10,15 +10,15 @@ import { DictionaryTypeFormModal } from './DictionaryTypeFormModal'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
 const PAGE_SIZE = 20
-const urlDefaults = { selected: '', itemPage: 1, itemKeyword: '' }
+const urlDefaults = { keyword: '', selected: '', itemPage: 1, itemKeyword: '' }
 const urlOptions = { namespace: 'dictionaries' }
 
 // 字典类型和条目分开加载，选择类型后才请求对应条目，避免一次读取无关数据。
 export function DictionariesPage() {
   const queryClient = useQueryClient()
   const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
-  const [keyword, setKeyword] = useState('')
-  const [appliedKeyword, setAppliedKeyword] = useState('')
+  const [keyword, setKeyword] = useState(urlState.keyword)
+  const appliedKeyword = urlState.keyword
   const [itemKeyword, setItemKeyword] = useState(urlState.itemKeyword)
   const [typeModalMode, setTypeModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingType, setEditingType] = useState<NativeDictionaryType | null>(null)
@@ -63,7 +63,7 @@ export function DictionariesPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setAppliedKeyword(keyword.trim())
+    setUrlState({ keyword: keyword.trim() })
   }
 
   function submitItemFilter(event: React.FormEvent<HTMLFormElement>) {
@@ -78,7 +78,7 @@ export function DictionariesPage() {
 
   function reset() {
     setKeyword('')
-    setAppliedKeyword('')
+    setUrlState({ keyword: '' })
   }
 
   function openCreateType() { typeMutation.reset(); setEditingType(null); setTypeModalMode('create') }
@@ -97,6 +97,11 @@ export function DictionariesPage() {
   useEffect(() => {
     setItemKeyword(appliedItemKeyword)
   }, [appliedItemKeyword])
+
+  // 浏览器前进后退或打开深链接时，同步字典类型查询框。
+  useEffect(() => {
+    setKeyword(appliedKeyword)
+  }, [appliedKeyword])
 
   const itemTotal = itemsQuery.data?.total ?? 0
   const itemTotalPages = Math.max(1, Math.ceil(itemTotal / PAGE_SIZE))
