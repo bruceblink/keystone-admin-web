@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { KeyRound, Plus, RefreshCw, Search } from 'lucide-react'
+import { AlertTriangle, KeyRound, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeApiKey, NativeIssuedApiKey } from '../../shared/api/schemas'
-import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
+import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, ListToolbar, Modal, Spinner, StaleQueryError } from '../../shared/ui'
 import { ApiKeyIssueModal } from './ApiKeyIssueModal'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 
@@ -90,7 +90,10 @@ export function ApiKeysPage() {
         </> : null}
       </Card>
       <ApiKeyIssueModal open={issueOpen} pending={issueMutation.isPending} error={issueMutation.error} scopeEntries={scopeQuery.data ?? []} scopeLoading={scopeQuery.isLoading} scopeError={scopeQuery.error} onRetryScopes={() => void scopeQuery.refetch()} onClose={() => setIssueOpen(false)} onSubmit={(input) => issueMutation.mutateAsync(input).then(() => undefined)} />
-      <DeleteConfirmModal open={revokingKey !== null} resourceLabel="API Key" count={1} pending={revokeMutation.isPending} error={revokeMutation.error} onClose={() => { if (!revokeMutation.isPending) setRevokingKey(null) }} onConfirm={() => { if (revokingKey) void revokeMutation.mutateAsync(revokingKey.id).catch(() => undefined) }} />
+      <Modal open={revokingKey !== null} title="撤销 API Key" description="请确认需要撤销的密钥。" onClose={() => { if (!revokeMutation.isPending) setRevokingKey(null) }} footer={<><Button variant="ghost" onClick={() => setRevokingKey(null)} disabled={revokeMutation.isPending}>取消</Button><Button variant="danger" onClick={() => { if (revokingKey) void revokeMutation.mutateAsync(revokingKey.id).catch(() => undefined) }} disabled={revokeMutation.isPending}>{revokeMutation.isPending ? '撤销中…' : '确认撤销'}</Button></>}>
+        <div className="delete-confirm-panel"><div className="delete-confirm-icon"><AlertTriangle size={21} /></div><div><strong>将撤销 {revokingKey?.name}</strong><p>撤销后此密钥无法继续使用，但记录仍会保留。</p></div></div>
+        <ActionError title="API Key 撤销失败" error={revokeMutation.error} />
+      </Modal>
       <MfaStepUpModal {...stepUp.modal} />
     </div>
   )
@@ -98,11 +101,12 @@ export function ApiKeysPage() {
 
 function ApiKeyRow({ apiKey, pending, onRotate, onRevoke }: { apiKey: NativeApiKey; pending: boolean; onRotate: (id: string) => void; onRevoke: (apiKey: NativeApiKey) => void }) {
   const revoked = Boolean(apiKey.revokedAt)
-  return <tr><td><div className="api-key-cell"><span className="api-key-marker"><KeyRound size={15} /></span><div><strong>{apiKey.name}</strong><small>{apiKey.id}</small></div></div></td><td><code className="api-key-prefix">ks_live_{apiKey.prefix}_••••</code></td><td><div className="api-key-scopes">{apiKey.scopes.map((scope) => <Badge key={scope} tone="neutral">{scope}</Badge>)}</div></td><td>{formatDate(apiKey.createdAt)}</td><td>{formatDate(apiKey.lastUsedAt)}</td><td>{formatDate(apiKey.expiresAt)}</td><td><Badge tone={revoked ? 'danger' : 'success'}>{revoked ? '已撤销' : '有效'}</Badge></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={() => onRotate(apiKey.id)} disabled={pending || revoked}>{pending ? '处理中…' : '轮换'}</Button>{revoked ? null : <Button variant="ghost" size="sm" onClick={() => onRevoke(apiKey)} disabled={pending}>撤销</Button>}</div></td></tr>
+  return <tr><td><div className="api-key-cell"><span className="api-key-marker"><KeyRound size={15} /></span><div><strong>{apiKey.name}</strong><small>{apiKey.id}</small></div></div></td><td><code className="api-key-prefix">ks_live_{apiKey.prefix}_••••</code></td><td><div className="api-key-scopes">{apiKey.scopes.map((scope) => <Badge key={scope} tone="neutral">{scope}</Badge>)}</div></td><td>{formatDate(apiKey.createdAt, '—')}</td><td>{formatDate(apiKey.lastUsedAt, '从未使用')}</td><td>{formatDate(apiKey.expiresAt, '永不过期')}</td><td><Badge tone={revoked ? 'danger' : 'success'}>{revoked ? '已撤销' : '有效'}</Badge></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={() => onRotate(apiKey.id)} disabled={pending || revoked}>{pending ? '处理中…' : '轮换'}</Button>{revoked ? null : <Button variant="ghost" size="sm" onClick={() => onRevoke(apiKey)} disabled={pending}>撤销</Button>}</div></td></tr>
 }
 
-function formatDate(value: string | null) {
-  if (!value) return '永不过期'
+// 不同时间字段缺值时含义不同，由调用方提供准确提示。
+function formatDate(value: string | null, emptyText: string) {
+  if (!value) return emptyText
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
 }

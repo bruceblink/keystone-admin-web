@@ -23,6 +23,9 @@ describe('ApiKeysPage', () => {
     renderPage()
     expect(await screen.findByText('CLI')).toBeInTheDocument()
     expect(screen.getByText('ks_live_cli_1234_••••')).toBeInTheDocument()
+    const activeRow = screen.getByText('CLI').closest('tr')!
+    expect(within(activeRow).getByText('从未使用')).toBeInTheDocument()
+    expect(within(activeRow).getByText('永不过期')).toBeInTheDocument()
     expect(screen.queryByText(/secret/)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('状态'), { target: { value: 'revoked' } })
     fireEvent.click(screen.getByRole('button', { name: /查询/ }))
@@ -37,8 +40,8 @@ describe('ApiKeysPage', () => {
 
     expect(await screen.findByText('CLI')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '撤销' }))
-    expect(screen.getByRole('dialog')).toHaveTextContent('删除后不可恢复')
-    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+    expect(screen.getByRole('dialog', { name: '撤销 API Key' })).toHaveTextContent('记录仍会保留')
+    fireEvent.click(screen.getByRole('button', { name: '确认撤销' }))
 
     await waitFor(() => expect(revokeApiKey).toHaveBeenCalledWith(key.id))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -51,7 +54,7 @@ describe('ApiKeysPage', () => {
 
     expect(await screen.findByText('CLI')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '撤销' }))
-    fireEvent.click(screen.getByRole('button', { name: '确认删除 1 条' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认撤销' }))
 
     expect(await screen.findByText('当前资源状态不允许此操作')).toBeInTheDocument()
     expect(screen.getByRole('dialog')).toHaveTextContent('resource_conflict')
