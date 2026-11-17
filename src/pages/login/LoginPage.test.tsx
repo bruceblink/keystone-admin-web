@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LoginPage } from './LoginPage'
 import { ApiError } from '../../shared/api/errors'
+import { apiClient } from '../../shared/api/client'
 import { useSessionStore } from '../../shared/state/session'
 
 const user = { id: 'user-1', username: 'operator', displayName: 'Operator', role: '管理员' }
@@ -71,6 +72,87 @@ describe('LoginPage', () => {
     await screen.findByRole('dialog', { name: '账号已有活动会话' })
     fireEvent.click(screen.getByRole('button', { name: '强制登录' }))
     await waitFor(() => expect(verifyMfaLogin).toHaveBeenNthCalledWith(2, 'operator', challenge.challengeId, challenge.clientId, '123456', true))
+  })
+
+  // 首次密码、策略错误、取消和未更新状态都必须返回可继续操作的登录表单。
+  it('服务端要求首次改密时展示表单并在成功后返回登录', async () => {
+    const login = vi.fn().mockRejectedValue(new ApiError('请先修改初始密码', 428, 'precondition_required'))
+    const changePassword = vi.spyOn(apiClient, 'changeInitialPassword').mockResolvedValue({ updated: true })
+    useSessionStore.setState({ isHydrated: true, login })
+    renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+    expect(await screen.findByRole('heading', { name: '设置新密码' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('当前密码'), { target: { value: 'Initial-Password-9!' } })
+    fireEvent.change(screen.getByLabelText('新密码'), { target: { value: 'New-Strong-Password-9!' } })
+    fireEvent.change(screen.getByLabelText('确认新密码'), { target: { value: 'New-Strong-Password-9!' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新密码' }))
+
+    await waitFor(() => expect(changePassword).toHaveBeenCalledWith('operator', 'Initial-Password-9!', 'New-Strong-Password-9!'))
+    expect(await screen.findByText('密码已更新，请使用新密码登录。')).toBeInTheDocument()
+    expect(screen.getByLabelText('密码')).toHaveValue('')
+    expect(screen.queryByLabelText('新密码')).not.toBeInTheDocument()
+  })
+
+  it('初始改密校验两次新密码并允许清除输入后取消', async () => {
+    const login = vi.fn().mockRejectedValue(new ApiError('请先修改初始密码', 428, 'precondition_required'))
+    const changePassword = vi.spyOn(apiClient, 'changeInitialPassword').mockResolvedValue({ updated: true })
+    useSessionStore.setState({ isHydrated: true, login })
+    renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+    await screen.findByRole('heading', { name: '设置新密码' })
+    fireEvent.change(screen.getByLabelText('当前密码'), { target: { value: 'Initial-Password-9!' } })
+    fireEvent.change(screen.getByLabelText('新密码'), { target: { value: 'New-Strong-Password-9!' } })
+    fireEvent.change(screen.getByLabelText('确认新密码'), { target: { value: 'Different-Password-9!' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新密码' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('两次输入的新密码不一致')
+    expect(changePassword).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '取消并返回登录' }))
+    expect(screen.getByLabelText('密码')).toHaveValue('')
+    expect(screen.queryByLabelText('当前密码')).not.toBeInTheDocument()
+    expect(changePassword).not.toHaveBeenCalled()
+  })
+
+  it('初始改密失败时保留表单并显示安全错误反馈', async () => {
+    const login = vi.fn().mockRejectedValue(new ApiError('请先修改初始密码', 428, 'precondition_required'))
+    const changePassword = vi.spyOn(apiClient, 'changeInitialPassword').mockRejectedValue(
+      new ApiError('凭据无效', 401, 'invalid_credential'),
+    )
+    useSessionStore.setState({ isHydrated: true, login })
+    renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+    await screen.findByRole('heading', { name: '设置新密码' })
+    fireEvent.change(screen.getByLabelText('当前密码'), { target: { value: 'wrong' } })
+    fireEvent.change(screen.getByLabelText('新密码'), { target: { value: 'New-Strong-Password-9!' } })
+    fireEvent.change(screen.getByLabelText('确认新密码'), { target: { value: 'New-Strong-Password-9!' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新密码' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('认证信息无效')
+    expect(screen.getByLabelText('新密码')).toHaveValue('New-Strong-Password-9!')
+    expect(changePassword).toHaveBeenCalledOnce()
+  })
+
+  it('服务端返回未更新时不显示成功状态并保留改密表单', async () => {
+    const login = vi.fn().mockRejectedValue(new ApiError('请先修改初始密码', 428, 'precondition_required'))
+    const changePassword = vi.spyOn(apiClient, 'changeInitialPassword').mockResolvedValue({ updated: false })
+    useSessionStore.setState({ isHydrated: true, login })
+    renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+    await screen.findByRole('heading', { name: '设置新密码' })
+    fireEvent.change(screen.getByLabelText('当前密码'), { target: { value: 'Initial-Password-9!' } })
+    fireEvent.change(screen.getByLabelText('新密码'), { target: { value: 'New-Strong-Password-9!' } })
+    fireEvent.change(screen.getByLabelText('确认新密码'), { target: { value: 'New-Strong-Password-9!' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新密码' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('密码没有更新')
+    expect(screen.getByLabelText('新密码')).toHaveValue('New-Strong-Password-9!')
+    expect(screen.queryByText('密码已更新，请使用新密码登录。')).not.toBeInTheDocument()
+    expect(changePassword).toHaveBeenCalledOnce()
   })
 
   it('已有当前会话时不再显示登录表单', () => {

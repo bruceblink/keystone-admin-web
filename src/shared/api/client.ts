@@ -353,6 +353,14 @@ export const apiClient = {
     }
   },
 
+  /** 首次登录前更新管理员初始密码；接口成功后不会在前端创建会话。 */
+  async changeInitialPassword(username: string, currentPassword: string, newPassword: string): Promise<{ updated: boolean }> {
+    return nativeUpdatedResultSchema.parse(await request<unknown>('/auth/change-initial-password', {
+      method: 'POST',
+      body: JSON.stringify({ username, currentPassword, newPassword }),
+    }, false))
+  },
+
   async verifyMfaLogin(username: string, challengeId: string, clientId: string, code: string, forceLogin = false): Promise<{ accessToken: string; user: User }> {
     const token = nativeTokenSchema.parse(await request<unknown>('/auth/mfa/verify', {
       method: 'POST',

@@ -69,6 +69,25 @@ describe('Native API client', () => {
     expect(calls[1]?.init?.body).toContain('"refreshToken":"refresh-1"')
   })
 
+  // 初始改密不需要已有会话，并且只返回更新状态。
+  it('通过公开改密接口提交初始密码并解析更新结果', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe('/api/v1/auth/change-initial-password')
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        username: 'admin',
+        currentPassword: 'initial-password',
+        newPassword: 'New-Strong-Password-9!',
+      })
+      return ok({ updated: true })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.changeInitialPassword('admin', 'initial-password', 'New-Strong-Password-9!'))
+      .resolves.toEqual({ updated: true })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it('保留 Native 登录 MFA 挑战并按契约提交一次性验证码', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)

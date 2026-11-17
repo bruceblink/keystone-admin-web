@@ -1,11 +1,15 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Activity, ArrowRight, KeyRound, LockKeyhole, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { formatApiError, isActiveSessionConflict } from '../../shared/api/errors'
-import { getMfaLoginChallenge } from '../../shared/api/client'
+import { ApiError, formatApiError, isActiveSessionConflict } from '../../shared/api/errors'
+import { apiClient, getMfaLoginChallenge } from '../../shared/api/client'
 import type { NativeMfaLoginChallenge } from '../../shared/api/schemas'
 import { useSessionStore } from '../../shared/state/session'
 import { Button, Card, Modal, Spinner } from '../../shared/ui'
+
+function isInitialPasswordChangeRequired(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === 'precondition_required' || error.status === 428)
+}
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -17,6 +21,13 @@ export function LoginPage() {
   const [username, setUsername] = useState('operator')
   const [password, setPassword] = useState('keystone')
   const [error, setError] = useState<string | null>(null)
+  const [initialPasswordRequired, setInitialPasswordRequired] = useState(false)
+  const [initialCurrentPassword, setInitialCurrentPassword] = useState('')
+  const [initialNewPassword, setInitialNewPassword] = useState('')
+  const [initialConfirmPassword, setInitialConfirmPassword] = useState('')
+  const [initialPasswordError, setInitialPasswordError] = useState<string | null>(null)
+  const [initialPasswordSubmitting, setInitialPasswordSubmitting] = useState(false)
+  const [passwordChanged, setPasswordChanged] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [mfaChallenge, setMfaChallenge] = useState<NativeMfaLoginChallenge | null>(null)
   const [mfaCode, setMfaCode] = useState('')
@@ -32,6 +43,7 @@ export function LoginPage() {
 
   async function submitLogin(forceLogin: boolean) {
     setError(null)
+    setPasswordChanged(false)
     setMfaError(null)
     setIsSubmitting(true)
     try {
@@ -50,6 +62,15 @@ export function LoginPage() {
       } else if (isActiveSessionConflict(submitError)) {
         setForceLoginOpen(true)
         setForceLoginMode('password')
+      } else if (isInitialPasswordChangeRequired(submitError)) {
+        // 初始密码不进入浏览器自动填充状态；改密表单要求用户重新输入当前密码。
+        setPassword('')
+        setInitialPasswordRequired(true)
+        setInitialCurrentPassword('')
+        setInitialNewPassword('')
+        setInitialConfirmPassword('')
+        setInitialPasswordError(null)
+        setPasswordChanged(false)
       } else {
         setError(formatApiError(submitError, '登录失败，请稍后重试'))
       }
@@ -107,6 +128,50 @@ export function LoginPage() {
     }
   }
 
+  async function handleInitialPasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setInitialPasswordError(null)
+
+    if (initialNewPassword !== initialConfirmPassword) {
+      setInitialPasswordError('两次输入的新密码不一致。')
+      return
+    }
+
+    if (initialNewPassword === initialCurrentPassword) {
+      setInitialPasswordError('新密码必须与当前密码不同。')
+      return
+    }
+
+    setInitialPasswordSubmitting(true)
+    try {
+      const result = await apiClient.changeInitialPassword(username.trim(), initialCurrentPassword, initialNewPassword)
+      if (!result.updated) {
+        setInitialPasswordError('密码没有更新，请检查当前密码和账号状态后重试。')
+        return
+      }
+      setInitialPasswordRequired(false)
+      setInitialCurrentPassword('')
+      setInitialNewPassword('')
+      setInitialConfirmPassword('')
+      setPassword('')
+      setPasswordChanged(true)
+    } catch (submitError) {
+      setInitialPasswordError(formatApiError(submitError, '修改初始密码失败，请检查输入后重试'))
+    } finally {
+      setInitialPasswordSubmitting(false)
+    }
+  }
+
+  function cancelInitialPasswordChange() {
+    setInitialPasswordRequired(false)
+    setInitialCurrentPassword('')
+    setInitialNewPassword('')
+    setInitialConfirmPassword('')
+    setInitialPasswordError(null)
+    setPasswordChanged(false)
+    setPassword('')
+  }
+
   function restartLogin() {
     setMfaChallenge(null)
     setMfaForceLogin(false)
@@ -126,7 +191,7 @@ export function LoginPage() {
   if (!isHydrated || user) return <main className="login-page"><div className="page-center"><Spinner label={user ? '正在进入管理台' : '正在恢复会话'} /></div></main>
 
   return (
-    <main className="login-page">
+    <main className={initialPasswordRequired ? 'login-page login-page-initial-password' : 'login-page'}>
       <div className="login-glow login-glow-one" aria-hidden="true" />
       <div className="login-glow login-glow-two" aria-hidden="true" />
       <div className="login-layout">
@@ -140,12 +205,29 @@ export function LoginPage() {
             <div><strong>99.9%</strong><span>系统 API 可用目标</span></div>
           </div>
         </section>
-        <Card className="login-card">
+        <Card className={initialPasswordRequired ? 'login-card login-card-initial-password' : 'login-card'}>
           <div className="login-card-header">
             <div className="brand-mark brand-mark-small"><Activity size={16} /></div>
-            <div><p className="eyebrow">安全登录</p><h2>进入管理台</h2></div>
+            <div><p className="eyebrow">安全登录</p><h2>{initialPasswordRequired ? '设置新密码' : '进入管理台'}</h2></div>
           </div>
-          {mfaChallenge ? (
+          {initialPasswordRequired ? (
+            <form onSubmit={handleInitialPasswordSubmit} className="login-form initial-password-form">
+              <p className="form-status" role="status">该账号需要先更换初始密码，完成后请使用新密码登录。</p>
+              <p className="form-status">账号：{username.trim()}</p>
+              <label htmlFor="initial-current-password">当前密码</label>
+              <div className="input-wrap"><LockKeyhole size={17} aria-hidden="true" /><input id="initial-current-password" type="password" value={initialCurrentPassword} onChange={(event) => setInitialCurrentPassword(event.target.value)} autoComplete="current-password" required autoFocus /></div>
+              <label htmlFor="initial-new-password">新密码</label>
+              <div className="input-wrap"><LockKeyhole size={17} aria-hidden="true" /><input id="initial-new-password" type="password" value={initialNewPassword} onChange={(event) => setInitialNewPassword(event.target.value)} autoComplete="new-password" required /></div>
+              <label htmlFor="initial-confirm-password">确认新密码</label>
+              <div className="input-wrap"><LockKeyhole size={17} aria-hidden="true" /><input id="initial-confirm-password" type="password" value={initialConfirmPassword} onChange={(event) => setInitialConfirmPassword(event.target.value)} autoComplete="new-password" required /></div>
+              <p className="login-footnote">新密码需满足当前系统的安全策略。</p>
+              {initialPasswordError ? <p className="form-error" role="alert">{initialPasswordError}</p> : null}
+              <Button type="submit" disabled={initialPasswordSubmitting} className="login-submit">
+                {initialPasswordSubmitting ? <Spinner label="正在更新" /> : <><span>更新密码</span><ArrowRight size={17} /></>}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={cancelInitialPasswordChange} disabled={initialPasswordSubmitting}>取消并返回登录</Button>
+            </form>
+          ) : mfaChallenge ? (
             <form onSubmit={handleMfaSubmit} className="login-form">
               <p className="form-status" role="status">账号密码已验证，请输入认证器中的一次性验证码。</p>
               <label htmlFor="mfa-code">一次性验证码</label>
@@ -163,6 +245,7 @@ export function LoginPage() {
               <label htmlFor="password">密码</label>
               <div className="input-wrap"><LockKeyhole size={17} aria-hidden="true" /><input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></div>
               {error ? <p className="form-error" role="alert">{error}</p> : null}
+              {passwordChanged ? <p className="form-status" role="status">密码已更新，请使用新密码登录。</p> : null}
               {sessionMessage ? <p className="form-status" role="status">{sessionMessage}</p> : null}
               <Button type="submit" disabled={isSubmitting} className="login-submit">
                 {isSubmitting ? <Spinner label="正在验证" /> : <><span>登录</span><ArrowRight size={17} /></>}
