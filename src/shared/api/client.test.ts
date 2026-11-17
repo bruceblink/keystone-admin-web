@@ -739,7 +739,7 @@ describe('Native API client', () => {
     expect(result.items[0]).toMatchObject({ typeCode: 'user_status', label: '启用' })
   })
 
-  it('读取公开站内通知，不使用公告管理接口', async () => {
+  it('保留公开公告读取接口', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
       if (url.endsWith('/notices')) return ok([{ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', title: '维护通知', content: '今晚维护', noticeType: 'notification', published: true, enabled: true, publishAt: '2026-11-14T02:00:00Z', createdBy: 'operator', createdAt: '2026-11-14T01:00:00Z' }])
@@ -752,6 +752,20 @@ describe('Native API client', () => {
     expect(notices).toHaveLength(1)
     expect(notices[0]).toMatchObject({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', published: true })
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/notices', expect.anything())
+  })
+
+  it('通过独立收件箱接口读取和标记当前用户通知', async () => {
+    const notification = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', type: 'api_key.created', title: 'API Key 已签发', content: '账号已签发 API Key。', createdAt: '2026-11-18T01:00:00Z', readAt: null }
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/v1/notifications') return ok({ items: [notification], unreadCount: 1 })
+      if (url === `/api/v1/notifications/${notification.id}/read` && init?.method === 'POST') return ok({ ...notification, readAt: '2026-11-18T01:01:00Z' })
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await apiClient.listNotifications()).toMatchObject({ unreadCount: 1, items: [notification] })
+    expect(await apiClient.readNotification(notification.id)).toMatchObject({ id: notification.id, readAt: '2026-11-18T01:01:00Z' })
   })
 
   it('按 page/size、keyword 和 status 读取分页公告契约', async () => {

@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, Bell, BookOpen, BriefcaseBusiness, Building2, ChevronDown, FileClock, FileText, KeyRound, ListChecks, ListTree, LogOut, Megaphone, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../../shared/state/session'
@@ -31,7 +31,9 @@ export function AdminShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null)
-  const notificationsQuery = useQuery({ queryKey: ['public-notifications'], queryFn: () => apiClient.listPublicNotices(), staleTime: 30_000 })
+  const queryClient = useQueryClient()
+  const notificationsQuery = useQuery({ queryKey: ['notifications', user?.username], queryFn: () => apiClient.listNotifications(), staleTime: 30_000, refetchInterval: 30_000 })
+  const readNotification = useMutation({ mutationFn: (id: string) => apiClient.readNotification(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications', user?.username] }) })
 
   async function handleLogout() {
     await logout()
@@ -40,7 +42,8 @@ export function AdminShell() {
   function toggleNotifications() {
     setNotificationOpen((open) => !open)
     setSelectedNotificationId(null)
-    if (notificationsQuery.isError) void notificationsQuery.refetch()
+    readNotification.reset()
+    if (!notificationOpen) void notificationsQuery.refetch()
   }
 
   return (
@@ -57,7 +60,7 @@ export function AdminShell() {
         <header className="topbar">
           <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu size={20} /></button>
           <div className="topbar-context"><span className="context-kicker">Keystone</span><span className="context-separator">/</span></div>
-          <div className="topbar-actions"><div className="notification-menu"><button className="icon-button" type="button" aria-label="通知" aria-expanded={notificationOpen} onClick={toggleNotifications}><Bell size={18} />{notificationsQuery.data?.length ? <span className="notification-dot" /> : null}</button>{notificationOpen ? <NotificationPopover notices={notificationsQuery.data ?? []} loading={notificationsQuery.isLoading} error={notificationsQuery.error instanceof Error ? notificationsQuery.error.message : notificationsQuery.isError ? '无法读取站内通知' : null} selected={notificationsQuery.data?.find((notice) => notice.id === selectedNotificationId) ?? null} onSelect={(notice) => setSelectedNotificationId(notice.id)} onBack={() => setSelectedNotificationId(null)} onRetry={() => void notificationsQuery.refetch()} onClose={() => { setNotificationOpen(false); setSelectedNotificationId(null) }} /> : null}</div><button className="user-menu user-menu-button" type="button" aria-label="打开个人资料" onClick={() => navigate('/profile')}><div className="avatar">{user?.displayName.slice(0, 1) ?? 'U'}</div><div className="user-copy"><strong>{user?.displayName ?? '未登录'}</strong><span>{user?.role ?? '管理员'}</span></div><ChevronDown size={15} /></button>{/* 移动端隐藏文字时仍提供退出按钮名称。 */}<Button variant="ghost" size="sm" className="logout-button" aria-label="退出" onClick={handleLogout}><LogOut size={16} /><span>退出</span></Button></div>
+          <div className="topbar-actions"><div className="notification-menu"><button className="icon-button" type="button" aria-label={notificationsQuery.data?.unreadCount ? `通知，${notificationsQuery.data.unreadCount} 条未读` : '通知'} aria-expanded={notificationOpen} onClick={toggleNotifications}><Bell size={18} />{notificationsQuery.data?.unreadCount ? <span className="notification-dot" /> : null}</button>{notificationOpen ? <NotificationPopover notices={notificationsQuery.data?.items ?? []} loading={notificationsQuery.isLoading} error={!notificationsQuery.data && notificationsQuery.isError ? '无法读取站内通知' : null} refreshError={notificationsQuery.data && notificationsQuery.isError ? '通知刷新失败' : null} selected={notificationsQuery.data?.items.find((notice) => notice.id === selectedNotificationId) ?? null} readError={readNotification.isError ? '无法标记已读，请重试' : null} onSelect={(notice) => { setSelectedNotificationId(notice.id); if (!notice.readAt || readNotification.isError) readNotification.mutate(notice.id) }} onBack={() => { setSelectedNotificationId(null); readNotification.reset() }} onRetry={() => void notificationsQuery.refetch()} onClose={() => { setNotificationOpen(false); setSelectedNotificationId(null); readNotification.reset() }} /> : null}</div><button className="user-menu user-menu-button" type="button" aria-label="打开个人资料" onClick={() => navigate('/profile')}><div className="avatar">{user?.displayName.slice(0, 1) ?? 'U'}</div><div className="user-copy"><strong>{user?.displayName ?? '未登录'}</strong><span>{user?.role ?? '管理员'}</span></div><ChevronDown size={15} /></button>{/* 移动端隐藏文字时仍提供退出按钮名称。 */}<Button variant="ghost" size="sm" className="logout-button" aria-label="退出" onClick={handleLogout}><LogOut size={16} /><span>退出</span></Button></div>
         </header>
         <main className="shell-main"><Outlet /></main>
       </div>

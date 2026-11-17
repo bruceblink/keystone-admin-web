@@ -1,16 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { AdminShell } from './AdminShell'
+import { apiClient } from '../../shared/api/client'
 
 vi.mock('../../shared/api/client', () => ({
-  apiClient: { listPublicNotices: vi.fn().mockResolvedValue([]) },
+  apiClient: { listNotifications: vi.fn().mockResolvedValue({ items: [], unreadCount: 0 }), readNotification: vi.fn() },
 }))
 
 vi.mock('../../shared/state/session', () => ({
-  useSessionStore: (selector: (state: { user: { displayName: string; role: string }; logout: () => Promise<void> }) => unknown) => selector({
-    user: { displayName: 'operator', role: '管理员' },
+  useSessionStore: (selector: (state: { user: { username: string; displayName: string; role: string }; logout: () => Promise<void> }) => unknown) => selector({
+    user: { username: 'operator', displayName: 'operator', role: '管理员' },
     logout: async () => undefined,
   }),
 }))
@@ -30,5 +31,40 @@ describe('AdminShell', () => {
     expect(container.querySelector('.topbar-context .context-separator')).toHaveTextContent('/')
     expect(container.querySelector('.topbar-context')).not.toHaveTextContent('管理工作台')
     expect(container.querySelector('.logout-button')).toHaveAttribute('aria-label', '退出')
+  })
+
+  it('读取当前账号的通知并在查看时标记已读', async () => {
+    const notice = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', type: 'api_key.created', title: '密钥已签发', content: '测试密钥已签发。', createdAt: '2026-11-18T01:00:00Z', readAt: null }
+    let read = false
+    vi.mocked(apiClient.listNotifications).mockImplementation(async () => ({ items: [{ ...notice, readAt: read ? '2026-11-18T01:01:00Z' : null }], unreadCount: read ? 0 : 1 }))
+    vi.mocked(apiClient.readNotification).mockImplementation(async () => { read = true; return { ...notice, readAt: '2026-11-18T01:01:00Z' } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+
+    fireEvent.click(await screen.findByRole('button', { name: '通知，1 条未读' }))
+    fireEvent.click(await screen.findByRole('button', { name: /密钥已签发/ }))
+    expect(await screen.findByText('测试密钥已签发。')).toBeInTheDocument()
+    await waitFor(() => expect(apiClient.readNotification).toHaveBeenCalledWith(notice.id))
+    fireEvent.click(screen.getByRole('button', { name: '返回通知列表' }))
+    await waitFor(() => expect(screen.queryByText(/未读/)).not.toBeInTheDocument())
+  })
+
+  it('已读请求返回网络错误后，即使刷新结果已标记已读仍可重试', async () => {
+    const notice = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', type: 'api_key.created', title: '密钥已签发', content: '测试通知。', createdAt: '2026-11-18T01:00:00Z', readAt: null }
+    vi.mocked(apiClient.listNotifications).mockResolvedValue({ items: [notice], unreadCount: 1 })
+    vi.mocked(apiClient.readNotification).mockReset()
+      .mockRejectedValueOnce(new Error('network error'))
+      .mockResolvedValueOnce({ ...notice, readAt: '2026-11-18T01:01:00Z' })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+
+    fireEvent.click(await screen.findByRole('button', { name: '通知，1 条未读' }))
+    fireEvent.click(await screen.findByRole('button', { name: /密钥已签发/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法标记已读')
+    queryClient.setQueryData(['notifications', 'operator'], { items: [{ ...notice, readAt: '2026-11-18T01:01:00Z' }], unreadCount: 0 })
+    await waitFor(() => expect(screen.getByRole('button', { name: '通知' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    await waitFor(() => expect(apiClient.readNotification).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 })

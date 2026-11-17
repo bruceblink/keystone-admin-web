@@ -26,9 +26,9 @@ export function ApiKeysPage() {
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['api-keys', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listApiKeysPage({ keyword: appliedKeyword, status: appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const scopeQuery = useQuery({ queryKey: ['permission-catalog'], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000 })
-  const issueMutation = useMutation({ mutationFn: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => stepUp.run(() => apiClient.issueApiKey(input)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setUrlState({ page: 1 }); setIssuedKey(key); setIssueOpen(false) } })
-  const rotateMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.rotateApiKey(id)), onSuccess: async (key) => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setUrlState({ page: 1 }); setIssuedKey(key) } })
-  const revokeMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.revokeApiKey(id)), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['api-keys'] }); setUrlState({ page: 1 }); setRevokingKey(null) } })
+  const issueMutation = useMutation({ mutationFn: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => stepUp.run(() => apiClient.issueApiKey(input)), onSuccess: async (key) => { await Promise.all([queryClient.invalidateQueries({ queryKey: ['api-keys'] }), queryClient.invalidateQueries({ queryKey: ['notifications'] })]); setUrlState({ page: 1 }); setIssuedKey(key); setIssueOpen(false) } })
+  const rotateMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.rotateApiKey(id)), onSuccess: async (key) => { await Promise.all([queryClient.invalidateQueries({ queryKey: ['api-keys'] }), queryClient.invalidateQueries({ queryKey: ['notifications'] })]); setUrlState({ page: 1 }); setIssuedKey(key) } })
+  const revokeMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.revokeApiKey(id)), onSuccess: async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ['api-keys'] }), queryClient.invalidateQueries({ queryKey: ['notifications'] })]); setUrlState({ page: 1 }); setRevokingKey(null) } })
   const keys = query.data?.items ?? []
   const total = query.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))

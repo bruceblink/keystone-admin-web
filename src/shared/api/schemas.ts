@@ -368,6 +368,20 @@ export const nativeDictionaryItemsPageSchema = z.object({
   total: z.number().int().nonnegative(),
 })
 export const nativeNoticesSchema = z.array(nativeNoticeSchema)
+
+/** 用户自己的站内通知；公告管理使用独立的数据模型。 */
+export const notificationSchema = z.object({
+  id: z.string().uuid(),
+  type: z.string(),
+  title: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+  readAt: z.string().nullable(),
+})
+export const notificationsSchema = z.object({
+  items: z.array(notificationSchema),
+  unreadCount: z.number().int().nonnegative(),
+})
 export const nativeNoticesPageSchema = z.object({
   items: z.array(nativeNoticeSchema),
   page: z.number().int().positive(),
@@ -578,4 +592,6 @@ export type NativeDictionaryType = z.infer<typeof nativeDictionaryTypeSchema>
 export type NativeDictionaryItem = z.infer<typeof nativeDictionaryItemSchema>
 export type NativeDictionaryItemsPage = z.infer<typeof nativeDictionaryItemsPageSchema>
 export type NativeNotice = z.infer<typeof nativeNoticeSchema>
+export type Notification = z.infer<typeof notificationSchema>
+export type Notifications = z.infer<typeof notificationsSchema>
 export type NativeNoticesPage = z.infer<typeof nativeNoticesPageSchema>

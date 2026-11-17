@@ -33,6 +33,8 @@ import {
   nativeDictionaryItemsPageSchema,
   nativeDictionaryItemSchema,
   nativeNoticesSchema,
+  notificationSchema,
+  notificationsSchema,
   nativeNoticesPageSchema,
   nativeNoticeSchema,
   nativeRolesSchema,
@@ -77,6 +79,8 @@ import {
   type NativeDictionaryItem,
   type NativeDictionaryItemsPage,
   type NativeNotice,
+  type Notification,
+  type Notifications,
   type NativeNoticesPage,
   type NativeRole,
   type NativeRolesPage,
@@ -1105,6 +1109,16 @@ export const apiClient = {
       if (!shouldMockFallback(error)) throw error
       return createMockNotices().filter((notice) => notice.published && notice.enabled)
     }
+  },
+
+  /** 读取当前登录用户的站内通知，不使用公开公告接口。 */
+  async listNotifications(): Promise<Notifications> {
+    return notificationsSchema.parse(await request<unknown>('/notifications'))
+  },
+
+  /** 将当前用户的一条通知标记为已读，并返回更新后的详情。 */
+  async readNotification(id: string): Promise<Notification> {
+    return notificationSchema.parse(await request<unknown>(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' }))
   },
 
   async listNotices(): Promise<NativeNotice[]> {
