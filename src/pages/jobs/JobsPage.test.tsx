@@ -42,6 +42,63 @@ describe('JobsPage', () => {
     expect(window.location.search).toContain('jobs_logPage=2')
   })
 
+  it('最后一页日志读取失败后可返回上一页且地址与显示内容一致', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    const logs = Array.from({ length: 20 }, (_, index) => ({
+      id: `log-${index + 1}`,
+      jobId: job.id,
+      jobCode: job.code,
+      jobName: job.name,
+      jobGroup: job.group,
+      invokeTarget: job.invokeTarget,
+      jobParams: '{}',
+      cron: job.cron,
+      triggerType: 1,
+      status: 1,
+      jobMessage: `第一页日志 ${index + 1}`,
+      exceptionInfo: null,
+      startedAt: '2026-11-14T02:00:00Z',
+      finishedAt: '2026-11-14T02:00:00Z',
+      durationMs: 12,
+      createdAt: '2026-11-14T02:00:00Z',
+    }))
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue({ items: [job], page: 1, size: 20, total: 1 })
+    const listJobLogs = vi.spyOn(apiClient, 'listJobLogs').mockImplementation(async ({ page = 1 } = {}) => {
+      if (page === 2) throw new ApiError('last page unavailable', 503, 'service_unavailable')
+      return { items: logs, page: 1, size: 20, total: 21 }
+    })
+    renderPage()
+
+    expect(await screen.findByText('系统心跳')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /日志/ }))
+    expect(await screen.findByText('第一页日志 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    expect(await screen.findByText('无法读取任务日志')).toBeInTheDocument()
+    expect(window.location.search).toContain('jobs_logPage=2')
+    expect(screen.getByRole('button', { name: '上一页' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '下一页' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '上一页' }))
+    expect(await screen.findByText('第一页日志 1')).toBeInTheDocument()
+    expect(screen.getByText('第 1 / 2 页')).toBeInTheDocument()
+    expect(window.location.search).not.toContain('jobs_logPage=2')
+    expect(listJobLogs).toHaveBeenLastCalledWith({ jobId: job.id, page: 2, size: 20 })
+  })
+
+  it('第一页日志初次读取失败时仍显示原错误状态且不显示上一页', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue({ items: [job], page: 1, size: 20, total: 1 })
+    vi.spyOn(apiClient, 'listJobLogs').mockRejectedValue(new ApiError('logs unavailable', 503, 'service_unavailable'))
+    renderPage()
+
+    expect(await screen.findByText('系统心跳')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /日志/ }))
+    expect(await screen.findByText('无法读取任务日志')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重试' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '上一页' })).not.toBeInTheDocument()
+    expect(window.location.search).not.toContain('jobs_logPage')
+  })
+
   it('任务列表按 20 条分页并显示当前页状态', async () => {
     const jobs = Array.from({ length: 21 }, (_, index) => ({
       id: `8d30e3aa-0c16-4d66-bf42-9b2f84f5a5${String(index + 10).padStart(2, '0')}`,
