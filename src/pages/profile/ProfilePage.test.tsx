@@ -15,6 +15,12 @@ function renderPage() {
   return render(<QueryClientProvider client={queryClient}><ProfilePage /></QueryClientProvider>)
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((complete) => { resolve = complete })
+  return { promise, resolve }
+}
+
 afterEach(() => vi.restoreAllMocks())
 
 describe('ProfilePage', () => {
@@ -85,5 +91,50 @@ describe('ProfilePage', () => {
     expect(await screen.findByText('个人资料已刷新。')).toBeInTheDocument()
     expect(screen.queryByText('资料已重新读取；未保存的修改仍保留。')).not.toBeInTheDocument()
     expect(getProfile).toHaveBeenCalledTimes(4)
+  })
+
+  it('资料保存期间锁定资料字段，但密码表单仍可编辑', async () => {
+    vi.spyOn(apiClient, 'getProfile').mockResolvedValue(profile)
+    const save = deferred<typeof profile>()
+    const updateProfile = vi.spyOn(apiClient, 'updateProfile').mockReturnValue(save.promise)
+    renderPage()
+
+    await screen.findByDisplayValue('平台运维员')
+    fireEvent.change(screen.getByLabelText('新密码 *'), { target: { value: '备用密码!123' } })
+    fireEvent.change(screen.getByLabelText('展示名 *'), { target: { value: '提交中的名称' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存资料' }))
+
+    await waitFor(() => expect(updateProfile).toHaveBeenCalledWith(expect.objectContaining({ displayName: '提交中的名称' })))
+    expect(screen.getByLabelText('展示名 *')).toBeDisabled()
+    expect(screen.getByLabelText('邮箱')).toBeDisabled()
+    expect(screen.getByLabelText('联系电话')).toBeDisabled()
+    expect(screen.getByLabelText('头像地址')).toBeDisabled()
+    expect(screen.getByLabelText('性别')).toBeDisabled()
+    expect(screen.getByLabelText('新密码 *')).toBeEnabled()
+    expect(screen.getByRole('button', { name: '更新密码' })).toBeEnabled()
+
+    save.resolve({ ...profile, displayName: '提交中的名称' })
+    expect(await screen.findByText('个人资料已保存')).toBeInTheDocument()
+  })
+
+  it('密码更新期间锁定密码字段，但资料表单仍可编辑', async () => {
+    vi.spyOn(apiClient, 'getProfile').mockResolvedValue(profile)
+    const updatePassword = deferred<{ updated: boolean }>()
+    const updateProfilePassword = vi.spyOn(apiClient, 'updateProfilePassword').mockReturnValue(updatePassword.promise)
+    renderPage()
+
+    await screen.findByDisplayValue('平台运维员')
+    fireEvent.change(screen.getByLabelText('新密码 *'), { target: { value: 'Strong!123' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新密码' }))
+
+    await waitFor(() => expect(updateProfilePassword).toHaveBeenCalledWith('Strong!123'))
+    expect(screen.getByLabelText('新密码 *')).toBeDisabled()
+    expect(screen.getByLabelText('展示名 *')).toBeEnabled()
+    expect(screen.getByLabelText('邮箱')).toBeEnabled()
+    expect(screen.getByRole('button', { name: '保存资料' })).toBeEnabled()
+
+    updatePassword.resolve({ updated: true })
+    expect(await screen.findByText('密码已更新，请使用新密码重新登录')).toBeInTheDocument()
+    expect(screen.getByLabelText('新密码 *')).toHaveValue('')
   })
 })
