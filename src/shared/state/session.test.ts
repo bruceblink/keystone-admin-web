@@ -51,4 +51,49 @@ describe('session capability lifecycle', () => {
     await useSessionStore.getState().logout()
     expect(useSessionStore.getState().user).toBeNull()
   })
+
+  it('退出时先刷新过期的访问令牌，再撤销服务端会话', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'false')
+    let logoutAttempts = 0
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) return response(token)
+      if (url.endsWith('/auth/refresh')) return response({ ...token, accessToken: 'access-b', refreshToken: 'refresh-b' })
+      if (url.endsWith('/auth/logout')) {
+        logoutAttempts += 1
+        expect(new Headers(init?.headers).get('Authorization')).toBe(logoutAttempts === 1 ? 'Bearer access-a' : 'Bearer access-b')
+        if (logoutAttempts === 1) return new Response(JSON.stringify({ success: false, data: null, message: 'expired', error: { code: 'authentication_required' } }), { status: 401 })
+        return response({ loggedOut: true })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await useSessionStore.getState().login('account-a', 'password')
+    await useSessionStore.getState().logout()
+
+    expect(logoutAttempts).toBe(2)
+    expect(useSessionStore.getState().user).toBeNull()
+    expect(useSessionStore.getState().message).toBe('会话已退出')
+    expect(await apiClient.restoreSession()).toBeNull()
+  })
+
+  it('服务端退出失败时清除本地会话并明确提示可能仍有活动会话', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'false')
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) return response(token)
+      if (url.endsWith('/auth/logout')) return new Response(JSON.stringify({ success: false, data: null, message: 'forbidden', error: { code: 'permission_denied' } }), { status: 403 })
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await useSessionStore.getState().login('account-a', 'password')
+    await useSessionStore.getState().logout()
+
+    expect(useSessionStore.getState().user).toBeNull()
+    expect(useSessionStore.getState().message).toContain('无法确认服务端会话已关闭')
+    expect(await apiClient.restoreSession()).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 })

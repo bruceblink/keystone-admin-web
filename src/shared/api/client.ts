@@ -403,10 +403,10 @@ export const apiClient = {
 
   async logout(): Promise<void> {
     try {
-      await request('/auth/logout', { method: 'POST' }, false)
-    } catch {
-      // 退出时服务端不可用仍然清理内存令牌。
+      // 访问令牌过期时先刷新，确保仍能撤销当前服务端会话。
+      await request('/auth/logout', { method: 'POST' })
     } finally {
+      // 无论服务端结果如何，都清理当前页面中的认证信息。
       accessToken = null
       refreshToken = null
       currentUser = null

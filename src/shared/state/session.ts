@@ -34,9 +34,15 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((state) => ({ user, isHydrated: true, authRevision: state.authRevision + 1 }))
   },
   logout: async () => {
-    await apiClient.logout()
+    let message = '会话已退出'
+    try {
+      await apiClient.logout()
+    } catch {
+      // 本地会话已清除，但服务端会话可能仍然有效。
+      message = '本地已退出，但无法确认服务端会话已关闭；再次登录时可能需要强制登录。'
+    }
     queryClient.clear()
-    set((state) => ({ user: null, message: '会话已退出', authRevision: state.authRevision + 1 }))
+    set((state) => ({ user: null, message, authRevision: state.authRevision + 1 }))
   },
   clearSession: (message) => {
     queryClient.clear()
