@@ -3,21 +3,69 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiKeysPage } from './ApiKeysPage'
 import { ApiError, apiClient } from '../../shared/api/client'
-import type { NativeApiKey } from '../../shared/api/schemas'
+import type { NativeApiKey, NativeCapabilities } from '../../shared/api/schemas'
+import { useSessionStore } from '../../shared/state/session'
 
-function renderPage() {
+const apiKeyCapabilities = (permissions: string[], hasResourceScope = true): NativeCapabilities => ({
+  permissions,
+  resources: {
+    user: false, department: false, role: false, post: false, menu: false, config: false,
+    dictionary: false, notice: false, job: false, audit: false, session: false,
+    'api-key': hasResourceScope, profile: false,
+  },
+})
+const allApiKeyCapabilities = apiKeyCapabilities(['api-key:read', 'api-key:create', 'api-key:rotate', 'api-key:revoke'])
+
+function renderPage(capabilities = allApiKeyCapabilities) {
+  useSessionStore.setState({ user: { id: 'api-key-user', username: 'api-key-operator', displayName: 'API Key 用户', role: 'operator' }, isHydrated: true, authRevision: 4 })
+  vi.spyOn(apiClient, 'getCapabilities').mockResolvedValue(capabilities)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={queryClient}><ApiKeysPage /></QueryClientProvider>)
 }
 
 afterEach(() => vi.restoreAllMocks())
-beforeEach(() => window.history.replaceState({}, '', '/api-keys'))
+beforeEach(() => {
+  window.history.replaceState({}, '', '/api-keys')
+  useSessionStore.setState({ user: null, isHydrated: false, message: null, authRevision: 0 })
+})
 
 const key: NativeApiKey = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', name: 'CLI', prefix: 'cli_1234', scopes: ['user:read'], expiresAt: null, revokedAt: null, lastUsedAt: null, createdAt: '2026-11-14T02:00:00Z' }
 const revokedKey: NativeApiKey = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: '旧客户端', prefix: 'old_5678', scopes: ['audit:read'], expiresAt: null, revokedAt: '2026-11-14T03:00:00Z', lastUsedAt: null, createdAt: '2026-11-13T02:00:00Z' }
 const page = (items: NativeApiKey[] = [key], total = items.length, currentPage = 1) => ({ items, page: currentPage, size: 20, total })
 
 describe('ApiKeysPage', () => {
+  it.each([
+    { permissions: ['api-key:read'], issue: false, rotate: false, revoke: false },
+    { permissions: ['api-key:read', 'api-key:create'], issue: true, rotate: false, revoke: false },
+    { permissions: ['api-key:read', 'api-key:rotate'], issue: false, rotate: true, revoke: false },
+    { permissions: ['api-key:read', 'api-key:revoke'], issue: false, rotate: false, revoke: true },
+  ])('按读取权限和具体操作权限显示按钮 $permissions', async ({ permissions, issue, rotate, revoke }) => {
+    vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page())
+    const catalog = vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([
+      { permission: 'api-key:create', resource: 'api-key', action: 'create', description: 'api-key create', risk: 'medium', registered: true, allowed: true },
+    ])
+    renderPage(apiKeyCapabilities(permissions))
+
+    expect(await screen.findByText('CLI')).toBeInTheDocument()
+    expect(Boolean(screen.queryByRole('button', { name: '签发 API Key' }))).toBe(issue)
+    const row = screen.getByText('CLI').closest('tr')!
+    expect(Boolean(within(row).queryByRole('button', { name: '轮换' }))).toBe(rotate)
+    expect(Boolean(within(row).queryByRole('button', { name: '撤销' }))).toBe(revoke)
+    if (issue) await waitFor(() => expect(catalog).toHaveBeenCalledTimes(1))
+    else expect(catalog).not.toHaveBeenCalled()
+  })
+
+  it('没有 API Key 数据范围时不读取目录、列表或显示操作', async () => {
+    const list = vi.spyOn(apiClient, 'listApiKeysPage')
+    const catalog = vi.spyOn(apiClient, 'listPermissionCatalog')
+    renderPage(apiKeyCapabilities(['api-key:read', 'api-key:create', 'api-key:rotate', 'api-key:revoke'], false))
+
+    expect(await screen.findByText('当前账号无法读取 API Key 列表')).toBeInTheDocument()
+    expect(list).not.toHaveBeenCalled()
+    expect(catalog).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: '签发 API Key' })).not.toBeInTheDocument()
+  })
+
   it('显示脱敏 API Key 元数据并支持状态筛选', async () => {
     vi.spyOn(apiClient, 'listApiKeysPage').mockImplementation(async ({ status }) => status === 'revoked' ? page([revokedKey]) : page([key, revokedKey]))
     renderPage()
@@ -45,6 +93,125 @@ describe('ApiKeysPage', () => {
 
     await waitFor(() => expect(revokeApiKey).toHaveBeenCalledWith(key.id))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('已过期密钥显示明确状态、禁止轮换并提示新建', async () => {
+    const expiredKey = { ...key, expiresAt: new Date(Date.now() - 60_000).toISOString() }
+    vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([expiredKey]))
+    const rotate = vi.spyOn(apiClient, 'rotateApiKey')
+    renderPage()
+
+    expect(await screen.findByText('已过期')).toBeInTheDocument()
+    const row = screen.getByText('CLI').closest('tr')!
+    expect(within(row).getByRole('button', { name: '轮换' })).toBeDisabled()
+    expect(within(row).getByText('已过期，请新建 API Key')).toBeInTheDocument()
+    fireEvent.click(within(row).getByRole('button', { name: '轮换' }))
+    expect(rotate).not.toHaveBeenCalled()
+  })
+
+  it('页面保持打开时在最近密钥到期后自动更新状态并禁用轮换', async () => {
+    const expiringKey = { ...key, expiresAt: new Date(Date.now() + 1_200).toISOString() }
+    vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([expiringKey]))
+    renderPage()
+
+    expect(await screen.findByText('CLI')).toBeInTheDocument()
+    const row = screen.getByText('CLI').closest('tr')!
+    expect(within(row).getByText('有效')).toBeInTheDocument()
+    await waitFor(() => expect(within(row).getByText('已过期')).toBeInTheDocument(), { timeout: 3_000, interval: 25 })
+    expect(within(row).getByRole('button', { name: '轮换' })).toBeDisabled()
+  })
+
+  it('列表请求跨过到期时间时用响应到达时间更新密钥状态', async () => {
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    let resolveList: (result: ReturnType<typeof page>) => void = () => undefined
+    const listApiKeysPage = vi.spyOn(apiClient, 'listApiKeysPage').mockImplementation(() => new Promise((resolve) => { resolveList = resolve }))
+    renderPage()
+
+    await waitFor(() => expect(listApiKeysPage).toHaveBeenCalledOnce())
+    const expiresAt = new Date(now + 1_000).toISOString()
+    now += 1_001
+    resolveList(page([{ ...key, expiresAt }]))
+
+    const row = (await screen.findByText('CLI')).closest('tr')!
+    expect(within(row).getByText('已过期')).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: '轮换' })).toBeDisabled()
+  })
+
+  it('有效筛选中的密钥到期后重新读取并移出列表', async () => {
+    const expiry = Date.now() + 1_200
+    const expiringKey = { ...key, expiresAt: new Date(expiry).toISOString() }
+    const listApiKeysPage = vi.spyOn(apiClient, 'listApiKeysPage').mockImplementation(async ({ status }) =>
+      status === 'active' && Date.now() >= expiry ? page([], 0) : page([expiringKey]),
+    )
+    renderPage()
+
+    await screen.findByText('CLI')
+    fireEvent.change(screen.getByLabelText('状态'), { target: { value: 'active' } })
+    fireEvent.click(screen.getByRole('button', { name: /查询/ }))
+    await waitFor(() => expect(listApiKeysPage).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('CLI')).toBeInTheDocument()
+
+    await waitFor(() => expect(screen.queryByText('CLI')).not.toBeInTheDocument(), { timeout: 3_000, interval: 25 })
+    expect(listApiKeysPage).toHaveBeenCalledTimes(3)
+    expect(screen.getByText('没有匹配的 API Key')).toBeInTheDocument()
+  })
+
+  it('有效查询响应到达时密钥已过期会重读并采用最新总数', async () => {
+    const expiredKey = { ...key, expiresAt: new Date(Date.now() - 1_000).toISOString() }
+    let activeReads = 0
+    const listApiKeysPage = vi.spyOn(apiClient, 'listApiKeysPage').mockImplementation(async ({ status }) => {
+      if (status !== 'active') return page([expiredKey])
+      activeReads += 1
+      return activeReads === 1 ? page([expiredKey]) : page([], 0)
+    })
+    renderPage()
+
+    await screen.findByText('CLI')
+    fireEvent.change(screen.getByLabelText('状态'), { target: { value: 'active' } })
+    fireEvent.click(screen.getByRole('button', { name: /查询/ }))
+
+    await waitFor(() => expect(listApiKeysPage).toHaveBeenCalledTimes(3))
+    expect(activeReads).toBe(2)
+    expect(await screen.findByText('没有匹配的 API Key')).toBeInTheDocument()
+    expect(screen.getByText('共 0 个匹配凭据')).toBeInTheDocument()
+  })
+
+  it('重读仍返回已过期密钥时只重试一次并提示分页数据可能未同步', async () => {
+    const expiredKey = { ...key, expiresAt: new Date(Date.now() - 1_000).toISOString() }
+    const listApiKeysPage = vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([expiredKey]))
+    renderPage()
+
+    await screen.findByText('CLI')
+    fireEvent.change(screen.getByLabelText('状态'), { target: { value: 'active' } })
+    fireEvent.click(screen.getByRole('button', { name: /查询/ }))
+
+    const warning = await screen.findByRole('alert')
+    expect(warning).toHaveTextContent('服务端总数和分页可能尚未同步')
+    expect(warning).toHaveTextContent('重试读取')
+    expect(screen.getByText('共 1 个匹配凭据')).toBeInTheDocument()
+    await waitFor(() => expect(listApiKeysPage).toHaveBeenCalledTimes(3))
+    await new Promise((resolve) => window.setTimeout(resolve, 100))
+    expect(listApiKeysPage).toHaveBeenCalledTimes(3)
+  })
+
+  it('点击轮换时再次检查当前时间，阻止未重绘页面上的过期密钥', async () => {
+    let currentTime = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => currentTime)
+    const expiringKey = { ...key, expiresAt: new Date(currentTime + 5_000).toISOString() }
+    vi.spyOn(apiClient, 'listApiKeysPage').mockResolvedValue(page([expiringKey]))
+    const rotate = vi.spyOn(apiClient, 'rotateApiKey')
+    renderPage()
+
+    expect(await screen.findByText('CLI')).toBeInTheDocument()
+    const row = screen.getByText('CLI').closest('tr')!
+    expect(within(row).getByRole('button', { name: '轮换' })).toBeEnabled()
+
+    currentTime += 5_001
+    fireEvent.click(within(row).getByRole('button', { name: '轮换' }))
+
+    expect(rotate).not.toHaveBeenCalled()
+    expect(await within(row).findByText('已过期')).toBeInTheDocument()
   })
 
   it('撤销失败时显示业务错误码诊断并保留确认上下文', async () => {
