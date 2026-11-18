@@ -51,6 +51,13 @@ export function UserFormModal({ open, mode, user, pending, error, roles, rolesLo
     } : emptyValues)
   }, [open, user])
 
+  useEffect(() => {
+    if (!rolesError) return
+    // 目录读取失败后丢弃未提交的角色草稿，恢复到当前用户角色或空选择。
+    setRolesDirty(false)
+    setValues((current) => ({ ...current, roleCodes: mode === 'edit' ? user?.roles ?? [] : [] }))
+  }, [mode, rolesError, user])
+
   function setField<K extends keyof FormValues>(field: K, value: FormValues[K]) {
     setValues((current) => ({ ...current, [field]: value }))
     setValidationError(null)
@@ -66,6 +73,7 @@ export function UserFormModal({ open, mode, user, pending, error, roles, rolesLo
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (rolesLoading || (mode === 'create' && rolesError)) return
     if (!values.displayName.trim()) return setValidationError('展示名不能为空')
     if (mode === 'create' && !values.username.trim()) return setValidationError('用户名不能为空')
     if (mode === 'create' && !values.password) return setValidationError('初始密码不能为空')
@@ -82,7 +90,7 @@ export function UserFormModal({ open, mode, user, pending, error, roles, rolesLo
       remark: values.remark.trim() || null,
       enabled: values.enabled,
       clearDept,
-      roleCodes: mode === 'create' || rolesDirty ? values.roleCodes : null,
+      roleCodes: mode === 'create' || (rolesDirty && !rolesLoading && !rolesError) ? values.roleCodes : null,
     }
     void onSubmit(input)
   }
@@ -90,7 +98,7 @@ export function UserFormModal({ open, mode, user, pending, error, roles, rolesLo
   // 清除选项会清空并锁定部门输入，取消后才能填写新的部门 UUID。
   return (
     <Modal open={open} title={mode === 'create' ? '新增用户' : '编辑用户'} description="保存前请确认身份信息和组织授权范围。" onClose={pending ? () => undefined : onClose} size="lg" footer={(
-      <><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="user-form" disabled={pending || rolesLoading || Boolean(rolesError)}>{pending ? '保存中…' : rolesLoading ? '读取角色中…' : '保存用户'}</Button></>
+      <><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="user-form" disabled={pending || rolesLoading || (mode === 'create' && Boolean(rolesError))}>{pending ? '保存中…' : rolesLoading ? '读取角色中…' : '保存用户'}</Button></>
     )}>
       <form id="user-form" className="user-form" onSubmit={submit}>
         <div className="user-form-grid">
@@ -104,7 +112,7 @@ export function UserFormModal({ open, mode, user, pending, error, roles, rolesLo
         </div>
         <fieldset className="user-role-access" disabled={pending || rolesLoading}>
           <legend>用户角色</legend>
-          {rolesLoading ? <p className="form-help">正在读取角色目录…</p> : rolesError ? <div className="user-role-error"><ActionError title="角色目录读取失败" error={rolesError} /><Button type="button" variant="secondary" size="sm" onClick={onRetryRoles}>重试角色目录</Button></div> : roles.length === 0 ? <p className="form-help">暂无可用角色。</p> : <div className="user-role-options">{roles.map((role) => <label className="checkbox-label" key={role.id}><input type="checkbox" checked={values.roleCodes.includes(role.code)} disabled={pending || !role.enabled} onChange={(event) => toggleRole(role.code, event.target.checked)} /><span>{role.name} <small>{role.code}{role.enabled ? '' : '（停用）'}</small></span></label>)}</div>}
+          {rolesLoading ? <p className="form-help">正在读取角色目录…</p> : rolesError ? <div className="user-role-error"><ActionError title="角色目录读取失败" error={rolesError} /><p className="form-help" role="status">{mode === 'edit' ? '角色目录不可用；本次保存会保留原有角色，不提交角色变更。' : '创建用户前必须成功读取角色目录。请重试后再保存。'}</p><Button type="button" variant="secondary" size="sm" onClick={onRetryRoles}>重试角色目录</Button></div> : roles.length === 0 ? <p className="form-help">暂无可用角色。</p> : <div className="user-role-options">{roles.map((role) => <label className="checkbox-label" key={role.id}><input type="checkbox" checked={values.roleCodes.includes(role.code)} disabled={pending || !role.enabled} onChange={(event) => toggleRole(role.code, event.target.checked)} /><span>{role.name} <small>{role.code}{role.enabled ? '' : '（停用）'}</small></span></label>)}</div>}
           <p className="form-help">角色目录由系统 API 提供。编辑用户时不修改角色会保留原角色；主动取消全部选择会清空角色。</p>
         </fieldset>
         <label className="user-form-wide"><span>备注</span><textarea value={values.remark} onChange={(event) => setField('remark', event.target.value)} rows={3} disabled={pending} /></label>

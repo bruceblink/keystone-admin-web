@@ -307,7 +307,7 @@ export function UsersPage() {
         pending={saveMutation.isPending}
         error={saveMutation.error}
         roles={rolesQuery.data ?? []}
-        rolesLoading={rolesQuery.isLoading}
+        rolesLoading={rolesQuery.isLoading || rolesQuery.isFetching}
         rolesError={rolesQuery.error}
         onRetryRoles={() => void rolesQuery.refetch()}
         onClose={closeModal}

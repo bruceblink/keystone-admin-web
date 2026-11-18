@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { UsersPage } from './UsersPage'
@@ -54,7 +54,7 @@ function mockRoleCatalog() {
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><UsersPage /></QueryClientProvider>)
+  return { ...render(<QueryClientProvider client={queryClient}><UsersPage /></QueryClientProvider>), queryClient }
 }
 
 afterEach(() => {
@@ -312,6 +312,142 @@ describe('UsersPage', () => {
     expect(await within(dialog).findByText('角色目录读取失败')).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: '重试角色目录' }))
     expect(await within(dialog).findByText('审计员')).toBeInTheDocument()
+    expect(listRoles).toHaveBeenCalledTimes(2)
+  })
+
+  it('角色目录返回 403 时仍可保存基础资料并保留原角色', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    vi.spyOn(apiClient, 'listRoles').mockRejectedValue(new ApiError('权限不足', 403, 'permission_denied'))
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
+    renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('角色目录不可用；本次保存会保留原有角色，不提交角色变更。')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '保存用户' })).toBeEnabled()
+    fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '仅改基础资料' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ displayName: '仅改基础资料', roleCodes: null })))
+  })
+
+  it('选择角色后角色目录读取失败时不提交草稿角色变更', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const listRoles = vi.spyOn(apiClient, 'listRoles')
+      .mockResolvedValueOnce(roleCatalog)
+      .mockRejectedValueOnce(new ApiError('角色目录暂不可用', 503, 'service_unavailable'))
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
+    const { queryClient } = renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = await screen.findByRole('dialog')
+    const administratorRole = await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    fireEvent.click(administratorRole)
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /审计员/ }))
+
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['user-role-options'] })
+    })
+
+    expect(await within(dialog).findByText('角色目录不可用；本次保存会保留原有角色，不提交角色变更。')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('checkbox', { name: /审计员/ })).not.toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '目录失败后保存' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ displayName: '目录失败后保存', roleCodes: null })))
+    expect(listRoles).toHaveBeenCalledTimes(2)
+  })
+
+  it('编辑用户重新读取角色期间锁定保存并保留草稿，成功后可提交', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    let resolveRoleReload: (roles: NativeRole[]) => void = () => undefined
+    const roleReload = new Promise<NativeRole[]>((resolve) => { resolveRoleReload = resolve })
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValueOnce(roleCatalog).mockReturnValueOnce(roleReload)
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
+    const { queryClient } = renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = await screen.findByRole('dialog')
+    const administratorRole = await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    fireEvent.click(administratorRole)
+
+    let refetchPromise: Promise<void> = Promise.resolve()
+    await act(async () => {
+      refetchPromise = queryClient.invalidateQueries({ queryKey: ['user-role-options'] })
+      await Promise.resolve()
+    })
+
+    expect(await within(dialog).findByText('正在读取角色目录…')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '读取角色中…' })).toBeDisabled()
+    expect(updateUser).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveRoleReload(roleCatalog)
+      await refetchPromise
+    })
+
+    const reloadedAdministratorRole = await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    expect(reloadedAdministratorRole).not.toBeChecked()
+    const saveButton = await within(dialog).findByRole('button', { name: '保存用户' })
+    expect(saveButton).toBeEnabled()
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ roleCodes: [] })))
+  })
+
+  it('角色目录重试成功后恢复原角色并允许主动编辑角色', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const listRoles = vi.spyOn(apiClient, 'listRoles')
+      .mockRejectedValueOnce(new ApiError('角色目录暂不可用', 503, 'service_unavailable'))
+      .mockResolvedValueOnce(roleCatalog)
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
+    renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('角色目录不可用；本次保存会保留原有角色，不提交角色变更。')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: '重试角色目录' }))
+
+    const administratorRole = await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    expect(administratorRole).toBeChecked()
+    expect(within(dialog).getByRole('button', { name: '保存用户' })).toBeEnabled()
+    fireEvent.click(administratorRole)
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ roleCodes: [] })))
+    expect(listRoles).toHaveBeenCalledTimes(2)
+  })
+
+  it('新增用户必须先成功读取角色目录才能保存', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    const listRoles = vi.spyOn(apiClient, 'listRoles')
+      .mockRejectedValueOnce(new ApiError('角色目录暂不可用', 503, 'service_unavailable'))
+      .mockResolvedValueOnce(roleCatalog)
+    const createUser = vi.spyOn(apiClient, 'createUser').mockResolvedValue(userPage.items[0])
+    renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /新增用户/ }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('用户名 *'), { target: { value: 'new-user' } })
+    fireEvent.change(within(dialog).getByLabelText('初始密码 *'), { target: { value: 'Strong-password-123!' } })
+    fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '新建账号' } })
+    await within(dialog).findByText('创建用户前必须成功读取角色目录。请重试后再保存。')
+    const saveButton = within(dialog).getByRole('button', { name: '保存用户' })
+    expect(saveButton).toBeDisabled()
+    fireEvent.click(saveButton)
+    expect(createUser).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '重试角色目录' }))
+    await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    expect(saveButton).toBeEnabled()
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(createUser).toHaveBeenCalledWith(expect.objectContaining({ username: 'new-user', displayName: '新建账号', roleCodes: [] })))
     expect(listRoles).toHaveBeenCalledTimes(2)
   })
 
