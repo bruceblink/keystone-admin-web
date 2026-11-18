@@ -59,6 +59,14 @@ describe('ApiError', () => {
   it.each([
     // 相同密码使用独立代码，不能与其他密码策略失败混淆。
     ['password_same_as_current', '新密码不能与当前密码相同。', '新密码与已验证的当前密码相同'],
+    ['password_required', '请输入密码。', '密码缺失或为空白'],
+    ['password_too_short', '密码长度未达到系统要求。', '密码长度未达到要求'],
+    ['password_disallowed', '该密码不符合系统安全要求，请选择其他密码。', '密码位于禁止列表中'],
+    ['password_contains_username', '密码不能包含用户名。', '密码包含用户名'],
+    ['password_missing_uppercase', '密码必须包含大写字母。', '密码缺少大写字母'],
+    ['password_missing_lowercase', '密码必须包含小写字母。', '密码缺少小写字母'],
+    ['password_missing_digit', '密码必须包含数字。', '密码缺少数字'],
+    ['password_missing_special', '密码必须包含特殊字符。', '密码缺少特殊字符'],
     ['api_key_name_invalid', 'API Key 名称必须为 1 到 128 个字符。', 'API Key 名称缺失或超过 128 个字符'],
     ['profile_display_name_required', '请输入个人资料展示名。', '个人资料展示名缺失或为空白'],
     ['profile_avatar_required', '请输入头像地址。', '个人资料头像地址缺失或为空白'],
