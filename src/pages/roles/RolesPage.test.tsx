@@ -44,6 +44,52 @@ describe('RolesPage', () => {
     expect(listRoles).toHaveBeenLastCalledWith({ keyword: '', status: '', page: 2, size: 20 })
   })
 
+  it('占位旧角色结果只显示为加载上下文，失败后可重试新页', async () => {
+    const firstRole = { id: 'role-page-one', code: 'auditor', name: '第一页角色', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    const secondRole = { ...firstRole, id: 'role-page-two', code: 'operator', name: '第二页角色' }
+    let rejectSecondPage!: (error: unknown) => void
+    let secondPageAttempts = 0
+    const pendingSecondPage = new Promise<{ items: typeof secondRole[]; page: number; size: number; total: number }>((_resolve, reject) => { rejectSecondPage = reject })
+    const listRoles = vi.spyOn(apiClient, 'listRoles').mockImplementation(async ({ page = 1 } = {}) => {
+      if (page === 2) {
+        secondPageAttempts += 1
+        return secondPageAttempts === 1
+          ? pendingSecondPage
+          : { items: [secondRole], page: 2, size: 20, total: 21 }
+      }
+      return { items: [firstRole], page: 1, size: 20, total: 21 }
+    })
+    renderPage()
+
+    expect(await screen.findByText('第一页角色')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('选择角色 auditor'))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('当前显示上一查询结果')
+    expect(screen.getByText('第一页角色')).toBeInTheDocument()
+    expect(screen.getByText('第 1 / 2 页')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '编辑' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '成员' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '导出 Excel' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '删除角色（0）' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '查询' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '重置' })).toBeDisabled()
+    expect(screen.getByLabelText('选择当前角色')).toBeDisabled()
+    expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled()
+    expect(window.location.search).toContain('roles_page=2')
+
+    await act(async () => rejectSecondPage(new ApiError('page unavailable', 503, 'service_unavailable')))
+    expect(await screen.findByRole('button', { name: '重试' })).toBeEnabled()
+    expect(screen.getByRole('alert')).toHaveTextContent(/service_unavailable/)
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+
+    expect(await screen.findByText('第二页角色')).toBeInTheDocument()
+    expect(screen.getByText('第 2 / 2 页')).toBeInTheDocument()
+    expect(window.location.search).toContain('roles_page=2')
+    expect(listRoles).toHaveBeenCalledTimes(3)
+    expect(screen.getByRole('button', { name: '编辑' })).toBeEnabled()
+  })
+
   it('深链接切换筛选时等待当前结果后再校正页码', async () => {
     const previousRole = { id: 'previous-role', code: 'previous', name: '旧筛选角色', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
     const targetRole = { ...previousRole, id: 'target-role', code: 'target', name: '目标筛选角色' }

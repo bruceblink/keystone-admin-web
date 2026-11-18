@@ -96,6 +96,7 @@ export function RolesPage() {
   const roles = rolePage.items
   const total = rolePage.total
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const roleListPending = query.isPlaceholderData
   const allSelected = roles.length > 0 && roles.every((role) => selectedIds.includes(role.id))
 
   useEffect(() => {
@@ -220,7 +221,7 @@ export function RolesPage() {
         <form className="roles-filter-form" onSubmit={submitFilters}>
           <label><span>角色名称或标识</span><input value={formFilters.keyword} onChange={(event) => setFormFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="按角色名称或编码筛选" autoComplete="off" /></label>
           <label><span>角色状态</span><select value={formFilters.status} onChange={(event) => setFormFilters((current) => ({ ...current, status: event.target.value }))}><option value="all">全部状态</option><option value="enabled">启用</option><option value="disabled">停用</option></select></label>
-          <div className="roles-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={resetFilters}>重置</Button></div>
+          <div className="roles-filter-actions"><Button type="submit" size="sm" disabled={query.isFetching}><Search size={15} /> 查询</Button><Button type="button" variant="ghost" size="sm" onClick={resetFilters} disabled={query.isFetching}>重置</Button></div>
         </form>
       </Card>
 
@@ -228,16 +229,17 @@ export function RolesPage() {
         <ListToolbar>
           <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增角色</Button>
           <Button variant="secondary" size="sm" onClick={() => void exportRoles()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button>
-          <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除角色（{selectedIds.length}）</Button>
+          <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending || roleListPending}>删除角色（{selectedIds.length}）</Button>
           <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表</Button>
         </ListToolbar>
-        <CardHeader title="角色列表" description={query.data ? `共 ${total.toLocaleString('zh-CN')} 个匹配角色` : undefined} action={<Badge tone="info">系统 API</Badge>} />
+        <CardHeader title="角色列表" description={roleListPending ? '正在读取新的查询结果…' : query.data ? `共 ${total.toLocaleString('zh-CN')} 个匹配角色` : undefined} action={<Badge tone="info">系统 API</Badge>} />
+        {roleListPending ? <p className="form-help" role="status">当前显示上一查询结果；加载完成前，行操作和批量操作会暂时停用。</p> : null}
         {query.isLoading ? <div className="loading-panel roles-loading"><Spinner label="正在读取角色列表" /></div> : null}
         {query.isError && !query.data ? <InitialQueryError title="无法读取角色列表" message="角色列表读取失败，请重试" error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
         {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '角色列表刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
         {query.data ? <>
-        {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending} onSelect={toggleRole} onEdit={openEdit} onMembers={openMembers} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
-        {totalPages > 1 ? <div className="roles-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="secondary" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
+        {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending || roleListPending} /></th><th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending || roleListPending} onSelect={toggleRole} onEdit={openEdit} onMembers={openMembers} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
+        {totalPages > 1 ? <div className="roles-pagination"><span>第 {rolePage.page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={rolePage.page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="secondary" size="sm" disabled={rolePage.page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
         </> : null}
       </Card>
       {memberRole ? <RoleMembersPanel
