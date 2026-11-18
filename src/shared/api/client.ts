@@ -1,7 +1,6 @@
 import {
   apiEnvelopeSchema,
   loginResponseSchema,
-  monitorSnapshotSchema,
   nativeCacheInfoSchema,
   nativeUsersPageSchema,
   nativeUserSchema,
@@ -51,6 +50,9 @@ import {
   nativeMfaStepUpResultSchema,
   userSchema,
   type NativeUsersPage,
+  type NativeServerInfo,
+  type NativeCacheInfo,
+  type NativeOnlineUsers,
   type NativeMfaStepUpChallenge,
   type NativeMfaLoginChallenge,
   type NativeMfaStepUpResult,
@@ -96,17 +98,20 @@ import {
   type NativeNoticeWriteInput,
   type User,
 } from './schemas'
-import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorSnapshot, createMockNotices, createMockOperationLogsPage, createMockPosts, createMockPost, createMockRoles, createMockSystemConfigs, createMockUsersPage, deleteMockPost, updateMockPost } from './mock'
+import { createMockApiKeys, createMockDepartments, createMockDictionaryItems, createMockDictionaryTypes, createMockLogin, createMockLoginLogsPage, createMockMenus, createMockMonitorCacheInfo, createMockMonitorOnlineUsers, createMockMonitorServerInfo, createMockNotices, createMockOperationLogsPage, createMockPosts, createMockPost, createMockRoles, createMockSystemConfigs, createMockUsersPage, deleteMockPost, updateMockPost } from './mock'
 import { jobApi } from './jobClient'
 import { ApiError } from './errors'
 import { createUserFileClient, readXlsxResponse, XLSX_MIME_TYPE } from './userFileClient'
 export { ApiError } from './errors'
 export { isXlsxFilename, XLSX_MIME_TYPE } from './userFileClient'
-import type { MonitorSnapshot } from '../../entities/monitor/types'
 const API_BASE = '/api/v1'
 const CLIENT_ID = 'web'
 type PostListFilters = { keyword?: string; status?: string; page?: number; size?: number }
 type RoleListFilters = { keyword?: string; status?: string; page?: number; size?: number }
+
+/** 标记监控资源来自真实 API 或明确启用的开发 Mock。 */
+export type MonitorResourceResult<T> = { value: T; source: 'api' | 'mock' }
+
 let accessToken: string | null = null
 let refreshToken: string | null = null
 let currentUser: User | null = null
@@ -415,42 +420,31 @@ export const apiClient = {
     return result
   },
 
-  async getMonitorSnapshot(): Promise<MonitorSnapshot> {
+  // 监控资源分别读取；单项权限拒绝只影响对应数据区块，不转换成整页 Mock 成功。
+  async getMonitorServerInfo(): Promise<MonitorResourceResult<NativeServerInfo>> {
     try {
-      const [server, cache, online] = await Promise.all([
-        request<unknown>('/monitor/serverInfo'),
-        request<unknown>('/monitor/cacheInfo'),
-        request<unknown>('/monitor/onlineUsers?page=1&size=100'),
-      ])
-      const serverInfo = nativeServerInfoSchema.parse(server)
-      const cacheInfo = nativeCacheInfoSchema.parse(cache)
-      const onlineUsers = nativeOnlineUsersSchema.parse(online)
-      const capturedAt = new Date().toISOString()
-      const memory = serverInfo.maxMemory > 0 ? (serverInfo.heapUsed / serverInfo.maxMemory) * 100 : null
-      return monitorSnapshotSchema.parse({
-        status: 'PARTIAL',
-        capturedAt,
-        source: '系统 API /monitor',
-        node: `${serverInfo.jvmName} · ${serverInfo.osName}`,
-        cpu: null,
-        memory,
-        beam: { processes: serverInfo.processors, reductions: null, runQueue: null },
-        disk: { used: null, total: null },
-        network: { inbound: null, outbound: null },
-        ets: { tables: null, entries: cacheInfo.activeSessions, memory: null },
-        sessions: onlineUsers.items.map((session) => ({
-          id: session.sessionId,
-          user: session.username,
-          role: session.displayName,
-          ip: session.ipAddress ?? '—',
-          lastSeen: session.createdAt,
-          currentPage: '—',
-        })),
-        trend: [{ timestamp: capturedAt, cpu: null, memory: memory ?? 0 }],
-      })
+      return { value: nativeServerInfoSchema.parse(await request<unknown>('/monitor/serverInfo')), source: 'api' }
     } catch (error) {
       if (!shouldMockFallback(error)) throw error
-      return monitorSnapshotSchema.parse(createMockMonitorSnapshot())
+      return { value: createMockMonitorServerInfo(), source: 'mock' }
+    }
+  },
+
+  async getMonitorCacheInfo(): Promise<MonitorResourceResult<NativeCacheInfo>> {
+    try {
+      return { value: nativeCacheInfoSchema.parse(await request<unknown>('/monitor/cacheInfo')), source: 'api' }
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      return { value: createMockMonitorCacheInfo(), source: 'mock' }
+    }
+  },
+
+  async listMonitorOnlineUsers(): Promise<MonitorResourceResult<NativeOnlineUsers>> {
+    try {
+      return { value: nativeOnlineUsersSchema.parse(await request<unknown>('/monitor/onlineUsers?page=1&size=100')), source: 'api' }
+    } catch (error) {
+      if (!shouldMockFallback(error)) throw error
+      return { value: createMockMonitorOnlineUsers(), source: 'mock' }
     }
   },
 

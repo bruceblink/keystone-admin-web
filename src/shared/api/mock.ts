@@ -1,5 +1,4 @@
-import type { MonitorSnapshot } from '../../entities/monitor/types'
-import type { NativeApiKey, NativeDepartment, NativeDictionaryItem, NativeDictionaryItemWriteInput, NativeDictionaryType, NativeDictionaryTypeWriteInput, NativeJob, NativeJobTriggerResult, NativeJobWriteInput, NativeLoginLogsPage, NativeMenuNode, NativeNotice, NativeNoticeWriteInput, NativeOperationLogsPage, NativePost, NativePostWriteInput, NativeRole, NativeSystemConfig, NativeSystemConfigWriteInput, NativeUsersPage, User } from './schemas'
+import type { NativeApiKey, NativeCacheInfo, NativeDepartment, NativeDictionaryItem, NativeDictionaryItemWriteInput, NativeDictionaryType, NativeDictionaryTypeWriteInput, NativeJob, NativeJobTriggerResult, NativeJobWriteInput, NativeLoginLogsPage, NativeMenuNode, NativeNotice, NativeNoticeWriteInput, NativeOnlineUsers, NativeOperationLogsPage, NativePost, NativePostWriteInput, NativeRole, NativeServerInfo, NativeSystemConfig, NativeSystemConfigWriteInput, NativeUsersPage, User } from './schemas'
 
 export const mockUser: User = {
   id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
@@ -7,12 +6,6 @@ export const mockUser: User = {
   displayName: '平台运维员',
   role: '系统管理员',
 }
-
-const users = [
-  { id: '7c8d', user: 'lin.chen', role: '运维管理员', ip: '10.17.17.42', currentPage: '运行监控' },
-  { id: '8f10', user: 'rui.zhang', role: '审计员', ip: '10.17.17.58', currentPage: '操作日志' },
-  { id: 'a123', user: 'miao.wu', role: '业务管理员', ip: '10.17.17.64', currentPage: '用户管理' },
-]
 
 let mockSequence = 1000
 let mockSystemConfigs: NativeSystemConfig[] | null = null
@@ -31,33 +24,47 @@ function clone<T extends object>(value: T): T {
   return { ...value }
 }
 
-export function createMockMonitorSnapshot(): MonitorSnapshot {
+/** 开发环境网络不可用时返回主机接口形状；权限拒绝不会进入此回退。 */
+export function createMockMonitorServerInfo(): NativeServerInfo {
+  return {
+    javaVersion: '21',
+    jvmName: 'OpenJDK',
+    osName: 'macOS',
+    osVersion: '15',
+    processors: 8,
+    maxMemory: 1_000,
+    totalMemory: 800,
+    freeMemory: 300,
+    heapUsed: 500,
+    uptimeMs: 3_600_000,
+  }
+}
+
+/** 开发环境网络不可用时返回缓存统计接口形状。 */
+export function createMockMonitorCacheInfo(): NativeCacheInfo {
+  return { provider: 'database', activeSessions: 3, loginLogEntries: 128 }
+}
+
+/** 开发环境网络不可用时返回在线会话接口形状。 */
+export function createMockMonitorOnlineUsers(): NativeOnlineUsers {
   const now = Date.now()
-  const trend = Array.from({ length: 18 }, (_, index) => {
-    const stamp = new Date(now - (17 - index) * 60_000).toISOString()
-    return {
-      timestamp: stamp,
-      cpu: 34 + Math.sin(index / 2.5) * 8 + (index % 5),
-      memory: 49 + Math.cos(index / 3.2) * 5 + (index % 3),
-    }
-  })
+  const users = [
+    { sessionId: 'session-7c8d', username: 'lin.chen', displayName: '运维管理员', ipAddress: '10.17.17.42' },
+    { sessionId: 'session-8f10', username: 'rui.zhang', displayName: '审计员', ipAddress: '10.17.17.58' },
+    { sessionId: 'session-a123', username: 'miao.wu', displayName: '业务管理员', ipAddress: '10.17.17.64' },
+  ]
 
   return {
-    status: 'LIVE',
-    capturedAt: new Date(now).toISOString(),
-    source: '开发环境 Mock 快照',
-    node: 'keystone@127.0.0.1',
-    cpu: Math.round(trend.at(-1)?.cpu ?? 42),
-    memory: Math.round(trend.at(-1)?.memory ?? 54),
-    beam: { processes: 481, reductions: 18_430_224, runQueue: 1.4 },
-    disk: { used: 68, total: 160 },
-    network: { inbound: 620, outbound: 184 },
-    ets: { tables: 74, entries: 2_318_500, memory: 286 },
-    sessions: users.map((session, index) => ({
-      ...session,
-      lastSeen: new Date(now - index * 48_000).toISOString(),
+    items: users.map((user, index) => ({
+      ...user,
+      userId: `mock-user-${index + 1}`,
+      createdAt: new Date(now - index * 48_000).toISOString(),
+      expiresAt: new Date(now + 86_400_000).toISOString(),
+      accessExpiresAt: new Date(now + 300_000).toISOString(),
     })),
-    trend,
+    page: 1,
+    size: 100,
+    total: users.length,
   }
 }
 

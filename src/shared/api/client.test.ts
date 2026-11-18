@@ -198,28 +198,48 @@ describe('Native API client', () => {
     await expect(apiClient.issueApiKey({ name: 'deploy', scopes: ['api-key:create'] })).rejects.toMatchObject({ status: 403, code: 'permission_denied' })
   })
 
-  it('使用 Native 监控接口组装真实可用指标并标记缺失指标', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+  it('分别读取 Native 监控资源并校验各自响应', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
       if (url.endsWith('/monitor/serverInfo')) return ok({
         javaVersion: '21', jvmName: 'OpenJDK', osName: 'Mac OS X', osVersion: '15', processors: 8,
         maxMemory: 1_000, totalMemory: 800, freeMemory: 300, heapUsed: 500, uptimeMs: 10_000,
       })
       if (url.endsWith('/monitor/cacheInfo')) return ok({ provider: 'database', activeSessions: 2, loginLogEntries: 10 })
-      if (url.includes('/monitor/onlineUsers')) return ok({ items: [{
+      if (url.endsWith('/monitor/onlineUsers?page=1&size=100')) return ok({ items: [{
         sessionId: 'session-1', userId: 'user-1', username: 'operator', displayName: '系统管理员', ipAddress: '127.0.0.1',
         createdAt: '2026-11-14T01:00:00Z', expiresAt: '2026-11-28T01:00:00Z', accessExpiresAt: '2026-11-14T01:05:00Z',
       }], page: 1, size: 100, total: 1 })
       throw new Error(`unexpected request: ${url}`)
-    }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
 
-    const snapshot = await apiClient.getMonitorSnapshot()
-    expect(snapshot.status).toBe('PARTIAL')
-    expect(snapshot.cpu).toBeNull()
-    expect(snapshot.memory).toBe(50)
-    expect(snapshot.source).toBe('系统 API /monitor')
-    expect(snapshot.sessions[0]).toMatchObject({ id: 'session-1', user: 'operator', role: '系统管理员' })
-    expect(snapshot.disk.total).toBeNull()
+    const [server, cache, online] = await Promise.all([
+      apiClient.getMonitorServerInfo(),
+      apiClient.getMonitorCacheInfo(),
+      apiClient.listMonitorOnlineUsers(),
+    ])
+    expect(server).toMatchObject({ source: 'api', value: { jvmName: 'OpenJDK', processors: 8, heapUsed: 500 } })
+    expect(cache).toEqual({ source: 'api', value: { provider: 'database', activeSessions: 2, loginLogEntries: 10 } })
+    expect(online.value.items[0]).toMatchObject({ sessionId: 'session-1', username: 'operator', displayName: '系统管理员' })
+    expect(fetchMock.mock.calls.map(([input]) => String(input)).sort()).toEqual([
+      '/api/v1/monitor/cacheInfo',
+      '/api/v1/monitor/onlineUsers?page=1&size=100',
+      '/api/v1/monitor/serverInfo',
+    ])
+  })
+
+  it('监控资源的权限拒绝保留业务错误，不回退成 Mock 成功', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({
+      success: false,
+      data: null,
+      message: 'forbidden',
+      error: { code: 'permission_denied' },
+    }, 403)))
+
+    await expect(apiClient.getMonitorServerInfo()).rejects.toMatchObject({ status: 403, code: 'permission_denied' })
+    await expect(apiClient.getMonitorCacheInfo()).rejects.toMatchObject({ status: 403, code: 'permission_denied' })
+    await expect(apiClient.listMonitorOnlineUsers()).rejects.toMatchObject({ status: 403, code: 'permission_denied' })
   })
 
   it('按 Native 用户列表契约发送筛选和分页参数', async () => {

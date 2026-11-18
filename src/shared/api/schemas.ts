@@ -103,6 +103,10 @@ export const nativeOnlineUsersSchema = z.object({
   total: z.number(),
 })
 
+export type NativeServerInfo = z.infer<typeof nativeServerInfoSchema>
+export type NativeCacheInfo = z.infer<typeof nativeCacheInfoSchema>
+export type NativeOnlineUsers = z.infer<typeof nativeOnlineUsersSchema>
+
 /** Native 用户管理接口返回的公开字段；凭据和权限版本不会从此接口返回。 */
 export const nativeUserSchema = z.object({
   id: z.string().uuid(),
@@ -486,35 +490,6 @@ export const nativeJobLogsPageSchema = z.object({
   page: z.number().int().positive(),
   size: z.number().int().positive(),
   total: z.number().int().nonnegative(),
-})
-
-export const monitorSnapshotSchema = z.object({
-  status: z.enum(['LIVE', 'STALE', 'OFFLINE', 'PARTIAL']),
-  capturedAt: z.string(),
-  source: z.string(),
-  node: z.string(),
-  cpu: z.number().nullable(),
-  memory: z.number().nullable(),
-  beam: z.object({
-    processes: z.number().nullable(),
-    reductions: z.number().nullable(),
-    runQueue: z.number().nullable(),
-  }),
-  disk: z.object({
-    used: z.number().nullable(),
-    total: z.number().nullable(),
-  }),
-  network: z.object({
-    inbound: z.number().nullable(),
-    outbound: z.number().nullable(),
-  }),
-  ets: z.object({
-    tables: z.number().nullable(),
-    entries: z.number().nullable(),
-    memory: z.number().nullable(),
-  }),
-  sessions: z.array(sessionSchema),
-  trend: z.array(z.object({ timestamp: z.string(), cpu: z.number().nullable(), memory: z.number() })),
 })
 
 export type User = z.infer<typeof userSchema>

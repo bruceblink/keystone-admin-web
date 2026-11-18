@@ -1,4 +1,22 @@
-import type { MonitorStatus } from './types'
+import type { MonitorStatus, TrendPoint } from './types'
+
+const MONITOR_TREND_WINDOW_MS = 30 * 60 * 1000
+const MAX_MONITOR_TREND_SAMPLES = 120
+
+/** 保留最近 30 分钟且最多 120 个成功采样点，避免长时间开页导致趋势无限增长。 */
+export function appendMonitorTrendSample(samples: TrendPoint[], sample: TrendPoint, now = Date.now()): TrendPoint[] {
+  const cutoff = now - MONITOR_TREND_WINDOW_MS
+  const recentSamples = samples.filter((point) => {
+    const timestamp = Date.parse(point.timestamp)
+    return timestamp >= cutoff && timestamp <= now && point.timestamp !== sample.timestamp
+  })
+  const sampleTimestamp = Date.parse(sample.timestamp)
+  const bounded = sampleTimestamp >= cutoff && sampleTimestamp <= now
+    ? [...recentSamples, sample]
+    : recentSamples
+
+  return bounded.slice(-MAX_MONITOR_TREND_SAMPLES)
+}
 
 export function formatPercent(value: number | null | undefined): string {
   return value == null ? '—' : `${Math.round(value)}%`
