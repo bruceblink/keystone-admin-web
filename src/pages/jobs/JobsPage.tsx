@@ -84,6 +84,10 @@ export function JobsPage() {
   useEffect(() => { if (jobPage !== currentJobPage) setUrlState({ jobPage: currentJobPage }) }, [currentJobPage, jobPage])
   useEffect(() => { setKeyword(appliedKeyword) }, [appliedKeyword])
   useEffect(() => {
+    // 只在日志读取成功后修正深链接中的过期页码，失败时保留原查询状态。
+    if (logsQuery.isSuccess && !logsQuery.isFetching && logPage > totalPages) setUrlState({ logPage: totalPages })
+  }, [logPage, logsQuery.isFetching, logsQuery.isSuccess, setUrlState, totalPages])
+  useEffect(() => {
     if (!selectedJobId) {
       setSelectedJob(null)
       return

@@ -28,6 +28,20 @@ describe('JobsPage', () => {
     await waitFor(() => expect(listJobLogs).toHaveBeenLastCalledWith({ jobId: job.id, page: 2, size: 20 }))
   })
 
+  it('日志深链接页码超过总页数时回到最后一页', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    const log = { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', jobId: job.id, jobCode: job.code, jobName: job.name, jobGroup: job.group, invokeTarget: job.invokeTarget, jobParams: '{}', cron: job.cron, triggerType: 1, status: 1, jobMessage: '最后一页日志', exceptionInfo: null, startedAt: '2026-11-14T02:00:00Z', finishedAt: '2026-11-14T02:00:00Z', durationMs: 12, createdAt: '2026-11-14T02:00:00Z' }
+    window.history.replaceState({}, '', `/jobs?jobs_selectedJobId=${job.id}&jobs_logPage=3`)
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue({ items: [job], page: 1, size: 20, total: 1 })
+    vi.spyOn(apiClient, 'listJobLogs').mockImplementation(async ({ page = 1 } = {}) => ({ items: page === 2 ? [log] : [], page, size: 20, total: 21 }))
+    renderPage()
+
+    expect(await screen.findByText('最后一页日志')).toBeInTheDocument()
+    await waitFor(() => expect(apiClient.listJobLogs).toHaveBeenLastCalledWith({ jobId: job.id, page: 2, size: 20 }))
+    expect(screen.getByText('第 2 / 2 页')).toBeInTheDocument()
+    expect(window.location.search).toContain('jobs_logPage=2')
+  })
+
   it('任务列表按 20 条分页并显示当前页状态', async () => {
     const jobs = Array.from({ length: 21 }, (_, index) => ({
       id: `8d30e3aa-0c16-4d66-bf42-9b2f84f5a5${String(index + 10).padStart(2, '0')}`,
