@@ -71,6 +71,19 @@ describe('AdminShell', () => {
     expect(screen.queryByRole('button', { name: '打开个人资料' })).not.toBeInTheDocument()
   })
 
+  it('根据能力读取结果显示状态，失败时不再声称 API 正常', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrap = (query: ReturnType<typeof useCapabilities>) => <QueryClientProvider client={queryClient}><MemoryRouter><AdminShell capabilitiesQuery={query} /></MemoryRouter></QueryClientProvider>
+    const { rerender } = render(wrap(capabilityQuery(allCapabilities)))
+
+    expect(screen.getByText('权限已读取')).toHaveAttribute('data-state', 'ready')
+    rerender(wrap(capabilityQuery(allCapabilities, true)))
+    expect(screen.getByText('权限读取失败')).toHaveAttribute('data-state', 'error')
+    expect(screen.queryByText('API 正常')).not.toBeInTheDocument()
+    rerender(wrap({ ...capabilityQuery(allCapabilities), data: undefined, isFetching: true } as ReturnType<typeof useCapabilities>))
+    expect(screen.getByText('正在读取权限')).toHaveAttribute('data-state', 'loading')
+  })
+
   it('读取当前账号的通知并在查看时标记已读', async () => {
     const notice = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', type: 'api_key.created', title: '密钥已签发', content: '测试密钥已签发。', createdAt: '2026-11-18T01:00:00Z', readAt: null }
     let read = false

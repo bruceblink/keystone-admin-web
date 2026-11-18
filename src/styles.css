@@ -420,3 +420,5 @@ a { color: inherit; text-decoration: none; }
 .capability-status-card > p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .capability-status-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .monitor-resource-blocked { padding: 14px 18px; color: var(--muted); font-size: 11px; }
+.status-dot[data-state='error'] span { background: var(--red); box-shadow: 0 0 0 3px rgba(255, 104, 131, .11); }
+.status-dot[data-state='loading'] span { background: var(--muted); box-shadow: 0 0 0 3px rgba(139, 159, 186, .11); }

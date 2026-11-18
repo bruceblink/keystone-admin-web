@@ -46,6 +46,8 @@ export function AdminShell({ capabilitiesQuery }: { capabilitiesQuery: ReturnTyp
   const unreadCount = currentUnreadCount
     ?? (lastKnownUnread.username === user?.username ? lastKnownUnread.count : 0)
   const visibleNavItems = capabilities ? navItems.filter((item) => item.external || canAccessCapabilityPage(item.to, capabilities)) : []
+  // 只报告能力接口的实际状态，不能把一次成功读取当成所有 API 正常。
+  const capabilityStatus = capabilitiesQuery.isError ? 'error' : capabilities ? 'ready' : 'loading'
 
   useEffect(() => {
     if (currentUnreadCount !== undefined) {
@@ -74,7 +76,7 @@ export function AdminShell({ capabilitiesQuery }: { capabilitiesQuery: ReturnTyp
         <nav className="primary-nav" aria-label="主导航">
           {visibleNavItems.map(({ to, label, icon: Icon, external }, index) => <Fragment key={to}>{to.startsWith('/audit/') && !visibleNavItems[index - 1]?.to.startsWith('/audit/') ? <p className="nav-label nav-label-spaced">运维审计</p> : null}{external ? <a href={to} target="_blank" rel="noreferrer" onClick={() => setMobileOpen(false)} className="nav-item"><Icon size={17} /><span>{label}</span></a> : <NavLink to={to} onClick={() => setMobileOpen(false)} className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}><Icon size={17} /><span>{label}</span></NavLink>}</Fragment>)}
         </nav>
-        <div className="sidebar-foot"><div className="status-dot"><span /> API 正常</div><span className="sidebar-version">v0.1.0 · dev</span></div>
+        <div className="sidebar-foot"><div className="status-dot" data-state={capabilityStatus}><span />{capabilityStatus === 'error' ? '权限读取失败' : capabilityStatus === 'ready' ? '权限已读取' : '正在读取权限'}</div><span className="sidebar-version">v0.1.0 · dev</span></div>
       </aside>
       {mobileOpen ? <button className="sidebar-scrim" aria-label="关闭导航" onClick={() => setMobileOpen(false)} /> : null}
       <div className="shell-content">
