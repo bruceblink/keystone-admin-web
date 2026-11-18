@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConfigsPage } from './ConfigsPage'
 import { ApiError, apiClient } from '../../shared/api/client'
 
+const capabilities = vi.hoisted(() => ({ permissions: ['config:read', 'config:create', 'config:update'], config: true, error: false }))
+vi.mock('../../shared/auth/useCapabilities', () => ({
+  useCapabilities: () => ({ data: { permissions: capabilities.permissions, resources: { config: capabilities.config } }, isError: capabilities.error }),
+}))
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={queryClient}><ConfigsPage /></QueryClientProvider>)
@@ -12,10 +17,63 @@ function renderPage() {
 const config = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', key: 'security.session.ttl', value: '300', description: '访问令牌有效期', enabled: true, updatedAt: '2026-11-14T02:00:00Z' }
 const page = (items = [config], total = items.length, currentPage = 1) => ({ items, page: currentPage, size: 20, total })
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  capabilities.permissions = ['config:read', 'config:create', 'config:update']
+  capabilities.config = true
+  capabilities.error = false
+})
 beforeEach(() => window.history.replaceState({}, '', '/configs'))
 
 describe('ConfigsPage', () => {
+  it('只读账号可查看和刷新配置，但没有写操作入口', async () => {
+    capabilities.permissions = ['config:read']
+    vi.spyOn(apiClient, 'listSystemConfigsPage').mockResolvedValue(page())
+    renderPage()
+
+    await screen.findByText(config.key)
+    expect(screen.getByRole('button', { name: '刷新配置' })).toBeEnabled()
+    for (const name of ['新增配置', '编辑', '删除']) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: '操作' })).not.toBeInTheDocument()
+  })
+
+  it('新增与更新权限分别控制入口', async () => {
+    capabilities.permissions = ['config:read', 'config:create']
+    vi.spyOn(apiClient, 'listSystemConfigsPage').mockResolvedValue(page())
+    const rendered = renderPage()
+
+    await screen.findByText(config.key)
+    expect(screen.getByRole('button', { name: '新增配置' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+
+    capabilities.permissions = ['config:read', 'config:update']
+    rendered.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider>)
+    await screen.findByText(config.key)
+    expect(screen.queryByRole('button', { name: '新增配置' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '编辑' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '删除' })).toBeEnabled()
+  })
+
+  it('权限撤销后隐藏已打开的配置表单和删除确认', async () => {
+    vi.spyOn(apiClient, 'listSystemConfigsPage').mockResolvedValue(page())
+    const rendered = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    capabilities.permissions = ['config:read']
+    rendered.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider>)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    capabilities.permissions = ['config:read', 'config:update']
+    rendered.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider>)
+    fireEvent.click(await screen.findByRole('button', { name: '删除' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    capabilities.permissions = ['config:read']
+    rendered.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider>)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('确认后删除系统配置', async () => {
     const listSystemConfigsPage = vi.spyOn(apiClient, 'listSystemConfigsPage').mockResolvedValue(page())
     const deleteSystemConfig = vi.spyOn(apiClient, 'deleteSystemConfig').mockResolvedValue({ deleted: true })
