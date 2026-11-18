@@ -80,4 +80,11 @@ describe('ApiError', () => {
     expect(formatApiError(error)).toBe(message)
     expect(errorDiagnostic(error)).toContain(`${code} · ${meaning}`)
   })
+
+  it('通过独立错误码提示已过期的 API Key 不可轮换', () => {
+    const error = new ApiError('服务端消息', 409, 'api_key_expired')
+
+    expect(lookupBusinessError(error.code)).toMatchObject({ httpStatus: 409, meaning: '已过期的 API Key 不能轮换' })
+    expect(formatApiError(error)).toBe('API Key 已过期，请新建密钥。')
+  })
 })
