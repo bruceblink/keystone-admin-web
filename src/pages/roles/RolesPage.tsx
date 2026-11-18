@@ -107,8 +107,11 @@ export function RolesPage() {
   }, [appliedKeyword, appliedStatus])
 
   useEffect(() => {
-    if (query.data && page > totalPages) setUrlState({ page: totalPages })
-  }, [page, query.data, setUrlState, totalPages])
+    // placeholderData 属于上一组筛选或页码；等当前请求成功后再校正深链接页码。
+    if (query.isSuccess && !query.isFetching && !query.isPlaceholderData && page > totalPages) {
+      setUrlState({ page: totalPages })
+    }
+  }, [page, query.isFetching, query.isPlaceholderData, query.isSuccess, setUrlState, totalPages])
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()

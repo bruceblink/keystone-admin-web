@@ -44,6 +44,32 @@ describe('RolesPage', () => {
     expect(listRoles).toHaveBeenLastCalledWith({ keyword: '', status: '', page: 2, size: 20 })
   })
 
+  it('深链接切换筛选时等待当前结果后再校正页码', async () => {
+    const previousRole = { id: 'previous-role', code: 'previous', name: '旧筛选角色', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    const targetRole = { ...previousRole, id: 'target-role', code: 'target', name: '目标筛选角色' }
+    let resolveTargetPage!: (value: { items: typeof targetRole[]; page: number; size: number; total: number }) => void
+    const targetPage = new Promise<{ items: typeof targetRole[]; page: number; size: number; total: number }>((resolve) => { resolveTargetPage = resolve })
+    const listRoles = vi.spyOn(apiClient, 'listRoles').mockImplementation(async ({ keyword = '', page = 1 } = {}) => {
+      if (keyword === 'target' && page === 5) return targetPage
+      if (keyword === 'target' && page === 3) return { items: [targetRole], page: 3, size: 20, total: 41 }
+      return { items: [previousRole], page, size: 20, total: 1 }
+    })
+    renderPage()
+
+    expect(await screen.findByText('旧筛选角色')).toBeInTheDocument()
+    window.history.pushState({}, '', '/roles?roles_keyword=target&roles_page=5')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+
+    await waitFor(() => expect(listRoles).toHaveBeenLastCalledWith({ keyword: 'target', status: '', page: 5, size: 20 }))
+    expect(window.location.search).toContain('roles_page=5')
+
+    resolveTargetPage({ items: [], page: 5, size: 20, total: 41 })
+    expect(await screen.findByText('目标筛选角色')).toBeInTheDocument()
+    await waitFor(() => expect(listRoles).toHaveBeenLastCalledWith({ keyword: 'target', status: '', page: 3, size: 20 }))
+    expect(window.location.search).toContain('roles_page=3')
+    expect(screen.getByText('第 3 / 3 页')).toBeInTheDocument()
+  })
+
   it('响应浏览器前进后退恢复角色筛选条件', async () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
     renderPage()
