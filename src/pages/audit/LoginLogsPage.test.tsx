@@ -23,6 +23,27 @@ describe('LoginLogsPage', () => {
     expect(screen.getByText('127.0.0.1')).toBeInTheDocument()
   })
 
+  it('过期页深链读取失败时保留 URL，重试成功后回到最后有效页', async () => {
+    window.history.replaceState({}, '', '/audit/login?login_logs_page=4')
+    const listLoginLogs = vi.spyOn(apiClient, 'listLoginLogs')
+      .mockRejectedValueOnce(new ApiError('暂时不可用', 503, 'service_unavailable'))
+      .mockResolvedValueOnce({ items: [], page: 4, size: 20, total: 21 })
+      .mockResolvedValueOnce({ items: [{ id: 'login-2', username: 'operator', status: 'SUCCESS', ipAddress: null, message: '恢复后的日志', userAgent: null, loginAt: null }], page: 2, size: 20, total: 21 })
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法读取登录日志')
+    expect(window.location.search).toContain('login_logs_page=4')
+    expect(listLoginLogs).toHaveBeenCalledWith({ username: '', status: '', page: 4, size: 20 })
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+
+    expect(await screen.findByText('恢复后的日志')).toBeInTheDocument()
+    await waitFor(() => expect(listLoginLogs).toHaveBeenCalledTimes(3))
+    expect(listLoginLogs.mock.calls.map(([filters]) => filters?.page)).toEqual([4, 4, 2])
+    expect(window.location.search).toContain('login_logs_page=2')
+    expect(screen.getByText('第 2 / 2 页')).toBeInTheDocument()
+  })
+
   it('按当前筛选条件导出登录日志 XLSX', async () => {
     const listLoginLogs = vi.spyOn(apiClient, 'listLoginLogs').mockResolvedValue({ items: [], page: 1, size: 20, total: 0 })
     const exportLoginLogs = vi.spyOn(apiClient, 'exportLoginLogs').mockResolvedValue({ blob: new Blob(['xlsx']), filename: 'login-logs.xlsx' })

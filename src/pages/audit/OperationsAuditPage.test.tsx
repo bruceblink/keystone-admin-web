@@ -44,6 +44,27 @@ describe('OperationsAuditPage', () => {
     await waitFor(() => expect(listOperationLogs).toHaveBeenLastCalledWith({ actor: 'operator', action: '', resource: '', page: 2, size: 20 }))
   })
 
+  it('过期页深链读取失败时保留 URL，重试成功后回到最后有效页', async () => {
+    window.history.replaceState({}, '', '/audit/operations?operations_audit_page=4')
+    const listOperationLogs = vi.spyOn(apiClient, 'listOperationLogs')
+      .mockRejectedValueOnce(new ApiError('暂时不可用', 503, 'service_unavailable'))
+      .mockResolvedValueOnce({ ...logPage, items: [], page: 4, total: 21 })
+      .mockResolvedValueOnce({ ...logPage, items: [{ ...logPage.items[0], detail: '恢复后的审计记录' }], page: 2, total: 21 })
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('无法读取操作审计')
+    expect(window.location.search).toContain('operations_audit_page=4')
+    expect(listOperationLogs).toHaveBeenCalledWith({ actor: '', action: '', resource: '', page: 4, size: 20 })
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+
+    expect(await screen.findByText('恢复后的审计记录')).toBeInTheDocument()
+    await waitFor(() => expect(listOperationLogs).toHaveBeenCalledTimes(3))
+    expect(listOperationLogs.mock.calls.map(([filters]) => filters?.page)).toEqual([4, 4, 2])
+    expect(window.location.search).toContain('operations_audit_page=2')
+    expect(screen.getByText('第 2 / 2 页')).toBeInTheDocument()
+  })
+
   it('显示空结果状态', async () => {
     vi.spyOn(apiClient, 'listOperationLogs').mockResolvedValue({ ...logPage, items: [], total: 0 })
     renderPage()

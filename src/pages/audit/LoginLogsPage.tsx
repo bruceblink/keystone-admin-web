@@ -34,6 +34,11 @@ export function LoginLogsPage() {
   const description = useMemo(() => query.isLoading ? '正在读取系统 API' : query.isError ? '读取失败，请检查服务连接' : `共 ${total.toLocaleString('zh-CN')} 条登录记录`, [query.isError, query.isLoading, total])
 
   useEffect(() => {
+    // 仅在当前页读取成功后校正过期深链；请求失败时保留用户原来的 URL。
+    if (query.isSuccess && !query.isFetching && page > totalPages) setUrlState({ page: totalPages })
+  }, [page, query.isFetching, query.isSuccess, setUrlState, totalPages])
+
+  useEffect(() => {
     setFormFilters({ username, status })
   }, [username, status])
 

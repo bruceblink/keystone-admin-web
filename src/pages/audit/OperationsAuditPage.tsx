@@ -48,6 +48,11 @@ export function OperationsAuditPage() {
   }, [query.isError, query.isLoading, total])
 
   useEffect(() => {
+    // 仅在当前页读取成功后校正过期深链；请求失败时保留用户原来的 URL。
+    if (query.isSuccess && !query.isFetching && page > totalPages) setUrlState({ page: totalPages })
+  }, [page, query.isFetching, query.isSuccess, setUrlState, totalPages])
+
+  useEffect(() => {
     setFormFilters({ actor, action, resource })
   }, [actor, action, resource])
 
