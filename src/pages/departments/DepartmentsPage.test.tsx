@@ -4,14 +4,32 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DepartmentsPage } from './DepartmentsPage'
 import { apiClient } from '../../shared/api/client'
 import { ApiError } from '../../shared/api/errors'
+import type { NativeCapabilities } from '../../shared/api/schemas'
+import { useSessionStore } from '../../shared/state/session'
 
-function renderPage() {
+const allDepartmentCapabilities: NativeCapabilities = {
+  permissions: ['department:read', 'department:create', 'department:update', 'department:delete'],
+  resources: {
+    user: true, department: true, role: true, post: true, menu: true, config: true,
+    dictionary: true, notice: true, job: true, audit: true, session: true,
+    'api-key': true, profile: true,
+  },
+}
+
+function renderPage(permissions = allDepartmentCapabilities.permissions, departmentScope = true) {
+  useSessionStore.setState({ user: { id: 'test-user', username: 'department-operator', displayName: '组织管理员', role: 'operator' }, isHydrated: true, authRevision: 4 })
+  vi.spyOn(apiClient, 'getCapabilities').mockResolvedValue({
+    ...allDepartmentCapabilities,
+    permissions,
+    resources: { ...allDepartmentCapabilities.resources, department: departmentScope },
+  })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={queryClient}><DepartmentsPage /></QueryClientProvider>)
 }
 
 afterEach(() => {
   vi.restoreAllMocks()
+  useSessionStore.setState({ user: null, isHydrated: false, authRevision: 0 })
   window.history.replaceState({}, '', '/')
 })
 
@@ -36,6 +54,55 @@ describe('DepartmentsPage', () => {
     expect(await screen.findByText('总部')).toBeInTheDocument()
     expect(screen.getByText('运营部')).toBeInTheDocument()
     expect(screen.getByText('OPS')).toBeInTheDocument()
+  })
+
+  it('只读取组织权限时保留查询，但隐藏所有写入口', async () => {
+    const department = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([department])
+    const createDepartment = vi.spyOn(apiClient, 'createDepartment')
+    const updateDepartment = vi.spyOn(apiClient, 'updateDepartment')
+    const deleteDepartment = vi.spyOn(apiClient, 'deleteDepartment')
+    renderPage(['department:read'])
+
+    expect(await screen.findByText('运营部')).toBeInTheDocument()
+    expect(screen.getByLabelText('组织名称或编码')).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '新增组织' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /导出/ })).not.toBeInTheDocument()
+    expect(createDepartment).not.toHaveBeenCalled()
+    expect(updateDepartment).not.toHaveBeenCalled()
+    expect(deleteDepartment).not.toHaveBeenCalled()
+  })
+
+  it('有读取和新增权限时仅显示新增，并且不会请求部门导出', async () => {
+    vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([])
+    const createDepartment = vi.spyOn(apiClient, 'createDepartment').mockResolvedValue({ id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true })
+    const updateDepartment = vi.spyOn(apiClient, 'updateDepartment')
+    const deleteDepartment = vi.spyOn(apiClient, 'deleteDepartment')
+    renderPage(['department:read', 'department:create'])
+
+    await screen.findByText('没有匹配的组织')
+    expect(screen.getByRole('button', { name: '新增组织' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '导出 Excel' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '新增组织' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('组织编码 *'), { target: { value: 'OPS' } })
+    fireEvent.change(within(dialog).getByLabelText('组织名称 *'), { target: { value: '运营部' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存组织' }))
+
+    await waitFor(() => expect(createDepartment).toHaveBeenCalledWith({ code: 'OPS', name: '运营部', parentId: null, sortOrder: 1, enabled: true }))
+    expect(updateDepartment).not.toHaveBeenCalled()
+    expect(deleteDepartment).not.toHaveBeenCalled()
+  })
+
+  it('department 数据范围不可读时不请求部门列表', async () => {
+    const listDepartments = vi.spyOn(apiClient, 'listDepartments')
+    renderPage(['department:read', 'department:create'], false)
+
+    await waitFor(() => expect(apiClient.getCapabilities).toHaveBeenCalledOnce())
+    expect(listDepartments).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: '新增组织' })).not.toBeInTheDocument()
   })
 
   it('首次读取失败时仍显示列表操作工具栏', async () => {
@@ -109,6 +176,23 @@ describe('DepartmentsPage', () => {
     expect(await within(dialog).findByText(/resource_conflict · 资源状态或唯一约束发生冲突/)).toBeInTheDocument()
     expect(within(dialog).getByText(/requestId=dept-save-1/)).toBeInTheDocument()
     expect(within(dialog).getByLabelText('组织名称 *')).toHaveValue('运营部')
+  })
+
+  it('服务端拒绝无写入范围的部门时保留编辑内容并显示错误码', async () => {
+    const department = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', parentId: null, code: 'OPS', name: '运营部', sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listDepartments').mockResolvedValue([department])
+    vi.spyOn(apiClient, 'updateDepartment').mockRejectedValue(new ApiError('没有此部门的数据权限', 403, 'data_scope_denied', null, { requestId: 'dept-scope-1' }))
+    renderPage(['department:read', 'department:update'])
+
+    await screen.findByText('运营部')
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('组织名称 *'), { target: { value: '改名后的组织' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存组织' }))
+
+    expect(await within(dialog).findByText(/data_scope_denied/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/requestId=dept-scope-1/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('组织名称 *')).toHaveValue('改名后的组织')
   })
 
   it('组织删除失败时显示业务码诊断', async () => {
