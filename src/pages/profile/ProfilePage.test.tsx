@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProfilePage } from './ProfilePage'
 import { ApiError, apiClient } from '../../shared/api/client'
+import { useSessionStore } from '../../shared/state/session'
 
 const profile = {
   id: 'profile-1', username: 'operator', displayName: '平台运维员', roles: ['系统管理员'],
@@ -21,7 +22,10 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  useSessionStore.setState({ user: null, isHydrated: false, message: null })
+})
 
 describe('ProfilePage', () => {
   it('资料保存失败时显示业务码诊断并保留表单内容', async () => {
@@ -118,6 +122,7 @@ describe('ProfilePage', () => {
   })
 
   it('密码更新期间锁定密码字段，但资料表单仍可编辑', async () => {
+    useSessionStore.setState({ user: { id: 'profile-1', username: 'operator', displayName: '平台运维员', role: '管理员' }, isHydrated: true })
     vi.spyOn(apiClient, 'getProfile').mockResolvedValue(profile)
     const updatePassword = deferred<{ updated: boolean }>()
     const updateProfilePassword = vi.spyOn(apiClient, 'updateProfilePassword').mockReturnValue(updatePassword.promise)
@@ -134,7 +139,37 @@ describe('ProfilePage', () => {
     expect(screen.getByRole('button', { name: '保存资料' })).toBeEnabled()
 
     updatePassword.resolve({ updated: true })
-    expect(await screen.findByText('密码已更新，请使用新密码重新登录')).toBeInTheDocument()
+    await waitFor(() => expect(useSessionStore.getState().user).toBeNull())
+    expect(useSessionStore.getState().message).toBe('密码已更新，请使用新密码重新登录')
     expect(screen.getByLabelText('新密码 *')).toHaveValue('')
+  })
+
+  it('密码更新被拒绝时保留登录状态和输入', async () => {
+    useSessionStore.setState({ user: { id: 'profile-1', username: 'operator', displayName: '平台运维员', role: '管理员' }, isHydrated: true })
+    vi.spyOn(apiClient, 'getProfile').mockResolvedValue(profile)
+    vi.spyOn(apiClient, 'updateProfilePassword').mockRejectedValue(new ApiError('invalid password', 422, 'password_too_short'))
+    renderPage()
+
+    await screen.findByDisplayValue('平台运维员')
+    fireEvent.change(screen.getByLabelText('新密码 *'), { target: { value: 'short' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新密码' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('password_too_short')
+    expect(useSessionStore.getState().user?.username).toBe('operator')
+    expect(screen.getByLabelText('新密码 *')).toHaveValue('short')
+  })
+
+  it('服务端表示没有更新密码时不退出当前会话', async () => {
+    useSessionStore.setState({ user: { id: 'profile-1', username: 'operator', displayName: '平台运维员', role: '管理员' }, isHydrated: true })
+    vi.spyOn(apiClient, 'getProfile').mockResolvedValue(profile)
+    vi.spyOn(apiClient, 'updateProfilePassword').mockResolvedValue({ updated: false })
+    renderPage()
+
+    await screen.findByDisplayValue('平台运维员')
+    fireEvent.change(screen.getByLabelText('新密码 *'), { target: { value: 'Strong!123' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新密码' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('密码未更新，请重试')
+    expect(useSessionStore.getState().user?.username).toBe('operator')
   })
 })

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { apiClient, setAccessTokenRefreshedHandler, setSessionExpiredHandler } from '../api/client'
+import { apiClient, clearLocalAuthentication, setAccessTokenRefreshedHandler, setSessionExpiredHandler } from '../api/client'
 import { queryClient } from '../query/queryClient'
 import type { User } from '../api/schemas'
 
@@ -45,6 +45,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((state) => ({ user: null, message, authRevision: state.authRevision + 1 }))
   },
   clearSession: (message) => {
+    clearLocalAuthentication()
     queryClient.clear()
     set((state) => ({ user: null, message, authRevision: state.authRevision + 1 }))
   },

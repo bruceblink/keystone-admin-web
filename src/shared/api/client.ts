@@ -122,6 +122,14 @@ let refreshPromise: Promise<string | null> | null = null
 let sessionExpiredHandler: (() => void) | null = null
 let accessTokenRefreshedHandler: ((requestPath: string) => void) | null = null
 
+/** 清除当前页面持有的认证信息；用于服务端已经撤销当前会话的操作。 */
+export function clearLocalAuthentication(): void {
+  accessToken = null
+  refreshToken = null
+  currentUser = null
+  currentSessionId = null
+}
+
 async function listPostsRequest(): Promise<NativePost[]>
 async function listPostsRequest(filters: PostListFilters): Promise<NativePostsPage>
 async function listPostsRequest(filters?: PostListFilters): Promise<NativePost[] | NativePostsPage> {
@@ -327,10 +335,7 @@ async function refreshAccessToken(requestPath?: string): Promise<string | null> 
       return token.accessToken
     })
     .catch(() => {
-      accessToken = null
-      refreshToken = null
-      currentUser = null
-      currentSessionId = null
+      clearLocalAuthentication()
       sessionExpiredHandler?.()
       return null
     })
@@ -407,10 +412,7 @@ export const apiClient = {
       await request('/auth/logout', { method: 'POST' })
     } finally {
       // 无论服务端结果如何，都清理当前页面中的认证信息。
-      accessToken = null
-      refreshToken = null
-      currentUser = null
-      currentSessionId = null
+      clearLocalAuthentication()
     }
   },
 
@@ -567,7 +569,7 @@ export const apiClient = {
   },
 
   async updateProfilePassword(password: string): Promise<{ updated: boolean }> {
-    return await request<unknown>('/profile/password', { method: 'PUT', body: JSON.stringify({ password }) }) as { updated: boolean }
+    return nativeUpdatedResultSchema.parse(await request<unknown>('/profile/password', { method: 'PUT', body: JSON.stringify({ password }) }))
   },
 
   async listOperationLogs(filters: { actor?: string; action?: string; resource?: string; page?: number; size?: number } = {}): Promise<NativeOperationLogsPage> {
@@ -1208,10 +1210,7 @@ export const apiClient = {
     await request(`/monitor/onlineUser/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
     const currentSessionRevoked = currentSessionId === sessionId
     if (currentSessionRevoked) {
-      accessToken = null
-      refreshToken = null
-      currentUser = null
-      currentSessionId = null
+      clearLocalAuthentication()
     }
     return { currentSessionRevoked }
   },

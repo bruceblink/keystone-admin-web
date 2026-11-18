@@ -6,6 +6,7 @@ import { formatApiError } from '../../shared/api/errors'
 import type { NativeProfile, NativeProfileWriteInput } from '../../shared/api/schemas'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
+import { useSessionStore } from '../../shared/state/session'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, Spinner, StaleQueryError } from '../../shared/ui'
 
 const emptyProfile: NativeProfileWriteInput = { displayName: '', email: '', phoneNumber: '', sex: null, avatar: '' }
@@ -22,6 +23,7 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
   const stepUp = useMfaStepUp()
+  const clearSession = useSessionStore((state) => state.clearSession)
 
   useEffect(() => {
     if (!profileQuery.data || formDirty) return
@@ -76,9 +78,11 @@ export function ProfilePage() {
     setError(null)
     setPasswordSaving(true)
     try {
-      await stepUp.run(() => apiClient.updateProfilePassword(password))
+      const result = await stepUp.run(() => apiClient.updateProfilePassword(password))
+      if (!result.updated) throw new Error('密码未更新，请重试')
       setPassword('')
-      setMessage('密码已更新，请使用新密码重新登录')
+      // 密码修改成功后两种后端都会撤销当前会话，需要立即回到登录页。
+      clearSession('密码已更新，请使用新密码重新登录')
     } catch (cause) {
       setError(cause)
     } finally {

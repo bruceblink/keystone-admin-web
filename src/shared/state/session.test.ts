@@ -96,4 +96,17 @@ describe('session capability lifecycle', () => {
     expect(await apiClient.restoreSession()).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+
+  it('服务端撤销会话后清除本地认证信息，不再尝试恢复', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'false')
+    const fetchMock = vi.fn(async () => response(token))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await useSessionStore.getState().login('account-a', 'password')
+    useSessionStore.getState().clearSession('密码已更新，请使用新密码重新登录')
+
+    expect(useSessionStore.getState().user).toBeNull()
+    expect(await apiClient.restoreSession()).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })
