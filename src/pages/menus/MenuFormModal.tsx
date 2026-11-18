@@ -14,14 +14,19 @@ type Props = {
   rolesLoading: boolean
   rolesError: unknown
   menuRolesError: unknown
+  canSave: boolean
+  canManageMetadata: boolean
+  canManageRoles: boolean
+  bindingRetryOnly: boolean
+  partialSaveNotice: string | null
   onRetryRoles: () => void
   onRetryMenuRoles: () => void
   onClose: () => void
-  onSubmit: (input: NativeMenuWriteInput, roleCodes: string[]) => Promise<void>
+  onSubmit: (input: NativeMenuWriteInput, roleCodes: string[] | null) => Promise<void>
 }
 
 /** 菜单写入模态框；字段只描述 Native 当前接受的写入协议。 */
-export function MenuFormModal({ open, mode, menu, menus, pending, error, roles, roleCodes, rolesLoading, rolesError, menuRolesError, onRetryRoles, onRetryMenuRoles, onClose, onSubmit }: Props) {
+export function MenuFormModal({ open, mode, menu, menus, pending, error, roles, roleCodes, rolesLoading, rolesError, menuRolesError, canSave, canManageMetadata, canManageRoles, bindingRetryOnly, partialSaveNotice, onRetryRoles, onRetryMenuRoles, onClose, onSubmit }: Props) {
   const [name, setName] = useState(menu?.name ?? '')
   const [code, setCode] = useState(menu?.code ?? '')
   const [parentId, setParentId] = useState(menu?.parentId ?? '')
@@ -35,6 +40,16 @@ export function MenuFormModal({ open, mode, menu, menus, pending, error, roles, 
   const [roleSelectionDirty, setRoleSelectionDirty] = useState(false)
   const [roleSelectionReady, setRoleSelectionReady] = useState(mode === 'create')
   const roleCodeKey = roleCodes.join('\u0000')
+  const enabledRoleCodes = new Set(roles.filter((role) => role.enabled).map((role) => role.code))
+  const selectedRoleCodeKey = [...new Set(selectedRoleCodes)].sort().join('\u0000')
+  const currentRoleCodeKey = [...new Set(roleCodes)].sort().join('\u0000')
+  const roleSelectionChanged = mode === 'create'
+    ? selectedRoleCodes.some((roleCode) => enabledRoleCodes.has(roleCode))
+    : selectedRoleCodeKey !== currentRoleCodeKey
+  const unavailableBoundRoleCodes = mode === 'edit'
+    ? roleCodes.filter((roleCode) => !enabledRoleCodes.has(roleCode))
+    : []
+  const roleBindingBlocked = canManageRoles && roleSelectionChanged && unavailableBoundRoleCodes.length > 0
 
   useEffect(() => {
     if (!open || mode !== 'edit' || !menu || rolesLoading || rolesError || menuRolesError || roleSelectionDirty) return
@@ -45,26 +60,38 @@ export function MenuFormModal({ open, mode, menu, menus, pending, error, roles, 
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const enabledRoleCodes = new Set(roles.filter((role) => role.enabled).map((role) => role.code))
-    await onSubmit({ name, code, parentId: parentId || null, path: path || null, component: component || null, permission: permission || null, menuType, sortOrder: Number(sortOrder) || 1, enabled }, selectedRoleCodes.filter((roleCode) => enabledRoleCodes.has(roleCode)))
+    if (!canSave || roleBindingBlocked) return
+    const input: NativeMenuWriteInput = { name, code, parentId: parentId || null, path: path || null, component: component || null, menuType, sortOrder: Number(sortOrder) || 1, enabled }
+    if (canManageMetadata) input.permission = permission || null
+    const replacementRoleCodes = canManageRoles && roleSelectionChanged
+      ? selectedRoleCodes.filter((roleCode) => enabledRoleCodes.has(roleCode))
+      : null
+    await onSubmit(input, replacementRoleCodes)
   }
 
   const menuById = new Map(menus.map((item) => [item.id, item]))
   const descendantIds = menu ? descendantsOf(menu.id, menus) : new Set<string>()
   const parentOptions = menus.filter((item) => item.id !== menu?.id && !descendantIds.has(item.id))
   const assignableRoles = roles.filter((role) => role.enabled)
-  const roleQueryError = Boolean(rolesError || menuRolesError)
+  const roleQueryError = canManageRoles && Boolean(rolesError || menuRolesError)
+  const fieldsDisabled = pending || !canSave || bindingRetryOnly
+  const roleSetupBlocked = canManageRoles && !bindingRetryOnly && (rolesLoading || roleQueryError || !roleSelectionReady)
+  const submitDisabled = pending || !canSave || roleSetupBlocked || roleBindingBlocked || (bindingRetryOnly && !canManageRoles)
 
-  return <Modal open={open} title={mode === 'create' ? '新增菜单' : '编辑菜单'} description="菜单权限会由系统 API 按当前主体权限再次校验。" onClose={pending || rolesLoading ? () => undefined : onClose} size="lg" footer={<><Button type="button" variant="ghost" onClick={onClose} disabled={pending || rolesLoading}>取消</Button><Button type="submit" form="menu-form" disabled={pending || rolesLoading || roleQueryError || !roleSelectionReady}>{pending ? '保存中…' : rolesLoading ? '读取角色中…' : '保存菜单'}</Button></>}>
+  return <Modal open={open} title={mode === 'create' ? '新增菜单' : '编辑菜单'} description="菜单权限会由系统 API 按当前主体权限再次校验。" onClose={pending ? () => undefined : onClose} size="lg" footer={<><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="menu-form" disabled={submitDisabled}>{pending ? '保存中…' : rolesLoading ? '读取角色中…' : bindingRetryOnly ? '重试角色绑定' : '保存菜单'}</Button></>}>
     <form id="menu-form" className="admin-form" onSubmit={submit}>
+      {partialSaveNotice ? <p className="form-help" role="status">{partialSaveNotice}</p> : null}
+      {bindingRetryOnly && !canManageRoles ? <p className="form-help" role="alert">角色绑定尚未完成；当前账号已失去角色绑定权限，不能重试此操作。</p> : null}
       <ActionError title="菜单保存失败" error={error} />
-      <div className="admin-form-grid"><label><span>菜单名称</span><input value={name} onChange={(event) => setName(event.target.value)} required disabled={pending} /></label><label><span>菜单编码</span><input value={code} onChange={(event) => setCode(event.target.value)} required disabled={pending} /></label><label><span>上级菜单</span><select value={parentId} onChange={(event) => setParentId(event.target.value)} disabled={pending}><option value="">根菜单</option>{parentOptions.map((item) => <option key={item.id} value={item.id}>{'　'.repeat(menuDepth(item.id, menuById))}{item.name}</option>)}</select></label><label><span>菜单类型</span><select value={menuType} onChange={(event) => setMenuType(event.target.value)} disabled={pending}><option value="MENU">菜单</option><option value="BUTTON">按钮</option></select></label><label><span>路由路径</span><input value={path} onChange={(event) => setPath(event.target.value)} placeholder="/system/users" disabled={pending} /></label><label><span>组件路径</span><input value={component} onChange={(event) => setComponent(event.target.value)} placeholder="system/users/index" disabled={pending} /></label><label><span>权限标识</span><input value={permission} onChange={(event) => setPermission(event.target.value)} placeholder="user:read" disabled={pending} /></label><label><span>排序</span><input type="number" min="0" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} disabled={pending} /></label></div>
-      <label className="checkbox-label"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} disabled={pending} /><span>启用菜单</span></label>
-      <fieldset className="menu-role-access" disabled={pending || rolesLoading || (!roleSelectionReady && !roleQueryError)}>
+      <div className="admin-form-grid"><label><span>菜单名称</span><input value={name} onChange={(event) => setName(event.target.value)} required disabled={fieldsDisabled} /></label><label><span>菜单编码</span><input value={code} onChange={(event) => setCode(event.target.value)} required disabled={fieldsDisabled} /></label><label><span>上级菜单</span><select value={parentId} onChange={(event) => setParentId(event.target.value)} disabled={fieldsDisabled}><option value="">根菜单</option>{parentOptions.map((item) => <option key={item.id} value={item.id}>{'　'.repeat(menuDepth(item.id, menuById))}{item.name}</option>)}</select></label><label><span>菜单类型</span><select value={menuType} onChange={(event) => setMenuType(event.target.value)} disabled={fieldsDisabled}><option value="MENU">菜单</option><option value="BUTTON">按钮</option></select></label><label><span>路由路径</span><input value={path} onChange={(event) => setPath(event.target.value)} placeholder="/system/users" disabled={fieldsDisabled} /></label><label><span>组件路径</span><input value={component} onChange={(event) => setComponent(event.target.value)} placeholder="system/users/index" disabled={fieldsDisabled} /></label><label><span>权限标识</span><input value={permission} onChange={(event) => setPermission(event.target.value)} placeholder="user:read" disabled={fieldsDisabled || !canManageMetadata} />{!canManageMetadata ? <small>当前账号不能维护权限标识；保存时保持现有值不变。</small> : null}</label><label><span>排序</span><input type="number" min="0" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} disabled={fieldsDisabled} /></label></div>
+      <label className="checkbox-label"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} disabled={fieldsDisabled} /><span>启用菜单</span></label>
+      {canManageRoles ? <fieldset className="menu-role-access" disabled={pending || rolesLoading || (!roleSelectionReady && !roleQueryError)}>
         <legend>可访问角色</legend>
         {rolesLoading ? <p className="form-help">正在读取角色权限…</p> : rolesError ? <div className="menu-role-error"><ActionError title="角色目录读取失败" error={rolesError} /><Button type="button" variant="secondary" size="sm" onClick={onRetryRoles}>重试角色目录</Button></div> : menuRolesError ? <div className="menu-role-error"><ActionError title="菜单角色绑定读取失败" error={menuRolesError} /><Button type="button" variant="secondary" size="sm" onClick={onRetryMenuRoles}>重试菜单角色绑定</Button></div> : assignableRoles.length === 0 ? <p className="form-help">暂无启用角色可分配。</p> : <div className="menu-role-options">{assignableRoles.map((role) => <label className="checkbox-label" key={role.id}><input type="checkbox" checked={selectedRoleCodes.includes(role.code)} onChange={(event) => { setRoleSelectionDirty(true); setSelectedRoleCodes((current) => event.target.checked ? [...new Set([...current, role.code])] : current.filter((code) => code !== role.code)) }} /><span>{role.name} <small>{role.code}</small></span></label>)}</div>}
         <p className="form-help">保存后会替换该菜单的角色绑定。未选择角色时，菜单不会显示给任何角色。</p>
-      </fieldset>
+        {unavailableBoundRoleCodes.length > 0 ? <p className="form-help" role={roleBindingBlocked ? 'alert' : 'status'}>{roleBindingBlocked ? '当前绑定包含停用或不可用角色。两端暂不接受这类角色的替换请求；请还原角色选择后保存菜单资料，避免意外删除现有绑定。' : `当前绑定包含停用或不可用角色（${unavailableBoundRoleCodes.join('、')}）。未更改角色选择时，保存不会重写绑定。`}</p> : null}
+      </fieldset> : canManageMetadata ? <p className="form-help" role="status">需要 role:read 权限和角色数据范围才能查看或修改角色绑定；{mode === 'create' ? '新菜单不会分配角色。' : '现有绑定保持不变。'}</p> : <p className="form-help" role="status">{mode === 'create' ? '新菜单不会分配角色。' : '现有角色绑定保持不变。'}修改绑定需要 menu:manage 权限。</p>}
+      {!canSave ? <p className="form-help" role="alert">当前账号已失去此项菜单写权限，请关闭窗口后重试。</p> : null}
     </form>
   </Modal>
 }

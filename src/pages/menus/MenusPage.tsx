@@ -3,16 +3,30 @@ import { ListTree, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
-import type { NativeMenu, NativeMenuNode, NativeMenuWriteInput } from '../../shared/api/schemas'
+import { useCapabilities } from '../../shared/auth/useCapabilities'
+import type { NativeCapabilities, NativeMenu, NativeMenuNode, NativeMenuWriteInput } from '../../shared/api/schemas'
 import { InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { MenuFormModal } from './MenuFormModal'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
+import { useSessionStore } from '../../shared/state/session'
 
 type MenuRow = NativeMenuNode & { level: number }
 const urlDefaults = { keyword: '' }
 const urlOptions = { namespace: 'menus' }
 
 export function MenusPage() {
+  const capabilitiesQuery = useCapabilities()
+  const capabilities = capabilitiesQuery.data
+  const canReadMenus = capabilities?.resources.menu === true && hasPermission(capabilities, 'menu:read')
+  const canCreateMenu = canReadMenus && hasPermission(capabilities, 'menu:create')
+  const canUpdateMenu = canReadMenus && hasPermission(capabilities, 'menu:update')
+  const canDeleteMenu = canReadMenus && hasPermission(capabilities, 'menu:delete')
+  const canManageMenuMetadata = canReadMenus && hasPermission(capabilities, 'menu:manage')
+  const canManageMenuRoles = canManageMenuMetadata
+    && capabilities?.resources.role === true
+    && hasPermission(capabilities, 'role:read')
+  const username = useSessionStore((state) => state.user?.username ?? null)
+  const authRevision = useSessionStore((state) => state.authRevision)
   const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
   const { keyword: appliedKeyword } = urlState
   const [keyword, setKeyword] = useState(appliedKeyword)
@@ -21,10 +35,13 @@ export function MenusPage() {
   const [editingMenu, setEditingMenu] = useState<NativeMenu | null>(null)
   const [deletingMenu, setDeletingMenu] = useState<NativeMenu | null>(null)
   const [menuSubmitPending, setMenuSubmitPending] = useState(false)
+  const [pendingRoleAssignmentMenu, setPendingRoleAssignmentMenu] = useState<NativeMenu | null>(null)
+  const [partialSaveNotice, setPartialSaveNotice] = useState<string | null>(null)
+  const [saveNotice, setSaveNotice] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const query = useQuery({ queryKey: ['menus'], queryFn: () => apiClient.listMenus(), staleTime: 10_000 })
-  const rolesQuery = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
-  const menuRolesQuery = useQuery({ queryKey: ['menu-roles', editingMenu?.id], queryFn: () => apiClient.listRolesForMenu(editingMenu!.id), enabled: modalMode === 'edit' && editingMenu !== null, staleTime: 10_000 })
+  const query = useQuery({ queryKey: ['menus'], queryFn: () => apiClient.listMenus(), staleTime: 10_000, enabled: canReadMenus })
+  const rolesQuery = useQuery({ queryKey: ['menus', 'assignable-roles', authRevision, username], queryFn: () => apiClient.listRoles(), staleTime: 10_000, enabled: canManageMenuRoles && modalMode !== null })
+  const menuRolesQuery = useQuery({ queryKey: ['menu-roles', editingMenu?.id], queryFn: () => apiClient.listRolesForMenu(editingMenu!.id), enabled: canManageMenuRoles && modalMode === 'edit' && editingMenu !== null, staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeMenuWriteInput }) => id ? apiClient.updateMenu(id, input) : apiClient.createMenu(input),
   })
@@ -39,6 +56,18 @@ export function MenusPage() {
   useEffect(() => {
     setKeyword(appliedKeyword)
   }, [appliedKeyword])
+
+  useEffect(() => {
+    const modalWriteUnavailable = (modalMode === 'create' && !canCreateMenu)
+      || (modalMode === 'edit' && !canUpdateMenu && pendingRoleAssignmentMenu === null)
+    if (modalWriteUnavailable) {
+      setModalMode(null)
+      setEditingMenu(null)
+      setPendingRoleAssignmentMenu(null)
+      setPartialSaveNotice(null)
+    }
+    if (!canDeleteMenu) setDeletingMenu(null)
+  }, [canCreateMenu, canDeleteMenu, canUpdateMenu, modalMode, pendingRoleAssignmentMenu])
 
   const rows = useMemo(() => {
     const allRows = flattenMenus(query.data ?? [])
@@ -70,31 +99,115 @@ export function MenusPage() {
     setUrlState(urlDefaults)
   }
 
-  function openCreate() { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(null); setModalSession((session) => session + 1); setModalMode('create') }
-  function openEdit(menu: NativeMenu) { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(menu); setModalSession((session) => session + 1); setModalMode('edit') }
-  function closeModal() { if (menuSubmitPending) return; setModalMode(null); setEditingMenu(null) }
-  async function submitMenu(input: NativeMenuWriteInput, roleCodes: string[]) {
+  function openCreate() {
+    if (!canCreateMenu) return
+    saveMutation.reset()
+    roleAssignmentMutation.reset()
+    setPendingRoleAssignmentMenu(null)
+    setPartialSaveNotice(null)
+    setSaveNotice(null)
+    setEditingMenu(null)
+    setModalSession((session) => session + 1)
+    setModalMode('create')
+  }
+  function openEdit(menu: NativeMenu) {
+    if (!canUpdateMenu) return
+    saveMutation.reset()
+    roleAssignmentMutation.reset()
+    setPendingRoleAssignmentMenu(null)
+    setPartialSaveNotice(null)
+    setSaveNotice(null)
+    setEditingMenu(menu)
+    setModalSession((session) => session + 1)
+    setModalMode('edit')
+  }
+  function closeModal() {
     if (menuSubmitPending) return
+    setModalMode(null)
+    setEditingMenu(null)
+    setPendingRoleAssignmentMenu(null)
+    setPartialSaveNotice(null)
+  }
+  async function submitMenu(input: NativeMenuWriteInput, roleCodes: string[] | null) {
+    if (menuSubmitPending) return
+    if (!pendingRoleAssignmentMenu && (editingMenu ? !canUpdateMenu : !canCreateMenu)) return
     setMenuSubmitPending(true)
-    let savedMenu: NativeMenu | null = null
     try {
-      savedMenu = await saveMutation.mutateAsync({ id: editingMenu?.id, input })
-      // 新增成功后复用当前表单会话，让角色绑定失败时保留已选角色并支持重试。
-      setEditingMenu(savedMenu)
-      setModalMode('edit')
-      await roleAssignmentMutation.mutateAsync({ id: savedMenu.id, roleCodes })
+      if (pendingRoleAssignmentMenu) {
+        if (!canManageMenuRoles) return
+        if (roleCodes === null) {
+          // 用户还原到当前绑定后，取消未完成的重试，不再次写入绑定。
+          await queryClient.invalidateQueries({ queryKey: ['menus'] })
+          setSaveNotice(`菜单“${pendingRoleAssignmentMenu.name}”资料已保存，角色绑定未修改。`)
+          setPendingRoleAssignmentMenu(null)
+          setPartialSaveNotice(null)
+          setModalMode(null)
+          setEditingMenu(null)
+          return
+        }
+        // 菜单资料已保存；重试只补发上次失败的角色绑定。
+        roleAssignmentMutation.reset()
+        await roleAssignmentMutation.mutateAsync({ id: pendingRoleAssignmentMenu.id, roleCodes })
+        await finishMenuRoleAssignment(pendingRoleAssignmentMenu)
+        return
+      }
+
+      const isCreating = editingMenu === null
+      const menuInput = canManageMenuMetadata ? input : withoutPermissionMetadata(input)
+      const savedMenu = await saveMutation.mutateAsync({ id: editingMenu?.id, input: menuInput })
+      if (canManageMenuRoles && roleCodes !== null) {
+        roleAssignmentMutation.reset()
+        try {
+          await roleAssignmentMutation.mutateAsync({ id: savedMenu.id, roleCodes })
+        } catch {
+          // 菜单本体已保存；保留角色草稿，并在重试时只执行未完成的绑定步骤。
+          setEditingMenu(savedMenu)
+          setPendingRoleAssignmentMenu(savedMenu)
+          setPartialSaveNotice(`菜单“${savedMenu.name}”资料已保存，但角色绑定失败。重试只会保存角色绑定。`)
+          setModalMode('edit')
+          await queryClient.invalidateQueries({ queryKey: ['menus'] })
+          return
+        }
+      }
       await queryClient.invalidateQueries({ queryKey: ['menus'] })
-      await queryClient.invalidateQueries({ queryKey: ['menu-roles', savedMenu.id] })
-      setModalMode(null)
-      setEditingMenu(null)
+      if (canManageMenuRoles && roleCodes !== null) await queryClient.invalidateQueries({ queryKey: ['menu-roles', savedMenu.id] })
+      if (roleCodes === null) {
+        setSaveNotice(isCreating
+          ? `菜单“${savedMenu.name}”已创建；本次没有分配角色，未绑定角色的菜单可能不会显示在当前目录中。`
+          : `菜单“${savedMenu.name}”资料已更新；角色绑定保持不变。`)
+      } else if (roleCodes.length === 0) {
+        setSaveNotice(isCreating
+          ? `菜单“${savedMenu.name}”已创建，但没有绑定角色；该菜单可能不会显示在当前目录中。`
+          : `菜单“${savedMenu.name}”资料已更新，并已清除角色绑定；该菜单可能不会显示在当前目录中。`)
+      } else {
+        setSaveNotice(isCreating
+          ? `菜单“${savedMenu.name}”已创建，并已完成角色绑定。`
+          : `菜单“${savedMenu.name}”资料已更新，并已保存角色绑定。`)
+      }
+      closeModal()
     } catch {
-      // 两步写入可能部分成功；刷新已保存菜单，并保留模态框和角色草稿供用户重试。
-      if (savedMenu) await queryClient.invalidateQueries({ queryKey: ['menus'] })
+      // 保存失败时保留模态框和输入，供用户查看错误并重试。
     } finally {
       setMenuSubmitPending(false)
     }
   }
-  function openDelete(menu: NativeMenu) { deleteMutation.reset(); setDeletingMenu(menu) }
+  async function finishMenuRoleAssignment(menu: NativeMenu) {
+    // 刷新菜单和绑定数据后关闭已经完成的部分保存流程。
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['menus'] }),
+      queryClient.invalidateQueries({ queryKey: ['menu-roles', menu.id] }),
+    ])
+    setSaveNotice(`菜单“${menu.name}”的角色绑定已完成。`)
+    setPendingRoleAssignmentMenu(null)
+    setPartialSaveNotice(null)
+    setModalMode(null)
+    setEditingMenu(null)
+  }
+  function openDelete(menu: NativeMenu) {
+    if (!canDeleteMenu) return
+    deleteMutation.reset()
+    setDeletingMenu(menu)
+  }
   function closeDelete() { if (!deleteMutation.isPending) setDeletingMenu(null) }
 
   return (
@@ -107,6 +220,11 @@ export function MenusPage() {
         </div>
       </div>
 
+      {capabilitiesQuery.isLoading ? <div className="loading-panel menus-loading"><Spinner label="正在读取菜单权限" /></div> : null}
+      {capabilitiesQuery.isError ? <div className="menu-capability-error" role="alert"><strong>无法读取菜单权限</strong><p>请重试权限读取后再访问菜单目录。</p><Button variant="secondary" size="sm" onClick={() => void capabilitiesQuery.refetch()} disabled={capabilitiesQuery.isFetching}>重试权限读取</Button></div> : null}
+      {capabilities && !canReadMenus ? <div className="menu-capability-error" role="status"><strong>当前账号无权读取菜单目录</strong><p>需要 menu:read 权限和菜单数据范围。</p></div> : null}
+      {saveNotice ? <Card className="menu-save-notice"><p role="status">{saveNotice}</p></Card> : null}
+      {canReadMenus ? <>
       <Card className="menus-filter-card">
         <form className="menus-filter-form" onSubmit={submit}>
           <label><span>菜单名称、编码或权限</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="按名称、编码或权限筛选" autoComplete="off" /></label>
@@ -116,7 +234,7 @@ export function MenusPage() {
 
       <Card className="menus-table-card">
         <ListToolbar label="菜单列表操作">
-          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增菜单</Button>
+          {canCreateMenu ? <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增菜单</Button> : null}
           <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新菜单</Button>
         </ListToolbar>
         <CardHeader title="菜单目录" description={query.data ? `共 ${rows.length.toLocaleString('zh-CN')} 个菜单节点` : undefined} action={<Badge tone="info">系统 API</Badge>} />
@@ -124,7 +242,7 @@ export function MenusPage() {
         {query.isError && !query.data ? <InitialQueryError title="无法读取菜单结构" message="菜单结构读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
         {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '菜单结构刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
         {query.data ? <>
-        {rows.length > 0 ? <div className="menus-table-wrap"><table className="menus-table"><thead><tr><th scope="col">菜单名称</th><th scope="col">编码</th><th scope="col">路由</th><th scope="col">权限标识</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{rows.map((row) => <MenuRowView key={row.menu.id} row={row} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="menus-empty" role="status"><span className="menus-empty-icon"><ListTree size={20} /></span><strong>没有匹配的菜单</strong><p>调整筛选条件后重试，或清空筛选条件查看完整菜单。</p></div>}
+        {rows.length > 0 ? <div className="menus-table-wrap"><table className="menus-table"><thead><tr><th scope="col">菜单名称</th><th scope="col">编码</th><th scope="col">路由</th><th scope="col">权限标识</th><th scope="col">类型</th><th scope="col">状态</th>{canUpdateMenu || canDeleteMenu ? <th scope="col">操作</th> : null}</tr></thead><tbody>{rows.map((row) => <MenuRowView key={row.menu.id} row={row} pending={deleteMutation.isPending} editable={canUpdateMenu} deletable={canDeleteMenu} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="menus-empty" role="status"><span className="menus-empty-icon"><ListTree size={20} /></span><strong>没有匹配的菜单</strong><p>调整筛选条件后重试，或清空筛选条件查看完整菜单。</p></div>}
         </> : null}
       </Card>
       <MenuFormModal
@@ -135,9 +253,14 @@ export function MenusPage() {
         menus={flattenMenus(query.data ?? []).map((row) => row.menu)}
         roles={rolesQuery.data ?? []}
         roleCodes={menuRolesQuery.data?.roleCodes ?? []}
-        rolesLoading={rolesQuery.isLoading || rolesQuery.isFetching || menuRolesQuery.isLoading || menuRolesQuery.isFetching}
-        rolesError={rolesQuery.isError ? rolesQuery.error : null}
-        menuRolesError={menuRolesQuery.isError ? menuRolesQuery.error : null}
+        rolesLoading={canManageMenuRoles && (rolesQuery.isLoading || rolesQuery.isFetching || menuRolesQuery.isLoading || menuRolesQuery.isFetching)}
+        rolesError={canManageMenuRoles && rolesQuery.isError ? rolesQuery.error : null}
+        menuRolesError={canManageMenuRoles && menuRolesQuery.isError ? menuRolesQuery.error : null}
+        canSave={pendingRoleAssignmentMenu !== null ? canManageMenuRoles : modalMode === 'create' ? canCreateMenu : modalMode === 'edit' && canUpdateMenu}
+        canManageMetadata={canManageMenuMetadata}
+        canManageRoles={canManageMenuRoles}
+        bindingRetryOnly={pendingRoleAssignmentMenu !== null}
+        partialSaveNotice={partialSaveNotice}
         onRetryRoles={() => void rolesQuery.refetch()}
         onRetryMenuRoles={() => void menuRolesQuery.refetch()}
         pending={menuSubmitPending || saveMutation.isPending || roleAssignmentMutation.isPending}
@@ -145,14 +268,27 @@ export function MenusPage() {
         onClose={closeModal}
         onSubmit={submitMenu}
       />
-      <DeleteConfirmModal open={deletingMenu !== null} resourceLabel="菜单" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingMenu) void deleteMutation.mutateAsync(deletingMenu.id).catch(() => undefined) }} />
+      {canDeleteMenu ? <DeleteConfirmModal open={deletingMenu !== null} resourceLabel="菜单" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (canDeleteMenu && deletingMenu) void deleteMutation.mutateAsync(deletingMenu.id).catch(() => undefined) }} /> : null}
+      </> : null}
     </div>
   )
 }
 
-function MenuRowView({ row, pending, onEdit, onDelete }: { row: MenuRow; pending: boolean; onEdit: (menu: NativeMenu) => void; onDelete: (menu: NativeMenu) => void }) {
+function MenuRowView({ row, pending, editable, deletable, onEdit, onDelete }: { row: MenuRow; pending: boolean; editable: boolean; deletable: boolean; onEdit: (menu: NativeMenu) => void; onDelete: (menu: NativeMenu) => void }) {
   const { menu } = row
-  return <tr><td><div className="menu-cell" style={{ paddingLeft: `${row.level * 22}px` }}><span className="menu-marker"><ListTree size={15} /></span><strong>{menu.name}</strong></div></td><td className="menu-code">{menu.code}</td><td className="menu-path">{menu.path || '—'}</td><td className="menu-permission">{menu.permission || '—'}</td><td><Badge tone="neutral">{menu.menuType}</Badge></td><td><Badge tone={menu.enabled ? 'success' : 'warning'}>{menu.enabled ? '启用' : '停用'}</Badge></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={() => onEdit(menu)} disabled={pending}>编辑</Button><Button variant="ghost" size="sm" onClick={() => onDelete(menu)} disabled={pending}>删除</Button></div></td></tr>
+  return <tr><td><div className="menu-cell" style={{ paddingLeft: `${row.level * 22}px` }}><span className="menu-marker"><ListTree size={15} /></span><strong>{menu.name}</strong></div></td><td className="menu-code">{menu.code}</td><td className="menu-path">{menu.path || '—'}</td><td className="menu-permission">{menu.permission || '—'}</td><td><Badge tone="neutral">{menu.menuType}</Badge></td><td><Badge tone={menu.enabled ? 'success' : 'warning'}>{menu.enabled ? '启用' : '停用'}</Badge></td>{editable || deletable ? <td><div className="table-actions">{editable ? <Button variant="ghost" size="sm" onClick={() => onEdit(menu)} disabled={pending}>编辑</Button> : null}{deletable ? <Button variant="ghost" size="sm" onClick={() => onDelete(menu)} disabled={pending}>删除</Button> : null}</div></td> : null}</tr>
+}
+
+// 普通新增或更新权限不能修改菜单权限标识；省略字段可让两端保留已有值。
+function withoutPermissionMetadata(input: NativeMenuWriteInput): NativeMenuWriteInput {
+  const menuFields = { ...input }
+  delete menuFields.permission
+  return menuFields
+}
+
+// 写操作入口和表格列都按已读取的菜单权限及数据范围控制。
+function hasPermission(capabilities: NativeCapabilities | undefined, permission: string) {
+  return capabilities?.permissions.includes(permission) ?? false
 }
 
 function flattenMenus(nodes: NativeMenuNode[]): MenuRow[] {
