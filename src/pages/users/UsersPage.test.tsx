@@ -238,7 +238,48 @@ describe('UsersPage', () => {
     fireEvent.change(within(dialog).getByLabelText('展示名 *'), { target: { value: '更新名称' } })
     fireEvent.click(await within(dialog).findByRole('button', { name: '保存用户' }))
 
-    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ displayName: '更新名称', password: undefined, roleCodes: null })))
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ displayName: '更新名称', password: undefined, deptId: 'dept-operations', clearDept: false, roleCodes: null })))
+  })
+
+  // 部门归属只允许保留、明确清空或改派，避免 clearDept 与 deptId 同时生效。
+  it('编辑用户时勾选清除部门会清空输入并提交 null', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    mockRoleCatalog()
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
+    renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = await screen.findByRole('dialog')
+    const department = within(dialog).getByLabelText('部门 UUID')
+    fireEvent.click(within(dialog).getByLabelText('清除部门归属'))
+
+    expect(department).toHaveValue('')
+    expect(department).toBeDisabled()
+    await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ deptId: null, clearDept: true })))
+  })
+
+  it('取消清除部门后可重新选择部门并提交新 UUID', async () => {
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(userPage)
+    mockRoleCatalog()
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(userPage.items[0])
+    renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = await screen.findByRole('dialog')
+    const clearDepartment = within(dialog).getByLabelText('清除部门归属')
+    const department = within(dialog).getByLabelText('部门 UUID')
+    fireEvent.click(clearDepartment)
+    fireEvent.click(clearDepartment)
+    fireEvent.change(department, { target: { value: 'dept-reassigned' } })
+    await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ deptId: 'dept-reassigned', clearDept: false })))
   })
 
   it('从角色目录预选编辑用户角色并支持主动清空', async () => {
