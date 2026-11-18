@@ -80,7 +80,7 @@ export function JobsPage() {
   const visibleJobs = jobs
   const allSelected = visibleJobs.length > 0 && visibleJobs.every((job) => selectedIds.includes(job.id))
 
-  useEffect(() => { setSelectedIds([]) }, [appliedKeyword])
+  useEffect(() => { setSelectedIds([]) }, [appliedKeyword, jobPage])
   useEffect(() => { if (jobPage !== currentJobPage) setUrlState({ jobPage: currentJobPage }) }, [currentJobPage, jobPage])
   useEffect(() => { setKeyword(appliedKeyword) }, [appliedKeyword])
   useEffect(() => {

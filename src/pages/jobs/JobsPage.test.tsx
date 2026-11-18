@@ -58,6 +58,39 @@ describe('JobsPage', () => {
     expect(screen.getByText('第 2 / 2 页')).toBeInTheDocument()
   })
 
+  it('分页失败、浏览器历史和筛选变化都会清除任务批量选择', async () => {
+    const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    const filteredJob = { ...job, id: 'job-filtered', code: 'filtered', name: '筛选后的任务' }
+    const listJobs = vi.spyOn(apiClient, 'listJobs').mockImplementation(async ({ keyword = '', page: currentPage = 1 } = {}) => {
+      if (currentPage === 2) throw new ApiError('page request failed', 503, 'service_unavailable')
+      if (keyword) return { items: [filteredJob], page: currentPage, size: 20, total: 1 }
+      return { items: [job], page: currentPage, size: 20, total: 21 }
+    })
+    const deleteJobs = vi.spyOn(apiClient, 'deleteJobs').mockResolvedValue({ deleted: 1 })
+    renderPage()
+
+    await screen.findByText(job.name)
+    fireEvent.click(screen.getByLabelText(`选择任务 ${job.name}`))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+
+    expect(await screen.findByText('无法读取任务列表')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除任务（0）' })).toBeDisabled()
+
+    window.history.pushState({}, '', '/jobs?jobs_jobPage=1')
+    fireEvent(window, new PopStateEvent('popstate'))
+    await screen.findByText(job.name)
+    await waitFor(() => expect(screen.getByLabelText(`选择任务 ${job.name}`)).not.toBeChecked())
+
+    fireEvent.click(screen.getByLabelText(`选择任务 ${job.name}`))
+    fireEvent.change(screen.getByPlaceholderText('按任务名称、编码或分组筛选'), { target: { value: '筛选后的任务' } })
+    fireEvent.click(screen.getByRole('button', { name: '查询' }))
+
+    expect(await screen.findByText(filteredJob.name)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除任务（0）' })).toBeDisabled()
+    expect(listJobs).toHaveBeenLastCalledWith({ keyword: '筛选后的任务', page: 1, size: 20 })
+    expect(deleteJobs).not.toHaveBeenCalled()
+  })
+
   it('刷新任务失败时显示安全错误并保留旧列表', async () => {
     const job = { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
     vi.spyOn(apiClient, 'listJobs').mockResolvedValueOnce({ items: [job], page: 1, size: 20, total: 1 }).mockRejectedValueOnce(new ApiError('internal detail', 503, 'service_unavailable'))

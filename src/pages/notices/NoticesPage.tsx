@@ -31,7 +31,8 @@ export function NoticesPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const allSelected = notices.length > 0 && notices.every((notice) => selectedIds.includes(notice.id))
 
-  useEffect(() => { setFormFilters({ keyword: appliedKeyword, status: appliedStatus }); setSelectedIds([]) }, [appliedKeyword, appliedStatus])
+  useEffect(() => { setFormFilters({ keyword: appliedKeyword, status: appliedStatus }) }, [appliedKeyword, appliedStatus])
+  useEffect(() => { setSelectedIds([]) }, [appliedKeyword, appliedStatus, page])
   useEffect(() => { if (query.data && page > totalPages) setUrlState({ page: totalPages }) }, [page, query.data, setUrlState, totalPages])
 
   function submit(event: React.FormEvent<HTMLFormElement>) {

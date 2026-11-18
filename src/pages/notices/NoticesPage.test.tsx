@@ -84,4 +84,36 @@ describe('NoticesPage', () => {
     expect(listNoticesPage).toHaveBeenLastCalledWith({ keyword: '', status: 'all', page: 2, size: 20 })
     expect(window.location.search).toContain('notices_page=2')
   })
+
+  it('分页失败、浏览器历史和筛选变化都会清除公告批量选择', async () => {
+    const filteredNotice = { ...notice, id: 'notice-filtered', title: '筛选后的公告', published: false }
+    const listNoticesPage = vi.spyOn(apiClient, 'listNoticesPage').mockImplementation(async ({ keyword, status, page: currentPage }) => {
+      if (currentPage === 2) throw new ApiError('page request failed', 503, 'service_unavailable')
+      if (keyword || status === 'unpublished') return page([filteredNotice], 1, currentPage)
+      return page([notice], 21, currentPage)
+    })
+    const deleteNotices = vi.spyOn(apiClient, 'deleteNotices').mockResolvedValue({ deleted: 1 })
+    renderPage()
+
+    await screen.findByText(notice.title)
+    fireEvent.click(screen.getByLabelText(`选择公告 ${notice.title}`))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+
+    expect(await screen.findByText('无法读取通知公告')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除公告（0）' })).toBeDisabled()
+
+    window.history.pushState({}, '', '/notices?notices_page=1')
+    fireEvent(window, new PopStateEvent('popstate'))
+    await screen.findByText(notice.title)
+    await waitFor(() => expect(screen.getByLabelText(`选择公告 ${notice.title}`)).not.toBeChecked())
+
+    fireEvent.click(screen.getByLabelText(`选择公告 ${notice.title}`))
+    fireEvent.change(screen.getByPlaceholderText('按标题、内容或类型筛选'), { target: { value: '筛选后的公告' } })
+    fireEvent.click(screen.getByRole('button', { name: '查询' }))
+
+    expect(await screen.findByText(filteredNotice.title)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除公告（0）' })).toBeDisabled()
+    expect(listNoticesPage).toHaveBeenLastCalledWith({ keyword: '筛选后的公告', status: 'all', page: 1, size: 20 })
+    expect(deleteNotices).not.toHaveBeenCalled()
+  })
 })
