@@ -162,6 +162,31 @@ describe('MenusPage', () => {
     expect(assignMenuRoles).not.toHaveBeenCalled()
   })
 
+  it('编辑绑定时保留已停用角色，并只允许增加启用角色', async () => {
+    const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu, children: [] }])
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([
+      { id: '00000000-0000-4000-8000-000000000002', code: 'admin', name: '系统管理员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+      { id: '00000000-0000-4000-8000-000000000001', code: 'disabled', name: '停用角色', enabled: false, dataScope: 'ALL', deptScope: null, permissions: [] },
+    ])
+    vi.spyOn(apiClient, 'listRolesForMenu').mockResolvedValue({ roleCodes: ['disabled'] })
+    const updateMenu = vi.spyOn(apiClient, 'updateMenu').mockResolvedValue({ ...menu, name: '系统设置' })
+    const assignMenuRoles = vi.spyOn(apiClient, 'assignMenuRoles').mockResolvedValue({ updated: true })
+    renderPage()
+
+    await screen.findByText('系统管理')
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    const dialog = await screen.findByRole('dialog')
+    const disabledRole = await within(dialog).findByRole('checkbox', { name: /停用角色/ })
+    expect(disabledRole).toBeChecked()
+    expect(within(dialog).getByText('已停用')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /系统管理员/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存菜单' }))
+
+    await waitFor(() => expect(updateMenu).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(assignMenuRoles).toHaveBeenCalledWith(menu.id, ['disabled', 'admin']))
+  })
+
   it('只更新菜单资料时跳过绑定替换，保留当前停用角色', async () => {
     const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: 'user:read', sortOrder: 1, enabled: true }
     vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu, children: [] }])
@@ -176,7 +201,7 @@ describe('MenusPage', () => {
     await screen.findByText('系统管理')
     fireEvent.click(screen.getByRole('button', { name: '编辑' }))
     const dialog = await screen.findByRole('dialog')
-    expect(await within(dialog).findByText(/当前绑定包含停用或不可用角色/)).toHaveAttribute('role', 'status')
+    expect(await within(dialog).findByText(/当前绑定包含停用角色/)).toHaveAttribute('role', 'status')
     fireEvent.change(within(dialog).getByLabelText('菜单名称'), { target: { value: '系统设置' } })
     fireEvent.click(within(dialog).getByRole('button', { name: '保存菜单' }))
 

@@ -103,7 +103,10 @@ describe('MenuFormModal', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(<MenuFormModal {...props(['disabled'], false, { onSubmit })} />)
 
-    expect(await screen.findByText(/当前绑定包含停用或不可用角色/)).toHaveAttribute('role', 'status')
+    const disabledRole = await screen.findByRole('checkbox', { name: /停用角色/ })
+    expect(disabledRole).toBeChecked()
+    expect(screen.getByText('已停用')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('保持勾选可保留绑定，取消勾选可移除')
     fireEvent.change(screen.getByLabelText('菜单名称'), { target: { value: '系统设置' } })
     fireEvent.click(screen.getByRole('button', { name: '保存菜单' }))
 
@@ -111,17 +114,48 @@ describe('MenuFormModal', () => {
     expect(onSubmit.mock.calls[0]?.[1]).toBeNull()
   })
 
-  it('现有停用角色绑定期间，改选其他角色会提示并保留草稿但阻止提交', async () => {
+  it('允许保留已有停用角色并新增启用角色绑定', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(<MenuFormModal {...props(['disabled'], false, { onSubmit })} />)
 
     const administrator = await screen.findByRole('checkbox', { name: /系统管理员/ })
+    const disabledRole = screen.getByRole('checkbox', { name: /停用角色/ })
     fireEvent.click(administrator)
 
     expect(administrator).toBeChecked()
-    expect(await screen.findByText(/两端暂不接受这类角色的替换请求/)).toHaveAttribute('role', 'alert')
+    expect(disabledRole).toBeChecked()
+    expect(screen.getByRole('button', { name: '保存菜单' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: '保存菜单' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0]?.[1]).toEqual(['disabled', 'admin'])
+  })
+
+  it('允许明确移除已有停用角色绑定', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(<MenuFormModal {...props(['disabled'], false, { onSubmit })} />)
+
+    const administrator = await screen.findByRole('checkbox', { name: /系统管理员/ })
+    const disabledRole = screen.getByRole('checkbox', { name: /停用角色/ })
+    fireEvent.click(disabledRole)
+    fireEvent.click(administrator)
+    fireEvent.click(screen.getByRole('button', { name: '保存菜单' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0]?.[1]).toEqual(['admin'])
+  })
+
+  it('绑定角色不在目录中时阻止替换以免覆盖未知绑定', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(<MenuFormModal {...props(['retired'], false, { onSubmit })} />)
+
+    const administrator = await screen.findByRole('checkbox', { name: /系统管理员/ })
+    fireEvent.click(administrator)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('角色目录未返回的角色')
     expect(screen.getByRole('button', { name: '保存菜单' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: '保存菜单' }))
+
     expect(onSubmit).not.toHaveBeenCalled()
   })
 })
