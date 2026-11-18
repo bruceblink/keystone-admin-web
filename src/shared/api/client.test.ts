@@ -768,6 +768,16 @@ describe('Native API client', () => {
     expect(await apiClient.readNotification(notification.id)).toMatchObject({ id: notification.id, readAt: '2026-11-18T01:01:00Z' })
   })
 
+  it('按页读取站内通知并验证服务端是否还有下一页', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/notifications?page=2')
+      return ok({ items: [], unreadCount: 51, page: 2, hasMore: true })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await apiClient.listNotificationsPage(2)).toEqual({ items: [], unreadCount: 51, page: 2, hasMore: true })
+  })
+
   it('按 page/size、keyword 和 status 读取分页公告契约', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       expect(String(input)).toBe('/api/v1/notices/manage?page=2&size=20&keyword=maintenance&status=published')

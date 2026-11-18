@@ -382,6 +382,11 @@ export const notificationsSchema = z.object({
   items: z.array(notificationSchema),
   unreadCount: z.number().int().nonnegative(),
 })
+/** 显式分页响应保留原通知字段，并增加当前页和后续页状态。 */
+export const notificationsPageSchema = notificationsSchema.extend({
+  page: z.number().int().positive(),
+  hasMore: z.boolean(),
+})
 export const nativeNoticesPageSchema = z.object({
   items: z.array(nativeNoticeSchema),
   page: z.number().int().positive(),
@@ -594,4 +599,5 @@ export type NativeDictionaryItemsPage = z.infer<typeof nativeDictionaryItemsPage
 export type NativeNotice = z.infer<typeof nativeNoticeSchema>
 export type Notification = z.infer<typeof notificationSchema>
 export type Notifications = z.infer<typeof notificationsSchema>
+export type NotificationsPage = z.infer<typeof notificationsPageSchema>
 export type NativeNoticesPage = z.infer<typeof nativeNoticesPageSchema>

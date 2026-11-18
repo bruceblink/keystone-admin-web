@@ -14,12 +14,12 @@ const notice = {
 describe('NotificationPopover', () => {
   it('selects a list item and renders its detail', () => {
     const onSelect = vi.fn()
-    const { rerender } = render(<NotificationPopover notices={[notice]} loading={false} error={null} refreshError={null} selected={null} readError={null} onSelect={onSelect} onBack={vi.fn()} onRetry={vi.fn()} onClose={vi.fn()} />)
+    const { rerender } = render(<NotificationPopover notices={[notice]} page={1} hasMore={true} loading={false} error={null} refreshError={null} selected={null} readError={null} onSelect={onSelect} onBack={vi.fn()} onPageChange={vi.fn()} onRetry={vi.fn()} onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: /维护通知/ }))
     expect(onSelect).toHaveBeenCalledWith(notice)
 
-    rerender(<NotificationPopover notices={[notice]} loading={false} error={null} refreshError={null} selected={notice} readError={null} onSelect={onSelect} onBack={vi.fn()} onRetry={vi.fn()} onClose={vi.fn()} />)
+    rerender(<NotificationPopover notices={[notice]} page={1} hasMore={true} loading={false} error={null} refreshError={null} selected={notice} readError={null} onSelect={onSelect} onBack={vi.fn()} onPageChange={vi.fn()} onRetry={vi.fn()} onClose={vi.fn()} />)
     expect(screen.getByText('通知详情')).toBeInTheDocument()
     expect(screen.getByText('今晚进行系统维护。')).toBeInTheDocument()
   })
@@ -28,7 +28,7 @@ describe('NotificationPopover', () => {
     const onSelect = vi.fn()
     const onBack = vi.fn()
     const onRetry = vi.fn()
-    render(<NotificationPopover notices={[notice]} loading={false} error={null} refreshError={null} selected={notice} readError="无法标记已读，请重试" onSelect={onSelect} onBack={onBack} onRetry={onRetry} onClose={vi.fn()} />)
+    render(<NotificationPopover notices={[notice]} page={1} hasMore={false} loading={false} error={null} refreshError={null} selected={notice} readError="无法标记已读，请重试" onSelect={onSelect} onBack={onBack} onPageChange={vi.fn()} onRetry={onRetry} onClose={vi.fn()} />)
     expect(screen.getByRole('alert')).toHaveTextContent('无法标记已读')
     expect(screen.getByText('今晚进行系统维护。')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
@@ -40,7 +40,7 @@ describe('NotificationPopover', () => {
 
   it('刷新失败时保留先前通知并允许重试', () => {
     const onRetry = vi.fn()
-    render(<NotificationPopover notices={[notice]} loading={false} error={null} refreshError="刷新失败" selected={null} readError={null} onSelect={vi.fn()} onBack={vi.fn()} onRetry={onRetry} onClose={vi.fn()} />)
+    render(<NotificationPopover notices={[notice]} page={1} hasMore={false} loading={false} error={null} refreshError="刷新失败" selected={null} readError={null} onSelect={vi.fn()} onBack={vi.fn()} onPageChange={vi.fn()} onRetry={onRetry} onClose={vi.fn()} />)
     expect(screen.getByRole('button', { name: /维护通知/ })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('上次读取的内容')
     fireEvent.click(screen.getByRole('button', { name: '重试' }))

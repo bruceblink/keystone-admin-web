@@ -35,6 +35,7 @@ import {
   nativeNoticesSchema,
   notificationSchema,
   notificationsSchema,
+  notificationsPageSchema,
   nativeNoticesPageSchema,
   nativeNoticeSchema,
   nativeRolesSchema,
@@ -53,6 +54,7 @@ import {
   type NativeMfaStepUpChallenge,
   type NativeMfaLoginChallenge,
   type NativeMfaStepUpResult,
+  type NotificationsPage,
   type NativeUser,
   type NativeProfile,
   type NativeProfileWriteInput,
@@ -1114,6 +1116,12 @@ export const apiClient = {
   /** 读取当前登录用户的站内通知，不使用公开公告接口。 */
   async listNotifications(): Promise<Notifications> {
     return notificationsSchema.parse(await request<unknown>('/notifications'))
+  },
+
+  /** 读取当前登录用户指定页的站内通知；服务端每页返回 50 条。 */
+  async listNotificationsPage(page: number): Promise<NotificationsPage> {
+    const params = new URLSearchParams({ page: String(page) })
+    return notificationsPageSchema.parse(await request<unknown>(`/notifications?${params.toString()}`))
   },
 
   /** 将当前用户的一条通知标记为已读，并返回更新后的详情。 */

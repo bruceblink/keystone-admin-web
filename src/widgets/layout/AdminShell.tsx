@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, Bell, BookOpen, BriefcaseBusiness, Building2, ChevronDown, FileClock, FileText, KeyRound, ListChecks, ListTree, LogOut, Megaphone, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
@@ -30,10 +30,23 @@ export function AdminShell() {
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  // 通知页码进入查询键，翻页后不会把上一页数据当作当前页内容。
+  const [notificationPage, setNotificationPage] = useState(1)
+  // 跨页请求尚未返回时，铃铛继续显示当前账号最近一次读取的未读总数。
+  const [lastKnownUnread, setLastKnownUnread] = useState({ username: user?.username, count: 0 })
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const notificationsQuery = useQuery({ queryKey: ['notifications', user?.username], queryFn: () => apiClient.listNotifications(), staleTime: 30_000, refetchInterval: 30_000 })
+  const notificationsQuery = useQuery({ queryKey: ['notifications', user?.username, notificationPage], queryFn: () => apiClient.listNotificationsPage(notificationPage), staleTime: 30_000, refetchInterval: 30_000 })
   const readNotification = useMutation({ mutationFn: (id: string) => apiClient.readNotification(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications', user?.username] }) })
+  const currentUnreadCount = notificationsQuery.data?.unreadCount
+  const unreadCount = currentUnreadCount
+    ?? (lastKnownUnread.username === user?.username ? lastKnownUnread.count : 0)
+
+  useEffect(() => {
+    if (currentUnreadCount !== undefined) {
+      setLastKnownUnread({ username: user?.username, count: currentUnreadCount })
+    }
+  }, [currentUnreadCount, user?.username])
 
   async function handleLogout() {
     await logout()
@@ -43,7 +56,10 @@ export function AdminShell() {
     setNotificationOpen((open) => !open)
     setSelectedNotificationId(null)
     readNotification.reset()
-    if (!notificationOpen) void notificationsQuery.refetch()
+    if (!notificationOpen) {
+      setNotificationPage(1)
+      void queryClient.invalidateQueries({ queryKey: ['notifications', user?.username, 1] })
+    }
   }
 
   return (
@@ -60,7 +76,7 @@ export function AdminShell() {
         <header className="topbar">
           <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu size={20} /></button>
           <div className="topbar-context"><span className="context-kicker">Keystone</span><span className="context-separator">/</span></div>
-          <div className="topbar-actions"><div className="notification-menu"><button className="icon-button" type="button" aria-label={notificationsQuery.data?.unreadCount ? `通知，${notificationsQuery.data.unreadCount} 条未读` : '通知'} aria-expanded={notificationOpen} onClick={toggleNotifications}><Bell size={18} />{notificationsQuery.data?.unreadCount ? <span className="notification-dot" /> : null}</button>{notificationOpen ? <NotificationPopover notices={notificationsQuery.data?.items ?? []} loading={notificationsQuery.isLoading} error={!notificationsQuery.data && notificationsQuery.isError ? '无法读取站内通知' : null} refreshError={notificationsQuery.data && notificationsQuery.isError ? '通知刷新失败' : null} selected={notificationsQuery.data?.items.find((notice) => notice.id === selectedNotificationId) ?? null} readError={readNotification.isError ? '无法标记已读，请重试' : null} onSelect={(notice) => { setSelectedNotificationId(notice.id); if (!notice.readAt || readNotification.isError) readNotification.mutate(notice.id) }} onBack={() => { setSelectedNotificationId(null); readNotification.reset() }} onRetry={() => void notificationsQuery.refetch()} onClose={() => { setNotificationOpen(false); setSelectedNotificationId(null); readNotification.reset() }} /> : null}</div><button className="user-menu user-menu-button" type="button" aria-label="打开个人资料" onClick={() => navigate('/profile')}><div className="avatar">{user?.displayName.slice(0, 1) ?? 'U'}</div><div className="user-copy"><strong>{user?.displayName ?? '未登录'}</strong><span>{user?.role ?? '管理员'}</span></div><ChevronDown size={15} /></button>{/* 移动端隐藏文字时仍提供退出按钮名称。 */}<Button variant="ghost" size="sm" className="logout-button" aria-label="退出" onClick={handleLogout}><LogOut size={16} /><span>退出</span></Button></div>
+          <div className="topbar-actions"><div className="notification-menu"><button className="icon-button" type="button" aria-label={unreadCount ? `通知，${unreadCount} 条未读` : '通知'} aria-expanded={notificationOpen} onClick={toggleNotifications}><Bell size={18} />{unreadCount ? <span className="notification-dot" /> : null}</button>{notificationOpen ? <NotificationPopover notices={notificationsQuery.data?.items ?? []} page={notificationPage} hasMore={notificationsQuery.data?.hasMore ?? false} loading={notificationsQuery.isLoading} error={!notificationsQuery.data && notificationsQuery.isError ? '无法读取站内通知' : null} refreshError={notificationsQuery.data && notificationsQuery.isError ? '通知刷新失败' : null} selected={notificationsQuery.data?.items.find((notice) => notice.id === selectedNotificationId) ?? null} readError={readNotification.isError ? '无法标记已读，请重试' : null} onSelect={(notice) => { setSelectedNotificationId(notice.id); if (!notice.readAt || readNotification.isError) readNotification.mutate(notice.id) }} onBack={() => { setSelectedNotificationId(null); readNotification.reset() }} onPageChange={(page) => { setNotificationPage(page); setSelectedNotificationId(null); readNotification.reset() }} onRetry={() => void notificationsQuery.refetch()} onClose={() => { setNotificationOpen(false); setSelectedNotificationId(null); readNotification.reset() }} /> : null}</div><button className="user-menu user-menu-button" type="button" aria-label="打开个人资料" onClick={() => navigate('/profile')}><div className="avatar">{user?.displayName.slice(0, 1) ?? 'U'}</div><div className="user-copy"><strong>{user?.displayName ?? '未登录'}</strong><span>{user?.role ?? '管理员'}</span></div><ChevronDown size={15} /></button>{/* 移动端隐藏文字时仍提供退出按钮名称。 */}<Button variant="ghost" size="sm" className="logout-button" aria-label="退出" onClick={handleLogout}><LogOut size={16} /><span>退出</span></Button></div>
         </header>
         <main className="shell-main"><Outlet /></main>
       </div>
