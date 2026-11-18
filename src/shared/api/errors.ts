@@ -8,7 +8,7 @@ export const SERVER_ERROR_CODES = [
   'permission_denied', 'data_scope_denied', 'session_revoked', 'resource_not_found',
   'resource_conflict', 'role_has_members', 'role_protected', 'rate_limited', 'precondition_required', 'payload_too_large',
   'https_required', 'service_unavailable', 'authorization_unavailable', 'internal_error',
-  'validation_failed', 'api_key_name_invalid', 'api_key_expiry_invalid', 'api_key_expiry_out_of_range', 'api_key_expired', 'profile_display_name_required', 'profile_avatar_required', 'password_same_as_current',
+  'validation_failed', 'api_key_name_invalid', 'api_key_expiry_invalid', 'api_key_expiry_out_of_range', 'api_key_expired', 'api_key_scope_unavailable', 'profile_display_name_required', 'profile_avatar_required', 'password_same_as_current',
   'password_required', 'password_too_short', 'password_disallowed', 'password_contains_username',
   'password_missing_uppercase', 'password_missing_lowercase', 'password_missing_digit', 'password_missing_special',
 ] as const
@@ -82,6 +82,7 @@ export const BUSINESS_ERROR_CATALOG: Record<ServerErrorCode, BusinessErrorDefini
   api_key_expiry_invalid: { httpStatus: 422, meaning: 'API Key 到期时间格式无效', retryable: false, messageKey: 'error.api_key_expiry_invalid', safeMessage: true },
   api_key_expiry_out_of_range: { httpStatus: 422, meaning: 'API Key 到期时间不在允许范围内', retryable: false, messageKey: 'error.api_key_expiry_out_of_range', safeMessage: true },
   api_key_expired: { httpStatus: 409, meaning: '已过期的 API Key 不能轮换', retryable: false, messageKey: 'error.api_key_expired', safeMessage: true },
+  api_key_scope_unavailable: { httpStatus: 422, meaning: 'API Key 轮换时原授权范围均不再属于持有人', retryable: false, messageKey: 'error.api_key_scope_unavailable', safeMessage: true },
 }
 
 /** 通过错误码反查业务含义，未知代码返回 undefined。 */
@@ -138,6 +139,7 @@ const errorMessages: Record<string, string> = {
   api_key_expiry_invalid: 'API Key 到期时间格式无效，请重新选择时间。',
   api_key_expiry_out_of_range: 'API Key 到期时间必须晚于当前时间且不超过 90 天。',
   api_key_expired: 'API Key 已过期，请新建密钥。',
+  api_key_scope_unavailable: '原授权范围已不可用，请重新配置权限。',
   network_error: '无法连接系统 API', invalid_response: '系统 API 返回了无效响应',
   mfa_step_up_in_progress: '已有 MFA 验证请求正在处理', mfa_step_up_cancelled: 'MFA 验证已取消',
 }

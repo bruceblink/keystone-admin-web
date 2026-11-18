@@ -72,6 +72,7 @@ describe('ApiError', () => {
     ['profile_avatar_required', '请输入头像地址。', '个人资料头像地址缺失或为空白'],
     ['api_key_expiry_invalid', 'API Key 到期时间格式无效，请重新选择时间。', 'API Key 到期时间格式无效'],
     ['api_key_expiry_out_of_range', 'API Key 到期时间必须晚于当前时间且不超过 90 天。', 'API Key 到期时间不在允许范围内'],
+    ['api_key_scope_unavailable', '原授权范围已不可用，请重新配置权限。', 'API Key 轮换时原授权范围均不再属于持有人'],
   ] as const)('业务错误码 %s 可反查为独立条件并保留 422', (code, message, meaning) => {
     const error = new ApiError('服务端消息', 422, code)
 
