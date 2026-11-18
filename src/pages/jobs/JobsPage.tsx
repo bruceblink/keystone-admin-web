@@ -70,8 +70,12 @@ export function JobsPage() {
   })
   const jobs = query.data?.items ?? []
   const jobTotal = query.data?.total ?? 0
-  const selectedJobQuery = useQuery({ queryKey: ['job', selectedJobId], queryFn: () => apiClient.getJob(selectedJobId), enabled: Boolean(selectedJobId) && !selectedJob, staleTime: 10_000 })
-  const activeJob = selectedJob ?? selectedJobQuery.data ?? null
+  // 浏览器前进后退时，只使用与 URL 当前选择相同的任务读取日志。
+  const selectedJobForRoute = selectedJobId
+    ? jobs.find((job) => job.id === selectedJobId) ?? (selectedJob?.id === selectedJobId ? selectedJob : null)
+    : null
+  const selectedJobQuery = useQuery({ queryKey: ['job', selectedJobId], queryFn: () => apiClient.getJob(selectedJobId), enabled: Boolean(selectedJobId) && !selectedJobForRoute, staleTime: 10_000 })
+  const activeJob = selectedJobForRoute ?? selectedJobQuery.data ?? null
   const logsQuery = useQuery({ queryKey: ['job-logs', activeJob?.id, logPage], queryFn: () => apiClient.listJobLogs({ jobId: activeJob?.id, page: logPage, size: PAGE_SIZE }), enabled: Boolean(activeJob), staleTime: 10_000 })
   const total = logsQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))

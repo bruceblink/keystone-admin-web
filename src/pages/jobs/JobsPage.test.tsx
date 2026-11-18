@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -8,7 +8,7 @@ import { ApiError } from '../../shared/api/errors'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<BrowserRouter><QueryClientProvider client={queryClient}><JobsPage /></QueryClientProvider></BrowserRouter>)
+  return { ...render(<BrowserRouter><QueryClientProvider client={queryClient}><JobsPage /></QueryClientProvider></BrowserRouter>), queryClient }
 }
 
 afterEach(() => {
@@ -183,6 +183,69 @@ describe('JobsPage', () => {
     expect(await screen.findByText('系统心跳')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /日志/ }))
     expect(await screen.findByText('任务执行成功')).toBeInTheDocument()
+  })
+
+  it('切换任务及浏览器前进后退时只显示当前选择的任务日志', async () => {
+    const first = { id: 'job-history-first', code: 'first', name: '历史任务甲', group: 'SYSTEM', invokeTarget: 'first()', jobParams: '{}', cron: '0 0 * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
+    const second = { ...first, id: 'job-history-second', code: 'second', name: '历史任务乙', invokeTarget: 'second()' }
+    window.history.replaceState({}, '', '/jobs')
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue({ items: [first, second], page: 1, size: 20, total: 2 })
+    const listJobLogs = vi.spyOn(apiClient, 'listJobLogs').mockImplementation(async ({ jobId = '', page = 1 } = {}) => ({
+      items: [{ id: `log-${jobId}`, jobId, jobCode: jobId, jobName: jobId, jobGroup: 'SYSTEM', invokeTarget: 'run()', jobParams: '{}', cron: '0 0 * * * ?', triggerType: 1, status: 1, jobMessage: `${jobId} 执行日志`, exceptionInfo: null, startedAt: '2026-11-14T02:00:00Z', finishedAt: '2026-11-14T02:00:00Z', durationMs: 12, createdAt: '2026-11-14T02:00:00Z' }],
+      page,
+      size: 20,
+      total: 1,
+    }))
+    const { queryClient } = renderPage()
+
+    await screen.findByText(first.name)
+    fireEvent.click(screen.getAllByRole('button', { name: /日志/ })[0])
+    expect(await screen.findByRole('heading', { name: `${first.name} · 执行日志` })).toBeInTheDocument()
+    expect(await screen.findByText(`${first.id} 执行日志`)).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: /日志/ })[1])
+    expect(await screen.findByRole('heading', { name: `${second.name} · 执行日志` })).toBeInTheDocument()
+    expect(await screen.findByText(`${second.id} 执行日志`)).toBeInTheDocument()
+    expect(screen.queryByText(`${first.id} 执行日志`)).not.toBeInTheDocument()
+    expect(window.location.search).toContain(`jobs_selectedJobId=${second.id}`)
+
+    await act(async () => {
+      window.history.back()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    await waitFor(() => expect(window.location.search).toContain(`jobs_selectedJobId=${first.id}`))
+    expect(await screen.findByRole('heading', { name: `${first.name} · 执行日志` })).toBeInTheDocument()
+    expect(await screen.findByText(`${first.id} 执行日志`)).toBeInTheDocument()
+    expect(screen.queryByText(`${second.id} 执行日志`)).not.toBeInTheDocument()
+
+    await act(async () => {
+      window.history.back()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    await waitFor(() => expect(window.location.search).not.toContain('jobs_selectedJobId'))
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: `${first.name} · 执行日志` })).not.toBeInTheDocument()
+      expect(screen.queryByText(`${first.id} 执行日志`)).not.toBeInTheDocument()
+    })
+    expect(listJobLogs.mock.calls.map(([input]) => input?.jobId)).toEqual([first.id, second.id])
+    queryClient.removeQueries({ queryKey: ['job-logs', first.id] })
+    queryClient.removeQueries({ queryKey: ['job-logs', second.id] })
+
+    await act(async () => {
+      window.history.forward()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    await waitFor(() => expect(window.location.search).toContain(`jobs_selectedJobId=${first.id}`))
+    expect(await screen.findByText(`${first.id} 执行日志`)).toBeInTheDocument()
+
+    await act(async () => {
+      window.history.forward()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    await waitFor(() => expect(window.location.search).toContain(`jobs_selectedJobId=${second.id}`))
+    expect(await screen.findByText(`${second.id} 执行日志`)).toBeInTheDocument()
+    expect(screen.queryByText(`${first.id} 执行日志`)).not.toBeInTheDocument()
+    expect(listJobLogs.mock.calls.map(([input]) => input?.jobId)).toEqual([first.id, second.id, first.id, second.id])
   })
 
   it('通过模态框新增任务并提供启停和手动执行入口', async () => {
