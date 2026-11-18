@@ -57,6 +57,8 @@ describe('ApiError', () => {
   })
 
   it.each([
+    // 相同密码使用独立代码，不能与其他密码策略失败混淆。
+    ['password_same_as_current', '新密码不能与当前密码相同。', '新密码与已验证的当前密码相同'],
     ['api_key_name_invalid', 'API Key 名称必须为 1 到 128 个字符。', 'API Key 名称缺失或超过 128 个字符'],
     ['profile_display_name_required', '请输入个人资料展示名。', '个人资料展示名缺失或为空白'],
     ['profile_avatar_required', '请输入头像地址。', '个人资料头像地址缺失或为空白'],
