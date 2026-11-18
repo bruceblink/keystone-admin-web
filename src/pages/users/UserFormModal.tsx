@@ -41,6 +41,8 @@ export function UserFormModal({ open, mode, user, pending, error, canSubmit, can
   const [values, setValues] = useState<FormValues>(emptyValues)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [rolesDirty, setRolesDirty] = useState(false)
+  // 两端接口只接受启用角色编码；先解除已有停用角色，避免新列表提交失败。
+  const hasSelectedDisabledRole = roles.some((role) => !role.enabled && values.roleCodes.includes(role.code))
 
   useEffect(() => {
     if (!open) return
@@ -118,7 +120,12 @@ export function UserFormModal({ open, mode, user, pending, error, canSubmit, can
         </div>
         {canAssignRoles ? <fieldset className="user-role-access" disabled={pending || rolesLoading}>
           <legend>用户角色</legend>
-          {rolesLoading ? <p className="form-help">正在读取角色目录…</p> : rolesError ? <div className="user-role-error"><ActionError title="角色目录读取失败" error={rolesError} /><p className="form-help" role="status">{mode === 'edit' ? '角色目录不可用；本次保存会保留原有角色，不提交角色变更。' : '创建用户前必须成功读取角色目录。请重试后再保存。'}</p><Button type="button" variant="secondary" size="sm" onClick={onRetryRoles}>重试角色目录</Button></div> : roles.length === 0 ? <p className="form-help">暂无可用角色。</p> : <div className="user-role-options">{roles.map((role) => <label className="checkbox-label" key={role.id}><input type="checkbox" checked={values.roleCodes.includes(role.code)} disabled={pending || !role.enabled} onChange={(event) => toggleRole(role.code, event.target.checked)} /><span>{role.name} <small>{role.code}{role.enabled ? '' : '（停用）'}</small></span></label>)}</div>}
+          {rolesLoading ? <p className="form-help">正在读取角色目录…</p> : rolesError ? <div className="user-role-error"><ActionError title="角色目录读取失败" error={rolesError} /><p className="form-help" role="status">{mode === 'edit' ? '角色目录不可用；本次保存会保留原有角色，不提交角色变更。' : '创建用户前必须成功读取角色目录。请重试后再保存。'}</p><Button type="button" variant="secondary" size="sm" onClick={onRetryRoles}>重试角色目录</Button></div> : roles.length === 0 ? <p className="form-help">暂无可用角色。</p> : <div className="user-role-options">{roles.map((role) => {
+            const assigned = values.roleCodes.includes(role.code)
+            const disabled = !role.enabled
+            return <label className="checkbox-label" key={role.id}><input type="checkbox" checked={assigned} disabled={pending || (disabled ? !assigned : hasSelectedDisabledRole)} onChange={(event) => toggleRole(role.code, event.target.checked)} /><span>{role.name} <small>{role.code}{disabled ? '（停用）' : ''}</small></span></label>
+          })}</div>}
+          {roles.some((role) => !role.enabled) ? <p className="form-help">停用角色不能新增分配；已有停用角色可取消绑定。取消绑定后才能提交其他角色变更。</p> : null}
           <p className="form-help">角色目录由系统 API 提供。编辑用户时不修改角色会保留原角色；主动取消全部选择会清空角色。</p>
         </fieldset> : <p className="form-help" role="status">当前账号无法读取并分配角色；{mode === 'create' ? '新用户将以未分配角色状态创建。' : '保存资料时会保留原角色。'}</p>}
         {!canSubmit ? <p className="form-help" role="alert">当前账号已失去此项用户写权限，请关闭窗口后再试。</p> : null}

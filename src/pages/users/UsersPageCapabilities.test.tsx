@@ -72,4 +72,38 @@ describe('UsersPage capabilities', () => {
     await waitFor(() => expect(updateUser).toHaveBeenCalledWith(userPage.items[0].id, expect.objectContaining({ displayName: '仅更新资料', roleCodes: null })))
     expect(listRoles).not.toHaveBeenCalled()
   })
+
+  it('允许移除已有停用角色，再修改启用角色', async () => {
+    const disabledRoleCode = 'legacy-disabled'
+    const assignedUser = {
+      ...userPage,
+      items: [{ ...userPage.items[0], roles: [disabledRoleCode] }],
+      total: 1,
+    }
+    vi.spyOn(apiClient, 'listUsers').mockResolvedValue(assignedUser)
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([
+      { id: 'disabled-role-id', code: disabledRoleCode, name: '历史角色', enabled: false, dataScope: 'ALL', deptScope: null, permissions: [] },
+      { id: 'active-role-id', code: 'active-role', name: '启用角色', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+    ])
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockResolvedValue(assignedUser.items[0])
+    renderUsersPage()
+
+    await screen.findByText('平台运维员')
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const dialog = screen.getByRole('dialog')
+    const disabledRole = await within(dialog).findByRole('checkbox', { name: /legacy-disabled（停用）/ })
+    const activeRole = within(dialog).getByRole('checkbox', { name: /active-role/ })
+
+    expect(disabledRole).toBeChecked()
+    expect(disabledRole).toBeEnabled()
+    expect(activeRole).toBeDisabled()
+    expect(within(dialog).getByText(/停用角色不能新增分配/)).toBeInTheDocument()
+
+    fireEvent.click(disabledRole)
+    expect(activeRole).toBeEnabled()
+    fireEvent.click(activeRole)
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存用户' }))
+
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(assignedUser.items[0].id, expect.objectContaining({ roleCodes: ['active-role'] })))
+  })
 })
