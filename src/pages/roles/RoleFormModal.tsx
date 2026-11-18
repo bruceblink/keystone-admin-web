@@ -35,6 +35,8 @@ export function RoleFormModal({ open, mode, role, pending, error, permissionsErr
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    // 权限目录不可用时不允许提交空的或未经用户核对的权限列表。
+    if (pending || permissionsLoading || permissionsErrorState) return
     if (!values.name.trim()) return setValidationError('角色名称不能为空')
     if (mode === 'create' && !values.code.trim()) return setValidationError('角色标识不能为空')
     void onSubmit({ code: values.code.trim() || undefined, name: values.name.trim(), enabled: values.enabled }, permissions)
@@ -42,7 +44,7 @@ export function RoleFormModal({ open, mode, role, pending, error, permissionsErr
 
   return (
     <Modal open={open} title={mode === 'create' ? '新增角色' : '编辑角色'} description="角色名称、启用状态和权限目录由系统 API 保存。权限保存需要当前会话完成 MFA 二次验证。" onClose={pending ? () => undefined : onClose} footer={(
-      <><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="role-form" disabled={pending}>{pending ? '保存中…' : '保存角色'}</Button></>
+      <><Button type="button" variant="ghost" onClick={onClose} disabled={pending}>取消</Button><Button type="submit" form="role-form" disabled={pending || permissionsLoading || Boolean(permissionsErrorState)}>{pending ? '保存中…' : '保存角色'}</Button></>
     )}>
       <form id="role-form" className="admin-form" onSubmit={submit}>
         <div className="admin-form-grid">

@@ -82,6 +82,7 @@ describe('RolesPage', () => {
 
   it('通过模态框提交新增角色', async () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([])
     const createRole = vi.spyOn(apiClient, 'createRole').mockResolvedValue({ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] })
     renderPage()
     await screen.findByText('没有匹配的角色')
@@ -89,6 +90,7 @@ describe('RolesPage', () => {
     const dialog = screen.getByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('角色标识 *'), { target: { value: 'auditor' } })
     fireEvent.change(within(dialog).getByLabelText('角色名称 *'), { target: { value: '审计员' } })
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '保存角色' })).toBeEnabled())
     fireEvent.click(within(dialog).getByRole('button', { name: '保存角色' }))
     await waitFor(() => expect(createRole).toHaveBeenCalledWith({ code: 'auditor', name: '审计员', enabled: true }))
   })
@@ -114,6 +116,61 @@ describe('RolesPage', () => {
 
     await waitFor(() => expect(updateRole).toHaveBeenCalledWith(role.id, { code: role.code, name: role.name, enabled: role.enabled }))
     await waitFor(() => expect(updateRolePermissions).toHaveBeenCalledWith(role.id, ['role:update', 'user:read']))
+  })
+
+  it('权限目录读取失败时阻止保存，重试成功后允许提交', async () => {
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    vi.spyOn(apiClient, 'listPermissionCatalog')
+      .mockRejectedValueOnce(new ApiError('目录不可用', 503, 'service_unavailable'))
+      .mockResolvedValue([])
+    const createRole = vi.spyOn(apiClient, 'createRole')
+    renderPage()
+
+    await screen.findByText('没有匹配的角色')
+    fireEvent.click(screen.getByRole('button', { name: '新增角色' }))
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByText('角色权限目录读取失败')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '保存角色' })).toBeDisabled()
+    expect(createRole).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: '重试' }))
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '保存角色' })).toBeEnabled())
+  })
+
+  it('角色已保存但权限保存失败时刷新列表并保留选择供重试', async () => {
+    const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    let finishRefresh!: (roles: typeof role[]) => void
+    const pendingRefresh = new Promise<typeof role[]>((resolve) => { finishRefresh = resolve })
+    const listRoles = vi.spyOn(apiClient, 'listRoles').mockResolvedValueOnce([]).mockImplementationOnce(() => pendingRefresh).mockResolvedValue([role])
+    vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([
+      { permission: 'user:read', resource: 'user', action: 'read', description: '读取用户', risk: 'low', registered: true, allowed: true },
+    ])
+    const createRole = vi.spyOn(apiClient, 'createRole').mockResolvedValue(role)
+    const updateRole = vi.spyOn(apiClient, 'updateRole').mockResolvedValue(role)
+    const updatePermissions = vi.spyOn(apiClient, 'updateRolePermissions')
+      .mockRejectedValueOnce(new ApiError('暂不可用', 503, 'service_unavailable'))
+      .mockResolvedValue({ updated: true })
+    renderPage()
+
+    await screen.findByText('没有匹配的角色')
+    fireEvent.click(screen.getByRole('button', { name: '新增角色' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('角色标识 *'), { target: { value: role.code } })
+    fireEvent.change(within(dialog).getByLabelText('角色名称 *'), { target: { value: role.name } })
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: /user:read/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存角色' }))
+
+    expect(await within(dialog).findByText('角色权限保存失败')).toBeInTheDocument()
+    await waitFor(() => expect(listRoles).toHaveBeenCalledTimes(2))
+    expect(within(dialog).getByRole('checkbox', { name: /user:read/ })).toBeChecked()
+    expect(within(dialog).getByRole('button', { name: /保存/ })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: '取消' })).toBeDisabled()
+    finishRefresh([role])
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '保存角色' })).toBeEnabled())
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存角色' }))
+    await waitFor(() => expect(updateRole).toHaveBeenCalledWith(role.id, expect.objectContaining({ name: role.name })))
+    await waitFor(() => expect(updatePermissions).toHaveBeenNthCalledWith(2, role.id, ['user:read']))
+    expect(createRole).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('查看角色成员并在确认后分配或取消分配', async () => {
@@ -219,6 +276,7 @@ describe('RolesPage', () => {
 
   it('保存角色失败时显示业务码诊断并保留表单', async () => {
     vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([])
     vi.spyOn(apiClient, 'createRole').mockRejectedValue(new ApiError('temporary failure', 503, 'service_unavailable', null, { requestId: 'role-save-1' }))
     renderPage()
 
@@ -227,6 +285,7 @@ describe('RolesPage', () => {
     const dialog = screen.getByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('角色标识 *'), { target: { value: 'auditor' } })
     fireEvent.change(within(dialog).getByLabelText('角色名称 *'), { target: { value: '审计员' } })
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '保存角色' })).toBeEnabled())
     fireEvent.click(within(dialog).getByRole('button', { name: '保存角色' }))
 
     await waitFor(() => expect(within(dialog).getByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument())

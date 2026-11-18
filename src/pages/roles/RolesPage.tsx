@@ -24,6 +24,7 @@ export function RolesPage() {
   const { keyword: appliedKeyword, status: appliedStatus, page } = urlState
   const [formFilters, setFormFilters] = useState<RoleFilters>(() => ({ keyword: appliedKeyword, status: appliedStatus }))
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
+  const [roleSubmitPending, setRoleSubmitPending] = useState(false)
   const [editingRole, setEditingRole] = useState<NativeRole | null>(null)
   const [memberRole, setMemberRole] = useState<NativeRole | null>(null)
   const [memberPages, setMemberPages] = useState({ allocated: 1, available: 1 })
@@ -125,7 +126,7 @@ export function RolesPage() {
 
   function openCreate() { saveMutation.reset(); permissionMutation.reset(); setEditingRole(null); setModalMode('create') }
   function openEdit(role: NativeRole) { saveMutation.reset(); permissionMutation.reset(); setEditingRole(role); setModalMode('edit') }
-  function closeModal() { if (saveMutation.isPending || permissionMutation.isPending) return; setModalMode(null); setEditingRole(null) }
+  function closeModal() { if (roleSubmitPending) return; setModalMode(null); setEditingRole(null) }
   function openMembers(role: NativeRole) {
     memberMutation.reset()
     setMemberRole(role)
@@ -157,18 +158,24 @@ export function RolesPage() {
     void memberMutation.mutateAsync({ userId, allocated: false }).catch(() => undefined)
   }
   async function submitRole(input: NativeRoleWriteInput, permissions: string[]) {
+    if (roleSubmitPending) return
+    setRoleSubmitPending(true)
+    let savedRole: NativeRole | null = null
     try {
-      const saved = await saveMutation.mutateAsync({ id: editingRole?.id, input })
+      savedRole = await saveMutation.mutateAsync({ id: editingRole?.id, input })
       // 保存角色后先保留新 ID，权限更新失败时用户可以在同一表单重试而不会重复创建角色。
-      setEditingRole({ ...saved, permissions })
+      setEditingRole({ ...savedRole, permissions })
       setModalMode('edit')
-      await permissionMutation.mutateAsync({ id: saved.id, permissions })
+      await permissionMutation.mutateAsync({ id: savedRole.id, permissions })
       await queryClient.invalidateQueries({ queryKey: ['roles'] })
       setUrlState({ page: 1 })
       setModalMode(null)
       setEditingRole(null)
     } catch {
-      // 模态框保留错误和用户输入，供用户修正或重试。
+      // 角色本体可能已保存；刷新列表并保留权限草稿供用户重试。
+      if (savedRole) await queryClient.invalidateQueries({ queryKey: ['roles'] })
+    } finally {
+      setRoleSubmitPending(false)
     }
   }
   function toggleRole(id: string, checked: boolean) { setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)) }
@@ -274,7 +281,7 @@ export function RolesPage() {
         </div>
         <ActionError title="角色成员更新失败" error={memberMutation.error} />
       </Modal>
-      <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={saveMutation.isPending || permissionMutation.isPending} error={saveMutation.error} permissionsError={permissionMutation.error} permissionEntries={permissionCatalogQuery.data ?? []} permissionsLoading={permissionCatalogQuery.isLoading || permissionCatalogQuery.isFetching} permissionsErrorState={permissionCatalogQuery.error} onRetryPermissions={() => void permissionCatalogQuery.refetch()} onClose={closeModal} onSubmit={submitRole} />
+      <RoleFormModal open={modalMode !== null} mode={modalMode ?? 'create'} role={editingRole} pending={roleSubmitPending || saveMutation.isPending || permissionMutation.isPending} error={saveMutation.error} permissionsError={permissionMutation.error} permissionEntries={permissionCatalogQuery.data ?? []} permissionsLoading={permissionCatalogQuery.isLoading || permissionCatalogQuery.isFetching} permissionsErrorState={permissionCatalogQuery.error} onRetryPermissions={() => void permissionCatalogQuery.refetch()} onClose={closeModal} onSubmit={submitRole} />
       <DeleteConfirmModal open={deleteOpen} resourceLabel="角色" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
       <MfaStepUpModal {...stepUp.modal} />
     </div>
