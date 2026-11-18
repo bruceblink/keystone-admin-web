@@ -91,12 +91,12 @@ export function MenusPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: keyword.trim() })
+    setUrlState({ keyword: keyword.trim() }, { history: 'push' })
   }
 
   function reset() {
     setKeyword('')
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function openCreate() {

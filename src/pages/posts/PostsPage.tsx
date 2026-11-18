@@ -64,12 +64,12 @@ export function PostsPage() {
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 })
+    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 }, { history: 'push' })
   }
 
   function resetFilters() {
     setFormFilters(emptyFilters)
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function openCreate() {
@@ -151,7 +151,7 @@ export function PostsPage() {
         {query.isError && query.data ? <StaleQueryError message="岗位列表刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
         {query.data ? <>
         {posts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th>{canEdit || canDelete ? <th scope="col">操作</th> : null}</tr></thead><tbody>{posts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} canEdit={canEdit} canDelete={canDelete} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
-        {totalPages > 1 ? <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setUrlState({ page: page - 1 })} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setUrlState({ page: page + 1 })} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div> : null}
+        {totalPages > 1 ? <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setUrlState({ page: page - 1 }, { history: 'push' })} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setUrlState({ page: page + 1 }, { history: 'push' })} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div> : null}
         </> : null}
       </Card>
 

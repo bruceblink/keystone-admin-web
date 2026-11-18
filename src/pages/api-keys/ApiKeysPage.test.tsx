@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiKeysPage } from './ApiKeysPage'
 import { ApiError, apiClient } from '../../shared/api/client'
@@ -20,7 +21,7 @@ function renderPage(capabilities = allApiKeyCapabilities) {
   useSessionStore.setState({ user: { id: 'api-key-user', username: 'api-key-operator', displayName: 'API Key 用户', role: 'operator' }, isHydrated: true, authRevision: 4 })
   vi.spyOn(apiClient, 'getCapabilities').mockResolvedValue(capabilities)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><ApiKeysPage /></QueryClientProvider>)
+  return render(<BrowserRouter><QueryClientProvider client={queryClient}><ApiKeysPage /></QueryClientProvider></BrowserRouter>)
 }
 
 afterEach(() => vi.restoreAllMocks())

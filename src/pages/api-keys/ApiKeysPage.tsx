@@ -111,13 +111,13 @@ export function ApiKeysPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: keyword.trim(), status, page: 1 })
+    setUrlState({ keyword: keyword.trim(), status, page: 1 }, { history: 'push' })
   }
 
   function reset() {
     setKeyword('')
     setStatus('all')
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function rotateKey(apiKey: NativeApiKey) {
@@ -163,7 +163,7 @@ export function ApiKeysPage() {
         {activeExpiredKeys.length > 0 ? <div className="error-panel" role="alert"><AlertTriangle size={18} /><div><strong>有效筛选结果需要复核</strong><p>当前页包含已过期密钥。服务端总数和分页可能尚未同步；页面保留服务端返回的总数和分页范围。请重新读取当前页。</p></div><Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}>{query.isFetching ? '读取中…' : '重试读取'}</Button></div> : null}
         {query.data ? <>
         {keys.length > 0 ? <div className="api-keys-table-wrap"><table className="api-keys-table"><thead><tr><th scope="col">名称</th><th scope="col">密钥前缀</th><th scope="col">授权范围</th><th scope="col">创建时间</th><th scope="col">最近使用</th><th scope="col">到期时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{keys.map((key) => <ApiKeyRow key={key.id} apiKey={key} now={currentTime} pending={rotateMutation.isPending || revokeMutation.isPending} canIssue={canIssue} canRotate={canRotate} canRevoke={canRevoke} onRotate={rotateKey} onRevoke={(target) => { if (!canRevoke) return; revokeMutation.reset(); setRevokingKey(target) }} />)}</tbody></table></div> : <div className="api-keys-empty" role="status"><span className="api-keys-empty-icon"><KeyRound size={20} /></span><strong>没有匹配的 API Key</strong><p>调整筛选条件后重试，或清空筛选条件查看全部凭据。</p></div>}
-        {totalPages > 1 ? <div className="api-keys-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
+        {totalPages > 1 ? <div className="api-keys-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 }, { history: 'push' })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 }, { history: 'push' })}>下一页</Button></div></div> : null}
         </> : null}
       </Card>
       </> : null}

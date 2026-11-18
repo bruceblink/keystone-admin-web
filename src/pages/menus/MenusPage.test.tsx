@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MenusPage } from './MenusPage'
 import { ApiError, apiClient } from '../../shared/api/client'
@@ -23,7 +24,7 @@ function renderPage(permissions = allMenuCapabilities.permissions, menuScope = t
     resources: { ...allMenuCapabilities.resources, menu: menuScope, role: roleScope },
   })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><MenusPage /></QueryClientProvider>)
+  return render(<BrowserRouter><QueryClientProvider client={queryClient}><MenusPage /></QueryClientProvider></BrowserRouter>)
 }
 
 afterEach(() => {

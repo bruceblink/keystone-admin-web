@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LoginLogsPage } from './LoginLogsPage'
 import { ApiError, apiClient } from '../../shared/api/client'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><LoginLogsPage /></QueryClientProvider>)
+  return render(<BrowserRouter><QueryClientProvider client={queryClient}><LoginLogsPage /></QueryClientProvider></BrowserRouter>)
 }
 
 afterEach(() => {

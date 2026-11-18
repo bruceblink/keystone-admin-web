@@ -44,12 +44,12 @@ export function LoginLogsPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ username: formFilters.username.trim(), status: formFilters.status.trim(), page: 1 })
+    setUrlState({ username: formFilters.username.trim(), status: formFilters.status.trim(), page: 1 }, { history: 'push' })
   }
 
   function reset() {
     setFormFilters(emptyFilters)
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   async function exportLogs() {
@@ -83,7 +83,7 @@ export function LoginLogsPage() {
       {query.isLoading ? <div className="loading-panel audit-loading"><Spinner label="正在读取登录日志" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取登录日志" message="登录日志读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '登录日志刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.data ? <>{logs.length > 0 ? <div className="audit-table-wrap"><table className="audit-table"><thead><tr><th scope="col">时间</th><th scope="col">用户名</th><th scope="col">状态</th><th scope="col">来源地址</th><th scope="col">说明</th><th scope="col">客户端</th></tr></thead><tbody>{logs.map((log) => <LoginRow key={log.id} log={log} />)}</tbody></table></div> : <div className="audit-empty" role="status"><span className="audit-empty-icon"><FileClock size={20} /></span><strong>没有匹配的登录记录</strong><p>调整筛选条件后重试。</p></div>}<div className="audit-pagination"><span>第 {query.data.page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div></> : null}
+      {query.data ? <>{logs.length > 0 ? <div className="audit-table-wrap"><table className="audit-table"><thead><tr><th scope="col">时间</th><th scope="col">用户名</th><th scope="col">状态</th><th scope="col">来源地址</th><th scope="col">说明</th><th scope="col">客户端</th></tr></thead><tbody>{logs.map((log) => <LoginRow key={log.id} log={log} />)}</tbody></table></div> : <div className="audit-empty" role="status"><span className="audit-empty-icon"><FileClock size={20} /></span><strong>没有匹配的登录记录</strong><p>调整筛选条件后重试。</p></div>}<div className="audit-pagination"><span>第 {query.data.page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 }, { history: 'push' })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 }, { history: 'push' })}>下一页</Button></div></div></> : null}
     </Card>
   </div>
 }

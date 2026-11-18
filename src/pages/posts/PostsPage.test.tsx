@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PostsPage } from './PostsPage'
 import { apiClient } from '../../shared/api/client'
@@ -12,7 +13,7 @@ vi.mock('../../shared/auth/useCapabilities', () => ({
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><PostsPage /></QueryClientProvider>)
+  return render(<BrowserRouter><QueryClientProvider client={queryClient}><PostsPage /></QueryClientProvider></BrowserRouter>)
 }
 
 afterEach(() => {
@@ -45,7 +46,7 @@ describe('PostsPage', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
     capabilities.permissions = ['post:read']
-    page.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><PostsPage /></QueryClientProvider>)
+    page.rerender(<BrowserRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><PostsPage /></QueryClientProvider></BrowserRouter>)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

@@ -63,12 +63,12 @@ export function ConfigsPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: formFilters.keyword.trim(), page: 1 })
+    setUrlState({ keyword: formFilters.keyword.trim(), page: 1 }, { history: 'push' })
   }
 
   function reset() {
     setFormFilters(emptyFilters)
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function openCreate() { saveMutation.reset(); setEditingConfig(null); setModalMode('create') }
@@ -88,7 +88,7 @@ export function ConfigsPage() {
       {query.isLoading ? <div className="loading-panel configs-loading"><Spinner label="正在读取系统配置" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取系统配置" message="系统配置读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message="系统配置刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.data ? <>{configs.length > 0 ? <div className="configs-table-wrap"><table className="configs-table"><thead><tr><th scope="col">配置键</th><th scope="col">配置值</th><th scope="col">说明</th><th scope="col">状态</th><th scope="col">更新时间</th>{canUpdate ? <th scope="col">操作</th> : null}</tr></thead><tbody>{configs.map((config) => <ConfigRow key={config.id} config={config} pending={deleteMutation.isPending} canUpdate={canUpdate} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="configs-empty" role="status"><span className="configs-empty-icon"><Settings2 size={20} /></span><strong>没有匹配的系统配置</strong><p>调整筛选条件后重试。</p></div>}{totalPages > 1 ? <div className="configs-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}</> : null}
+      {query.data ? <>{configs.length > 0 ? <div className="configs-table-wrap"><table className="configs-table"><thead><tr><th scope="col">配置键</th><th scope="col">配置值</th><th scope="col">说明</th><th scope="col">状态</th><th scope="col">更新时间</th>{canUpdate ? <th scope="col">操作</th> : null}</tr></thead><tbody>{configs.map((config) => <ConfigRow key={config.id} config={config} pending={deleteMutation.isPending} canUpdate={canUpdate} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="configs-empty" role="status"><span className="configs-empty-icon"><Settings2 size={20} /></span><strong>没有匹配的系统配置</strong><p>调整筛选条件后重试。</p></div>}{totalPages > 1 ? <div className="configs-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 }, { history: 'push' })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 }, { history: 'push' })}>下一页</Button></div></div> : null}</> : null}
     </Card>
     <ConfigFormModal open={modalMode === 'create' ? canCreate : modalMode === 'edit' && canUpdate} mode={modalMode ?? 'create'} config={editingConfig} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitConfig} />
     <DeleteConfirmModal open={deletingConfig !== null && canUpdate} resourceLabel="系统配置" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingConfig && canUpdate) void deleteMutation.mutateAsync(deletingConfig.key).catch(() => undefined) }} />

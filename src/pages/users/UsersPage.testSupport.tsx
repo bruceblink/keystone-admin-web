@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import { render } from '@testing-library/react'
 import { vi } from 'vitest'
 import type { NativeCapabilities, NativeRole, NativeUsersPage } from '../../shared/api/schemas'
@@ -64,6 +65,6 @@ export function mockRoleCatalog() {
 
 export function renderUsersPage(capabilities = allUserCapabilities) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const view = render(<QueryClientProvider client={queryClient}><UsersPage capabilities={capabilities} /></QueryClientProvider>)
+  const view = render(<BrowserRouter><QueryClientProvider client={queryClient}><UsersPage capabilities={capabilities} /></QueryClientProvider></BrowserRouter>)
   return { ...view, queryClient }
 }

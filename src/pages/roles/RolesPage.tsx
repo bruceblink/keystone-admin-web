@@ -143,12 +143,12 @@ export function RolesPage() {
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 })
+    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 }, { history: 'push' })
   }
 
   function resetFilters() {
     setFormFilters(emptyFilters)
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function refresh() {
@@ -338,7 +338,7 @@ export function RolesPage() {
         {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '角色列表刷新失败，请重试')} error={query.error} onRetry={refresh} retrying={query.isFetching} /> : null}
         {query.data ? <>
         {roles.length > 0 ? <div className="roles-table-wrap"><table className="roles-table"><thead><tr>{canDeleteRoles ? <th scope="col"><input type="checkbox" aria-label="选择当前角色" checked={allSelected} onChange={(event) => toggleAllRoles(event.target.checked)} disabled={deleteMutation.isPending || roleListPending} /></th> : null}<th scope="col">角色</th><th scope="col">数据范围</th><th scope="col">组织范围</th><th scope="col">权限数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{roles.map((role) => <RoleRow key={role.id} role={role} selectable={canDeleteRoles} editable={canUpdateRole} manageable={canManageRolePermissions} selected={selectedIds.includes(role.id)} pending={deleteMutation.isPending || roleListPending} onSelect={toggleRole} onEdit={openEdit} onPermissions={openRolePermissions} onMembers={openMembers} />)}</tbody></table></div> : <div className="roles-empty" role="status"><span className="roles-empty-icon"><ShieldCheck size={20} /></span><strong>没有匹配的角色</strong><p>调整筛选条件后重试，或清空筛选条件查看全部角色。</p></div>}
-        {totalPages > 1 ? <div className="roles-pagination"><span>第 {rolePage.page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={rolePage.page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="secondary" size="sm" disabled={rolePage.page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}
+        {totalPages > 1 ? <div className="roles-pagination"><span>第 {rolePage.page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={rolePage.page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 }, { history: 'push' })}>上一页</Button><Button variant="secondary" size="sm" disabled={rolePage.page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 }, { history: 'push' })}>下一页</Button></div></div> : null}
         </> : null}
       </Card>
       {memberRole ? <RoleMembersPanel

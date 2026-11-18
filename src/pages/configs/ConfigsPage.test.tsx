@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConfigsPage } from './ConfigsPage'
 import { ApiError, apiClient } from '../../shared/api/client'
@@ -11,7 +12,7 @@ vi.mock('../../shared/auth/useCapabilities', () => ({
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><ConfigsPage /></QueryClientProvider>)
+  return render(<BrowserRouter><QueryClientProvider client={queryClient}><ConfigsPage /></QueryClientProvider></BrowserRouter>)
 }
 
 const config = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', key: 'security.session.ttl', value: '300', description: '访问令牌有效期', enabled: true, updatedAt: '2026-11-14T02:00:00Z' }
@@ -48,7 +49,7 @@ describe('ConfigsPage', () => {
     expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
 
     capabilities.permissions = ['config:read', 'config:update']
-    rendered.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider>)
+    rendered.rerender(<BrowserRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider></BrowserRouter>)
     await screen.findByText(config.key)
     expect(screen.queryByRole('button', { name: '新增配置' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '编辑' })).toBeEnabled()
@@ -62,15 +63,15 @@ describe('ConfigsPage', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     capabilities.permissions = ['config:read']
-    rendered.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider>)
+    rendered.rerender(<BrowserRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider></BrowserRouter>)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     capabilities.permissions = ['config:read', 'config:update']
-    rendered.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider>)
+    rendered.rerender(<BrowserRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider></BrowserRouter>)
     fireEvent.click(await screen.findByRole('button', { name: '删除' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     capabilities.permissions = ['config:read']
-    rendered.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider>)
+    rendered.rerender(<BrowserRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfigsPage /></QueryClientProvider></BrowserRouter>)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

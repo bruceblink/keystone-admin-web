@@ -37,12 +37,12 @@ export function NoticesPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 })
+    setUrlState({ keyword: formFilters.keyword.trim(), status: formFilters.status || 'all', page: 1 }, { history: 'push' })
   }
 
   function reset() {
     setFormFilters({ keyword: '', status: 'all' })
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function openCreate() { saveMutation.reset(); setEditingNotice(null); setModalMode('create') }
@@ -73,7 +73,7 @@ export function NoticesPage() {
       {query.isLoading ? <div className="loading-panel notices-loading"><Spinner label="正在读取通知公告" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取通知公告" message="通知公告读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '通知公告刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.data ? <>{notices.length > 0 ? <div className="notices-table-wrap"><table className="notices-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前公告" checked={allSelected} onChange={(event) => toggleAllNotices(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">公告</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">发布人</th><th scope="col">发布时间</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody>{notices.map((notice) => <NoticeRow key={notice.id} notice={notice} selected={selectedIds.includes(notice.id)} pending={publishMutation.isPending || deleteMutation.isPending} onSelect={toggleNotice} onEdit={() => openEdit(notice)} onPublish={() => publishNotice(notice)} />)}</tbody></table></div> : <div className="notices-empty" role="status"><span className="notices-empty-icon"><Megaphone size={20} /></span><strong>没有匹配的公告</strong><p>调整筛选条件后重试。</p></div>}{totalPages > 1 ? <div className="notices-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button></div></div> : null}</> : null}
+      {query.data ? <>{notices.length > 0 ? <div className="notices-table-wrap"><table className="notices-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前公告" checked={allSelected} onChange={(event) => toggleAllNotices(event.target.checked)} disabled={deleteMutation.isPending} /></th><th scope="col">公告</th><th scope="col">类型</th><th scope="col">状态</th><th scope="col">发布人</th><th scope="col">发布时间</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody>{notices.map((notice) => <NoticeRow key={notice.id} notice={notice} selected={selectedIds.includes(notice.id)} pending={publishMutation.isPending || deleteMutation.isPending} onSelect={toggleNotice} onEdit={() => openEdit(notice)} onPublish={() => publishNotice(notice)} />)}</tbody></table></div> : <div className="notices-empty" role="status"><span className="notices-empty-icon"><Megaphone size={20} /></span><strong>没有匹配的公告</strong><p>调整筛选条件后重试。</p></div>}{totalPages > 1 ? <div className="notices-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 }, { history: 'push' })}>上一页</Button><Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 }, { history: 'push' })}>下一页</Button></div></div> : null}</> : null}
     </Card>
     <NoticeFormModal open={modalMode !== null} mode={modalMode ?? 'create'} notice={editingNotice} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitNotice} />
     <DeleteConfirmModal open={deleteOpen} resourceLabel="公告" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />

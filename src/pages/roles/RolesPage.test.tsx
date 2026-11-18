@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RolesPage } from './RolesPage'
 import { apiClient } from '../../shared/api/client'
@@ -20,7 +21,7 @@ function renderPage(capabilities = fullRoleCapabilities) {
   useSessionStore.setState({ user: { id: 'test-user', username: 'role-admin', displayName: '角色管理员', role: 'admin' }, isHydrated: true, authRevision: 1 })
   vi.spyOn(apiClient, 'getCapabilities').mockResolvedValue(capabilities)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return { ...render(<QueryClientProvider client={queryClient}><RolesPage /></QueryClientProvider>), queryClient }
+  return { ...render(<BrowserRouter><QueryClientProvider client={queryClient}><RolesPage /></QueryClientProvider></BrowserRouter>), queryClient }
 }
 
 afterEach(() => {

@@ -63,22 +63,22 @@ export function DictionariesPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: keyword.trim() })
+    setUrlState({ keyword: keyword.trim() }, { history: 'push' })
   }
 
   function submitItemFilter(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ itemKeyword: itemKeyword.trim(), itemPage: 1 })
+    setUrlState({ itemKeyword: itemKeyword.trim(), itemPage: 1 }, { history: 'push' })
   }
 
   function resetItemFilter() {
     setItemKeyword('')
-    setUrlState({ itemKeyword: '', itemPage: 1 })
+    setUrlState({ itemKeyword: '', itemPage: 1 }, { history: 'push' })
   }
 
   function reset() {
     setKeyword('')
-    setUrlState({ keyword: '' })
+    setUrlState({ keyword: '' }, { history: 'push' })
   }
 
   function openCreateType() { typeMutation.reset(); setEditingType(null); setTypeModalMode('create') }
@@ -122,9 +122,9 @@ export function DictionariesPage() {
         {typesQuery.isLoading ? <div className="loading-panel dictionaries-loading"><Spinner label="正在读取字典类型" /></div> : null}
         {typesQuery.isError && !typesQuery.data ? <InitialQueryError title="无法读取字典类型" message="字典类型读取失败，请重试" error={typesQuery.error} onRetry={() => void typesQuery.refetch()} retrying={typesQuery.isFetching} /> : null}
         {typesQuery.isError && typesQuery.data ? <StaleQueryError message={formatApiError(typesQuery.error, '字典类型刷新失败，请重试')} error={typesQuery.error} onRetry={() => void typesQuery.refetch()} retrying={typesQuery.isFetching} /> : null}
-        {typesQuery.data ? types.length > 0 ? <div className="dictionary-types-list">{types.map((type) => <TypeRow key={type.id} type={type} selected={type.code === selectedCode} pending={deleteTypeMutation.isPending} onSelect={() => setUrlState({ selected: type.code, itemPage: 1, itemKeyword: '' })} onEdit={() => openEditType(type)} onDelete={() => openDeleteType(type)} />)}</div> : <div className="dictionaries-empty" role="status"><span className="dictionaries-empty-icon"><BookOpen size={20} /></span><strong>没有匹配的字典类型</strong><p>调整筛选条件后重试。</p></div> : null}
+        {typesQuery.data ? types.length > 0 ? <div className="dictionary-types-list">{types.map((type) => <TypeRow key={type.id} type={type} selected={type.code === selectedCode} pending={deleteTypeMutation.isPending} onSelect={() => setUrlState({ selected: type.code, itemPage: 1, itemKeyword: '' }, { history: 'push' })} onEdit={() => openEditType(type)} onDelete={() => openDeleteType(type)} />)}</div> : <div className="dictionaries-empty" role="status"><span className="dictionaries-empty-icon"><BookOpen size={20} /></span><strong>没有匹配的字典类型</strong><p>调整筛选条件后重试。</p></div> : null}
       </Card>
-      <DictionaryItemsCard code={selectedCode} query={itemsQuery} itemKeyword={itemKeyword} onItemKeywordChange={setItemKeyword} onItemSearch={submitItemFilter} onItemReset={resetItemFilter} total={itemTotal} page={itemPage} totalPages={itemTotalPages} pending={deleteItemMutation.isPending} onRefresh={() => void itemsQuery.refetch()} onCreate={openCreateItem} onEdit={openEditItem} onDelete={openDeleteItem} onPageChange={(nextPage) => setUrlState({ itemPage: nextPage })} />
+      <DictionaryItemsCard code={selectedCode} query={itemsQuery} itemKeyword={itemKeyword} onItemKeywordChange={setItemKeyword} onItemSearch={submitItemFilter} onItemReset={resetItemFilter} total={itemTotal} page={itemPage} totalPages={itemTotalPages} pending={deleteItemMutation.isPending} onRefresh={() => void itemsQuery.refetch()} onCreate={openCreateItem} onEdit={openEditItem} onDelete={openDeleteItem} onPageChange={(nextPage) => setUrlState({ itemPage: nextPage }, { history: 'push' })} />
     </div>
     <DictionaryTypeFormModal open={typeModalMode !== null} mode={typeModalMode ?? 'create'} typeItem={editingType} pending={typeMutation.isPending} error={typeMutation.error} onClose={closeTypeModal} onSubmit={submitType} />
     <DictionaryItemFormModal open={itemModalMode !== null} mode={itemModalMode ?? 'create'} item={editingItem} pending={itemMutation.isPending} error={itemMutation.error} onClose={closeItemModal} onSubmit={submitItem} />

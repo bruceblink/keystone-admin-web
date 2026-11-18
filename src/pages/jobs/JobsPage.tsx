@@ -98,12 +98,12 @@ export function JobsPage() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ keyword: keyword.trim(), jobPage: 1 })
+    setUrlState({ keyword: keyword.trim(), jobPage: 1 }, { history: 'push' })
   }
 
   function reset() {
     setKeyword('')
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function refreshJobs() {
@@ -114,7 +114,7 @@ export function JobsPage() {
   function selectJob(job: NativeJob) {
     // 选择任务后从第一页读取其日志，避免沿用上一个任务的分页位置。
     setSelectedJob(job)
-    setUrlState({ selectedJobId: job.id, logPage: 1 })
+    setUrlState({ selectedJobId: job.id, logPage: 1 }, { history: 'push' })
   }
 
   function openCreate() {
@@ -180,9 +180,9 @@ export function JobsPage() {
       {query.isLoading ? <div className="loading-panel jobs-loading"><Spinner label="正在读取任务列表" /></div> : null}
       {query.isError && !query.data ? <InitialQueryError title="无法读取任务列表" message="任务列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
       {query.isError && query.data ? <StaleQueryError message={formatApiError(query.error, '任务列表刷新失败，请重试')} error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
-      {query.data ? <>{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前任务" checked={allSelected} onChange={(event) => toggleAllJobs(event.target.checked)} disabled={actionPending || deleteMutation.isPending} /></th><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th><th scope="col">操作</th></tr></thead><tbody>{visibleJobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} selectedForDelete={selectedIds.includes(job.id)} pending={actionPending || deleteMutation.isPending} onSelect={() => selectJob(job)} onSelectForDelete={toggleJobSelection} onEdit={() => openEdit(job)} onToggle={() => toggleJob(job)} onRun={() => runJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}{jobTotal > PAGE_SIZE ? <div className="jobs-pagination"><span>第 {currentJobPage} / {jobTotalPages} 页</span><div><Button variant="ghost" size="sm" disabled={currentJobPage <= 1 || query.isFetching} onClick={() => setUrlState({ jobPage: Math.max(1, jobPage - 1) })}>上一页</Button><Button variant="ghost" size="sm" disabled={currentJobPage >= jobTotalPages || query.isFetching} onClick={() => setUrlState({ jobPage: Math.min(jobTotalPages, jobPage + 1) })}>下一页</Button></div></div> : null}</> : null}
+      {query.data ? <>{jobs.length > 0 ? <div className="jobs-table-wrap"><table className="jobs-table"><thead><tr><th scope="col"><input type="checkbox" aria-label="选择当前任务" checked={allSelected} onChange={(event) => toggleAllJobs(event.target.checked)} disabled={actionPending || deleteMutation.isPending} /></th><th scope="col">任务</th><th scope="col">分组</th><th scope="col">Cron</th><th scope="col">状态</th><th scope="col">最近运行</th><th scope="col">查看</th><th scope="col">操作</th></tr></thead><tbody>{visibleJobs.map((job) => <JobRow key={job.id} job={job} selected={selectedJob?.id === job.id} selectedForDelete={selectedIds.includes(job.id)} pending={actionPending || deleteMutation.isPending} onSelect={() => selectJob(job)} onSelectForDelete={toggleJobSelection} onEdit={() => openEdit(job)} onToggle={() => toggleJob(job)} onRun={() => runJob(job)} />)}</tbody></table></div> : <div className="jobs-empty" role="status"><span className="jobs-empty-icon"><ClipboardList size={20} /></span><strong>没有匹配的任务</strong><p>调整筛选条件后重试。</p></div>}{jobTotal > PAGE_SIZE ? <div className="jobs-pagination"><span>第 {currentJobPage} / {jobTotalPages} 页</span><div><Button variant="ghost" size="sm" disabled={currentJobPage <= 1 || query.isFetching} onClick={() => setUrlState({ jobPage: Math.max(1, jobPage - 1) }, { history: 'push' })}>上一页</Button><Button variant="ghost" size="sm" disabled={currentJobPage >= jobTotalPages || query.isFetching} onClick={() => setUrlState({ jobPage: Math.min(jobTotalPages, jobPage + 1) }, { history: 'push' })}>下一页</Button></div></div> : null}</> : null}
     </Card>
-    {activeJob ? <JobLogsCard job={activeJob} query={logsQuery} page={logPage} totalPages={totalPages} onPageChange={(nextPage) => setUrlState({ logPage: nextPage })} /> : null}
+    {activeJob ? <JobLogsCard job={activeJob} query={logsQuery} page={logPage} totalPages={totalPages} onPageChange={(nextPage) => setUrlState({ logPage: nextPage }, { history: 'push' })} /> : null}
     <JobFormModal open={modalMode !== null} mode={modalMode ?? 'create'} job={editingJob} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitJob} />
     <DeleteConfirmModal open={deleteOpen} resourceLabel="任务" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)} />
   </div>

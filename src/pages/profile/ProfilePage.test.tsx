@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProfilePage } from './ProfilePage'
 import { ApiError, apiClient } from '../../shared/api/client'
@@ -13,7 +14,7 @@ const profile = {
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><ProfilePage /></QueryClientProvider>)
+  return render(<BrowserRouter><QueryClientProvider client={queryClient}><ProfilePage /></QueryClientProvider></BrowserRouter>)
 }
 
 function deferred<T>() {

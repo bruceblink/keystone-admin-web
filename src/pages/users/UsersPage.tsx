@@ -116,12 +116,12 @@ export function UsersPage({ capabilities }: { capabilities: NativeCapabilities }
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setUrlState({ username: formFilters.username.trim(), displayName: formFilters.displayName.trim(), page: 1 })
+    setUrlState({ username: formFilters.username.trim(), displayName: formFilters.displayName.trim(), page: 1 }, { history: 'push' })
   }
 
   function resetFilters() {
     setFormFilters(emptyFilters)
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function refresh() {
@@ -309,8 +309,8 @@ export function UsersPage({ capabilities }: { capabilities: NativeCapabilities }
           <div className="users-pagination">
             <span>第 {query.data.page} / {totalPages} 页</span>
             <div>
-              <Button variant="ghost" size="sm" onClick={() => setUrlState({ page: Math.max(1, page - 1) })} disabled={page <= 1 || query.isFetching}>上一页</Button>
-              <Button variant="secondary" size="sm" onClick={() => setUrlState({ page: Math.min(totalPages, page + 1) })} disabled={page >= totalPages || query.isFetching}>下一页</Button>
+              <Button variant="ghost" size="sm" onClick={() => setUrlState({ page: Math.max(1, page - 1) }, { history: 'push' })} disabled={page <= 1 || query.isFetching}>上一页</Button>
+              <Button variant="secondary" size="sm" onClick={() => setUrlState({ page: Math.min(totalPages, page + 1) }, { history: 'push' })} disabled={page >= totalPages || query.isFetching}>下一页</Button>
             </div>
           </div>
         </> : null}

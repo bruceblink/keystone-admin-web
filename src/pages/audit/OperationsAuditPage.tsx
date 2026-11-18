@@ -63,12 +63,12 @@ export function OperationsAuditPage() {
       action: formFilters.action.trim(),
       resource: formFilters.resource.trim(),
       page: 1,
-    })
+    }, { history: 'push' })
   }
 
   function resetFilters() {
     setFormFilters(emptyFilters)
-    setUrlState(urlDefaults)
+    setUrlState(urlDefaults, { history: 'push' })
   }
 
   function refresh() {
@@ -186,8 +186,8 @@ export function OperationsAuditPage() {
           <div className="audit-pagination">
             <span>第 {query.data.page} / {totalPages} 页</span>
             <div>
-              <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 })}>上一页</Button>
-              <Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 })}>下一页</Button>
+              <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 }, { history: 'push' })}>上一页</Button>
+              <Button variant="ghost" size="sm" disabled={page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 }, { history: 'push' })}>下一页</Button>
             </div>
           </div>
         </> : null}

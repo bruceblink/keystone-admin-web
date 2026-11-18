@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 type QueryState = Record<string, string | number>
 
 type Options = {
   /** 给页面查询参数加前缀，避免不同页面之间复用同名参数。 */
   namespace: string
+}
+
+type UpdateOptions = {
+  /** 用户主动提交查询状态时新增历史记录，自动修正和写入回读使用 replace。 */
+  history?: 'push' | 'replace'
 }
 
 function readState<T extends QueryState>(defaults: T, options: Options): T {
@@ -32,7 +38,6 @@ function parseNumericQueryValue(value: string, fallback: number): number | null 
 }
 
 function writeState<T extends QueryState>(state: T, defaults: T, options: Options) {
-  if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
   for (const [key, fallback] of Object.entries(defaults)) {
     const queryKey = `${options.namespace}_${key}`
@@ -43,7 +48,7 @@ function writeState<T extends QueryState>(state: T, defaults: T, options: Option
       url.searchParams.set(queryKey, String(value))
     }
   }
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  return `${url.pathname}${url.search}${url.hash}`
 }
 
 /**
@@ -51,21 +56,30 @@ function writeState<T extends QueryState>(state: T, defaults: T, options: Option
  * 页面刷新、复制链接或浏览器前进后退时可以恢复同一组查询条件。
  */
 export function useUrlQueryState<T extends QueryState>(defaults: T, options: Options) {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [state, setState] = useState<T>(() => readState(defaults, options))
+  const stateRef = useRef(state)
+  const defaultsRef = useRef(defaults)
+  const optionsRef = useRef(options)
+  defaultsRef.current = defaults
+  optionsRef.current = options
 
   useEffect(() => {
-    const onPopState = () => setState(readState(defaults, options))
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [defaults, options])
+    const next = readState(defaultsRef.current, optionsRef.current)
+    stateRef.current = next
+    setState(next)
+  }, [location.key, location.search])
 
-  const update = useCallback((patch: Partial<T>) => {
-    setState((current) => {
-      const next = { ...current, ...patch } as T
-      writeState(next, defaults, options)
-      return next
-    })
-  }, [defaults, options])
+  const update = useCallback((patch: Partial<T>, updateOptions: UpdateOptions = {}) => {
+    const next = { ...stateRef.current, ...patch } as T
+    const changed = Object.keys(defaultsRef.current).some((key) => !Object.is(stateRef.current[key], next[key]))
+    if (!changed) return
+    stateRef.current = next
+    setState(next)
+    const target = writeState(next, defaultsRef.current, optionsRef.current)
+    navigate(target, { replace: updateOptions.history !== 'push', state: location.state })
+  }, [location.state, navigate])
 
   return [state, update] as const
 }
