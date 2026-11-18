@@ -5,15 +5,49 @@ import { PostsPage } from './PostsPage'
 import { apiClient } from '../../shared/api/client'
 import { ApiError } from '../../shared/api/errors'
 
+const capabilities = vi.hoisted(() => ({ permissions: ['post:read', 'post:create', 'post:export', 'post:update', 'post:delete'], post: true, error: false }))
+vi.mock('../../shared/auth/useCapabilities', () => ({
+  useCapabilities: () => ({ data: { permissions: capabilities.permissions, resources: { post: capabilities.post } }, isError: capabilities.error }),
+}))
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={queryClient}><PostsPage /></QueryClientProvider>)
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  capabilities.permissions = ['post:read', 'post:create', 'post:export', 'post:update', 'post:delete']
+  capabilities.post = true
+  capabilities.error = false
+})
 
 describe('PostsPage', () => {
   const postsPage = (items: Array<{ id: string; code: string; name: string; sortOrder: number; enabled: boolean }>, total = items.length, page = 1) => ({ items, page, size: 20, total })
+
+  it('仅有读取权限时不显示岗位写入和导出操作', async () => {
+    capabilities.permissions = ['post:read']
+    vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([{ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true }]))
+    renderPage()
+
+    expect(await screen.findByText('运营专员')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '刷新岗位' })).toBeInTheDocument()
+    for (const name of ['新增岗位', '导出 Excel', '编辑', '删除']) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: '操作' })).not.toBeInTheDocument()
+  })
+
+  it('按独立权限显示岗位操作，权限撤销后隐藏已打开的表单', async () => {
+    capabilities.permissions = ['post:read', 'post:update']
+    vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([{ id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'operator', name: '运营专员', sortOrder: 1, enabled: true }]))
+    const page = renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    capabilities.permissions = ['post:read']
+    page.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><PostsPage /></QueryClientProvider>)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
 
   it('显示岗位并按状态筛选', async () => {
     const listPosts = vi.spyOn(apiClient, 'listPosts').mockResolvedValue(postsPage([

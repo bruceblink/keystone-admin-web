@@ -5,6 +5,7 @@ import { apiClient } from '../../shared/api/client'
 import type { NativePost, NativePostWriteInput } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
+import { useCapabilities } from '../../shared/auth/useCapabilities'
 import { PostFormModal } from './PostFormModal'
 
 const PAGE_SIZE = 20
@@ -15,6 +16,13 @@ const urlOptions = { namespace: 'posts' }
 
 export function PostsPage() {
   const queryClient = useQueryClient()
+  const capabilities = useCapabilities()
+  // 岗位操作入口使用与服务端相同的权限，数据范围仍由服务端逐次核验。
+  const can = (permission: string) => !capabilities.isError && Boolean(capabilities.data?.resources.post && capabilities.data.permissions.includes(permission))
+  const canCreate = can('post:create')
+  const canExport = can('post:export')
+  const canEdit = can('post:update')
+  const canDelete = can('post:delete')
   const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
   const { keyword: appliedKeyword, status: appliedStatus, page } = urlState
   const [formFilters, setFormFilters] = useState<PostFilters>({ keyword: appliedKeyword, status: appliedStatus })
@@ -133,8 +141,8 @@ export function PostsPage() {
 
       <Card className="posts-table-card">
         <ListToolbar>
-          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增岗位</Button>
-          <Button variant="secondary" size="sm" onClick={() => void exportPosts()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button>
+          {canCreate ? <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增岗位</Button> : null}
+          {canExport ? <Button variant="secondary" size="sm" onClick={() => void exportPosts()} disabled={exporting || query.isFetching}><Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}</Button> : null}
           <Button variant="secondary" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新岗位</Button>
         </ListToolbar>
         <CardHeader title="岗位列表" description={query.data ? `共 ${total.toLocaleString('zh-CN')} 个匹配岗位` : undefined} action={<Badge tone="info">系统 API</Badge>} />
@@ -142,17 +150,17 @@ export function PostsPage() {
         {query.isError && !query.data ? <InitialQueryError title="无法读取岗位列表" message="岗位列表读取失败，请重试" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
         {query.isError && query.data ? <StaleQueryError message="岗位列表刷新失败，当前仍显示上一次成功数据。" error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} /> : null}
         {query.data ? <>
-        {posts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead><tbody>{posts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
+        {posts.length > 0 ? <div className="posts-table-wrap"><table className="posts-table"><thead><tr><th scope="col">岗位</th><th scope="col">编码</th><th scope="col">排序</th><th scope="col">状态</th>{canEdit || canDelete ? <th scope="col">操作</th> : null}</tr></thead><tbody>{posts.map((post) => <PostRow key={post.id} post={post} pending={deleteMutation.isPending} canEdit={canEdit} canDelete={canDelete} onEdit={openEdit} onDelete={openDelete} />)}</tbody></table></div> : <div className="posts-empty" role="status"><span className="posts-empty-icon"><BriefcaseBusiness size={20} /></span><strong>没有匹配的岗位</strong><p>调整筛选条件后重试，或清空筛选条件查看全部岗位。</p></div>}
         {totalPages > 1 ? <div className="posts-pagination"><span>第 {page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" onClick={() => setUrlState({ page: page - 1 })} disabled={page <= 1 || query.isFetching}>上一页</Button><Button variant="secondary" size="sm" onClick={() => setUrlState({ page: page + 1 })} disabled={page >= totalPages || query.isFetching}>下一页</Button></div></div> : null}
         </> : null}
       </Card>
 
-      <PostFormModal open={modalMode !== null} mode={modalMode ?? 'create'} post={editingPost} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitPost} />
-      <DeleteConfirmModal open={deletingPost !== null} resourceLabel="岗位" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingPost) void deleteMutation.mutateAsync(deletingPost.id).catch(() => undefined) }} />
+      <PostFormModal open={modalMode === 'create' ? canCreate : modalMode === 'edit' && canEdit} mode={modalMode ?? 'create'} post={editingPost} pending={saveMutation.isPending} error={saveMutation.error} onClose={closeModal} onSubmit={submitPost} />
+      <DeleteConfirmModal open={deletingPost !== null && canDelete} resourceLabel="岗位" count={1} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={() => { if (deletingPost) void deleteMutation.mutateAsync(deletingPost.id).catch(() => undefined) }} />
     </div>
   )
 }
 
-function PostRow({ post, pending, onEdit, onDelete }: { post: NativePost; pending: boolean; onEdit: (post: NativePost) => void; onDelete: (post: NativePost) => void }) {
-  return <tr><td><div className="post-cell"><span className="post-cell-icon"><BriefcaseBusiness size={15} /></span><div><strong>{post.name}</strong><small>{post.code}</small></div></div></td><td><code className="post-code">{post.code}</code></td><td>{post.sortOrder}</td><td><Badge tone={post.enabled ? 'success' : 'warning'}>{post.enabled ? '启用' : '停用'}</Badge></td><td><div className="table-actions"><Button variant="ghost" size="sm" onClick={() => onEdit(post)} disabled={pending}><Pencil size={14} /> 编辑</Button><Button variant="ghost" size="sm" onClick={() => onDelete(post)} disabled={pending}>删除</Button></div></td></tr>
+function PostRow({ post, pending, canEdit, canDelete, onEdit, onDelete }: { post: NativePost; pending: boolean; canEdit: boolean; canDelete: boolean; onEdit: (post: NativePost) => void; onDelete: (post: NativePost) => void }) {
+  return <tr><td><div className="post-cell"><span className="post-cell-icon"><BriefcaseBusiness size={15} /></span><div><strong>{post.name}</strong><small>{post.code}</small></div></div></td><td><code className="post-code">{post.code}</code></td><td>{post.sortOrder}</td><td><Badge tone={post.enabled ? 'success' : 'warning'}>{post.enabled ? '启用' : '停用'}</Badge></td>{canEdit || canDelete ? <td><div className="table-actions">{canEdit ? <Button variant="ghost" size="sm" onClick={() => onEdit(post)} disabled={pending}><Pencil size={14} /> 编辑</Button> : null}{canDelete ? <Button variant="ghost" size="sm" onClick={() => onDelete(post)} disabled={pending}>删除</Button> : null}</div></td> : null}</tr>
 }
