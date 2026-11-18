@@ -141,10 +141,12 @@ export function JobsPage() {
 
   function toggleJob(job: NativeJob) {
     statusMutation.reset()
+    triggerMutation.reset()
     void statusMutation.mutateAsync({ id: job.id, enabled: !job.enabled }).catch(() => undefined)
   }
 
   function runJob(job: NativeJob) {
+    statusMutation.reset()
     triggerMutation.reset()
     void triggerMutation.mutateAsync(job.id).catch(() => undefined)
   }

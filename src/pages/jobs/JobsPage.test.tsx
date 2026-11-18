@@ -152,6 +152,36 @@ describe('JobsPage', () => {
     expect(screen.getByText(/requestId=job-1/)).toBeInTheDocument()
   })
 
+  it('切换另一种任务操作后清除之前的操作错误', async () => {
+    const jobs = [
+      { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'heartbeat', name: '系统心跳', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null },
+      { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', code: 'cleanup', name: '清理任务', group: 'SYSTEM', invokeTarget: 'keystoneJob.cleanup()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null },
+    ]
+    vi.spyOn(apiClient, 'listJobs').mockResolvedValue({ items: jobs, page: 1, size: 20, total: jobs.length })
+    vi.spyOn(apiClient, 'triggerJob')
+      .mockRejectedValueOnce(new ApiError('任务触发失败', 503, 'service_unavailable'))
+      .mockResolvedValue({ triggered: true })
+    vi.spyOn(apiClient, 'updateJobStatus')
+      .mockResolvedValueOnce({ ...jobs[0], enabled: false })
+      .mockRejectedValueOnce(new ApiError('任务状态冲突', 409, 'resource_conflict'))
+    renderPage()
+
+    await screen.findByText('系统心跳')
+    fireEvent.click(screen.getByTitle('执行 系统心跳'))
+    expect(await screen.findByText(/service_unavailable/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('停用 系统心跳'))
+    await waitFor(() => expect(apiClient.updateJobStatus).toHaveBeenCalledWith(jobs[0].id, false))
+    expect(screen.queryByText(/service_unavailable/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('停用 清理任务'))
+    expect(await screen.findByText(/resource_conflict/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('执行 清理任务'))
+    await waitFor(() => expect(apiClient.triggerJob).toHaveBeenNthCalledWith(2, jobs[1].id))
+    expect(screen.queryByText(/resource_conflict/)).not.toBeInTheDocument()
+  })
+
   it('深链接选择当前页之外的任务时读取任务详情', async () => {
     const detail = { id: '9d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'detail-job', name: '跨页任务', group: 'SYSTEM', invokeTarget: 'keystoneJob.heartbeat()', jobParams: '{}', cron: '0/30 * * * * ?', concurrent: false, enabled: true, remark: null, lastStatus: 'SUCCESS', lastRunAt: null }
     window.history.replaceState({}, '', '/jobs?jobs_jobPage=2&jobs_selectedJobId=' + detail.id)
