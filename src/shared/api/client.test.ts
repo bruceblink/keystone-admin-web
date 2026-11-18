@@ -324,14 +324,24 @@ describe('Native API client', () => {
       expect(init?.method).toBe('POST')
       expect(init?.body).toBeInstanceOf(FormData)
       expect((init?.body as FormData).get('file')).toBeInstanceOf(File)
-      return ok({ total: 2, success: 1, failed: [{ row: 3, username: 'blocked', reason: 'permission_denied' }] })
+      return ok({ total: 2, success: 1, failed: [{ row: 3, username: 'blocked', reason: 'username already exists', code: 'username_already_exists' }] })
     })
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await apiClient.importUsers(new File(['xlsx'], 'users.xlsx', { type: XLSX_MIME_TYPE }))
 
-    expect(result).toEqual({ total: 2, success: 1, failed: [{ row: 3, username: 'blocked', reason: 'permission_denied' }] })
+    expect(result).toEqual({ total: 2, success: 1, failed: [{ row: 3, username: 'blocked', reason: 'username already exists', code: 'username_already_exists' }] })
     expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('兼容旧服务未返回错误码的用户导入结果', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ok({
+      total: 1, success: 0, failed: [{ row: 2, username: 'legacy', reason: 'invalid user' }],
+    })))
+
+    const result = await apiClient.importUsers(new File(['xlsx'], 'users.xlsx', { type: XLSX_MIME_TYPE }))
+
+    expect(result.failed).toEqual([{ row: 2, username: 'legacy', reason: 'invalid user' }])
   })
 
   it('拒绝非 XLSX 导入并校验用户导出文件响应', async () => {

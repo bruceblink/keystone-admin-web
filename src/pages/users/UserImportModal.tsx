@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import type { NativeUserImportResult } from '../../shared/api/schemas'
 import { isXlsxFilename } from '../../shared/api/client'
+import { lookupBusinessError } from '../../shared/api/errors'
 import { ActionError, Button, Modal, Spinner } from '../../shared/ui'
 
 type UserImportModalProps = {
@@ -99,7 +100,11 @@ export function UserImportModal({ open, pending, result, error, onClose, onSubmi
                 <div className="user-import-failures-wrap">
                   <table>
                     <thead><tr><th scope="col">行号</th><th scope="col">用户名</th><th scope="col">原因</th></tr></thead>
-                    <tbody>{result.failed.map((failure) => <tr key={`${failure.row}-${failure.username}`}><td>{failure.row}</td><td>{failure.username || '—'}</td><td>{failure.reason}</td></tr>)}</tbody>
+                    <tbody>{result.failed.map((failure) => {
+                      // 旧服务可能不提供错误码，仍保留原始失败原因供用户处理。
+                      const definition = lookupBusinessError(failure.code)
+                      return <tr key={`${failure.row}-${failure.username}`}><td>{failure.row}</td><td>{failure.username || '—'}</td><td>{failure.reason}{failure.code ? <div><code>{failure.code}</code>{definition ? ` · ${definition.meaning}` : null}</div> : null}</td></tr>
+                    })}</tbody>
                   </table>
                 </div>
               </div>

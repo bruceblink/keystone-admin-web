@@ -403,7 +403,7 @@ describe('UsersPage', () => {
     const importUsers = vi.spyOn(apiClient, 'importUsers').mockResolvedValue({
       total: 2,
       success: 1,
-      failed: [{ row: 3, username: 'blocked', reason: 'permission_denied' }],
+      failed: [{ row: 3, username: 'blocked', reason: 'username already exists', code: 'username_already_exists' }],
     })
     renderPage()
 
@@ -416,7 +416,8 @@ describe('UsersPage', () => {
 
     await waitFor(() => expect(importUsers).toHaveBeenCalledWith(file))
     expect(await within(dialog).findByRole('region', { name: '导入结果' })).toHaveTextContent('blocked')
-    expect(within(dialog).getByText('permission_denied')).toBeInTheDocument()
+    expect(within(dialog).getByText('username_already_exists')).toBeInTheDocument()
+    expect(within(dialog).getByText(/用户名已存在/)).toBeInTheDocument()
   })
 
   it('拒绝用户导入的旧式 Excel 扩展名并提供可读错误', async () => {

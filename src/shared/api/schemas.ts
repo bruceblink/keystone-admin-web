@@ -170,11 +170,12 @@ export const nativeUsersPageSchema = z.object({
   total: z.number().int().nonnegative(),
 })
 
-/** Native 用户 XLSX 导入结果；失败行只包含行号、用户名和脱敏原因。 */
+/** 用户 XLSX 导入失败行保留可反查的业务错误码；旧服务未提供代码时仍可读取。 */
 export const nativeUserImportFailureSchema = z.object({
   row: z.number().int().positive(),
   username: z.string(),
   reason: z.string(),
+  code: z.string().optional(),
 })
 
 export const nativeUserImportResultSchema = z.object({
