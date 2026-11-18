@@ -206,13 +206,13 @@ describe('LoginPage', () => {
     expect(screen.getByTestId('current-location')).toHaveTextContent('/dictionaries?dictionaries_keyword=notice')
   })
 
-  it('登录成功时拒绝外部返回地址并进入监控页', async () => {
+  it('登录成功时拒绝外部返回地址并交给能力路由选择默认页面', async () => {
     const login = vi.fn().mockResolvedValue(undefined)
     useSessionStore.setState({ isHydrated: true, login })
     renderPage({ pathname: 'https://attacker.example/path', search: '', hash: '' })
 
     fireEvent.click(screen.getByRole('button', { name: /登录/ }))
 
-    expect(await screen.findByTestId('current-location')).toHaveTextContent('/monitor')
+    expect(await screen.findByTestId('current-location')).toHaveTextContent('/')
   })
 })

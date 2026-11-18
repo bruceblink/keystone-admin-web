@@ -35,6 +35,26 @@ export const nativeTokenSchema = z.object({
   clientId: z.string(),
 })
 
+/** 已登录主体的有效权限与列表数据范围；范围字段缺失时按接口错误处理。 */
+export const nativeCapabilitiesSchema = z.object({
+  permissions: z.array(z.string()),
+  resources: z.object({
+    user: z.boolean(),
+    department: z.boolean(),
+    role: z.boolean(),
+    post: z.boolean(),
+    menu: z.boolean(),
+    config: z.boolean(),
+    dictionary: z.boolean(),
+    notice: z.boolean(),
+    job: z.boolean(),
+    audit: z.boolean(),
+    session: z.boolean(),
+    'api-key': z.boolean(),
+    profile: z.boolean(),
+  }),
+})
+
 /** Native step-up challenge；只保存当前会话绑定的短期验证请求元数据。 */
 export const nativeMfaStepUpChallengeSchema = z.object({
   challengeId: z.string().min(1),
@@ -493,6 +513,7 @@ export const nativeJobLogsPageSchema = z.object({
 })
 
 export type User = z.infer<typeof userSchema>
+export type NativeCapabilities = z.infer<typeof nativeCapabilitiesSchema>
 export type NativeMfaStepUpChallenge = z.infer<typeof nativeMfaStepUpChallengeSchema>
 export type NativeMfaLoginChallenge = z.infer<typeof nativeMfaLoginChallengeSchema>
 export type NativeMfaStepUpResult = z.infer<typeof nativeMfaStepUpResultSchema>

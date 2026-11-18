@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MonitorPage } from './MonitorPage'
 import { apiClient } from '../../shared/api/client'
 import { ApiError } from '../../shared/api/errors'
+import type { NativeCapabilities } from '../../shared/api/schemas'
 
 vi.mock('../../widgets/monitor/TrendChart', () => ({
   TrendChart: ({ data }: { data: Array<{ timestamp: string; cpu: number | null; memory: number }> }) => (
@@ -42,10 +43,18 @@ const onlineUsers = {
   total: 1,
 }
 const fromApi = <T,>(value: T) => ({ value, source: 'api' as const })
+const allMonitorCapabilities: NativeCapabilities = {
+  permissions: ['server:read', 'cache:refresh', 'online-session:read', 'online-session:revoke'],
+  resources: {
+    user: false, department: false, role: false, post: false, menu: false, config: false,
+    dictionary: false, notice: false, job: false, audit: false, session: true,
+    'api-key': false, profile: false,
+  },
+}
 
-function renderPage() {
+function renderPage(capabilities = allMonitorCapabilities) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><MonitorPage /></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><MonitorPage capabilities={capabilities} /></QueryClientProvider>)
 }
 
 function mockMonitorReads() {
@@ -59,6 +68,30 @@ afterEach(() => {
 })
 
 describe('MonitorPage', () => {
+  it('只读取有权限的监控资源，并对其余资源显示受限状态', async () => {
+    const getServer = vi.spyOn(apiClient, 'getMonitorServerInfo').mockResolvedValue(fromApi(serverInfo))
+    const getCache = vi.spyOn(apiClient, 'getMonitorCacheInfo').mockResolvedValue(fromApi(cacheInfo))
+    const getOnline = vi.spyOn(apiClient, 'listMonitorOnlineUsers').mockResolvedValue(fromApi(onlineUsers))
+    renderPage({ ...allMonitorCapabilities, permissions: ['server:read'] })
+
+    expect(await screen.findAllByText('OpenJDK · Linux')).toHaveLength(2)
+    expect(screen.getByText('当前账号没有读取缓存统计的权限。')).toBeInTheDocument()
+    expect(screen.getByText('当前账号没有读取在线会话的权限。')).toBeInTheDocument()
+    expect(getServer).toHaveBeenCalledOnce()
+    expect(getCache).not.toHaveBeenCalled()
+    expect(getOnline).not.toHaveBeenCalled()
+  })
+
+  it('没有会话下线权限时保留查看详情，但隐藏强制下线操作', async () => {
+    mockMonitorReads()
+    renderPage({ ...allMonitorCapabilities, permissions: ['server:read', 'cache:refresh', 'online-session:read'] })
+
+    await screen.findByText('operator')
+    fireEvent.click(screen.getByRole('button', { name: /operator/ }))
+    expect(await screen.findByRole('dialog', { name: /operator/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '强制下线' })).not.toBeInTheDocument()
+  })
+
   it('一个资源权限拒绝时仍显示其他资源，并标记整体部分可用', async () => {
     vi.spyOn(apiClient, 'getMonitorServerInfo').mockRejectedValue(new ApiError('forbidden', 403, 'permission_denied'))
     vi.spyOn(apiClient, 'getMonitorCacheInfo').mockResolvedValue(fromApi(cacheInfo))

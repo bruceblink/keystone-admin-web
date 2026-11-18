@@ -58,7 +58,11 @@ export function UsersPage() {
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeUserWriteInput }) => stepUp.run(() => id ? apiClient.updateUser(id, input) : apiClient.createUser(input)),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['users'] })
+      // 用户角色可能被修改；重新读取当前账号能力，及时收起已失效的页面入口。
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['users'] }),
+        queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] }),
+      ])
       setModalMode(null)
       setEditingUser(null)
     },

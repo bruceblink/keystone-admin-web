@@ -14,7 +14,7 @@ describe('getSafeReturnPath', () => {
     { pathname: '/\\attacker.example/path', search: '', hash: '' },
     { pathname: '/login', search: '?loop=1', hash: '' },
     { pathname: '/safe/../login', search: '', hash: '' },
-  ])('无效返回地址回退到监控页：%o', (from) => {
-    expect(getSafeReturnPath({ from })).toBe('/monitor')
+  ])('无效返回地址回退到能力选择的默认页面：%o', (from) => {
+    expect(getSafeReturnPath({ from })).toBe('/')
   })
 })

@@ -1,4 +1,4 @@
-const DEFAULT_RETURN_PATH = '/monitor'
+const DEFAULT_RETURN_PATH = '/'
 const RETURN_PATH_BASE = 'http://keystone.local'
 
 type ReturnLocation = {

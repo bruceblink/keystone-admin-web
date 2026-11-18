@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { Activity, ArrowDownToLine, ArrowUpFromLine, CircleHelp, Database, HardDrive, Layers3, MemoryStick, RefreshCw, Server, Signal, UserRound, Wifi } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
+import type { NativeCapabilities } from '../../shared/api/schemas'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
+import { canReadMonitorResource } from '../../shared/auth/capabilityRules'
 import { useSessionStore } from '../../shared/state/session'
 import { appendMonitorTrendSample, formatDateTime, formatPercent, formatRate, statusTone } from '../../entities/monitor/format'
 import type { MonitorStatus, SessionSummary, TrendPoint } from '../../entities/monitor/types'
@@ -12,7 +14,7 @@ import { TrendChart } from '../../widgets/monitor/TrendChart'
 
 const statusLabels = { LIVE: 'LIVE', STALE: 'STALE', OFFLINE: 'OFFLINE', PARTIAL: 'PARTIAL' } as const
 
-export function MonitorPage() {
+export function MonitorPage({ capabilities }: { capabilities: NativeCapabilities }) {
   const [selectedSession, setSelectedSession] = useState<SessionSummary | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<unknown>(null)
@@ -21,10 +23,14 @@ export function MonitorPage() {
   const stepUp = useMfaStepUp()
   const clearSession = useSessionStore((state) => state.clearSession)
 
-  // 每类资源分别缓存和刷新，单项权限拒绝不会覆盖其他接口的成功结果。
-  const serverQuery = useQuery({ queryKey: ['monitor', 'server-info'], queryFn: apiClient.getMonitorServerInfo, refetchInterval: 15_000, staleTime: 10_000 })
-  const cacheQuery = useQuery({ queryKey: ['monitor', 'cache-info'], queryFn: apiClient.getMonitorCacheInfo, refetchInterval: 15_000, staleTime: 10_000 })
-  const onlineQuery = useQuery({ queryKey: ['monitor', 'online-users', 1, 100], queryFn: apiClient.listMonitorOnlineUsers, refetchInterval: 15_000, staleTime: 10_000 })
+  const canReadServer = canReadMonitorResource('server:read', capabilities)
+  const canRefreshCache = canReadMonitorResource('cache:refresh', capabilities)
+  const canReadOnlineUsers = canReadMonitorResource('online-session:read', capabilities)
+  const canRevokeOnlineSession = capabilities.resources.session && capabilities.permissions.includes('online-session:revoke')
+  // 每类资源按自身权限启用查询；无权限时不发送请求，也不生成 Mock 成功状态。
+  const serverQuery = useQuery({ queryKey: ['monitor', 'server-info'], queryFn: apiClient.getMonitorServerInfo, enabled: canReadServer, refetchInterval: 15_000, staleTime: 10_000 })
+  const cacheQuery = useQuery({ queryKey: ['monitor', 'cache-info'], queryFn: apiClient.getMonitorCacheInfo, enabled: canRefreshCache, refetchInterval: 15_000, staleTime: 10_000 })
+  const onlineQuery = useQuery({ queryKey: ['monitor', 'online-users', 1, 100], queryFn: apiClient.listMonitorOnlineUsers, enabled: canReadOnlineUsers, refetchInterval: 15_000, staleTime: 10_000 })
 
   useEffect(() => {
     const result = serverQuery.data
@@ -52,7 +58,11 @@ export function MonitorPage() {
     ? serverInfo.heapUsed / serverInfo.maxMemory * 100
     : null
   const node = serverInfo ? `${serverInfo.jvmName} · ${serverInfo.osName}` : '—'
-  const queryStates = [serverQuery, cacheQuery, onlineQuery]
+  const queryStates = [
+    ...(canReadServer ? [serverQuery] : []),
+    ...(canRefreshCache ? [cacheQuery] : []),
+    ...(canReadOnlineUsers ? [onlineQuery] : []),
+  ]
   const isRefreshing = queryStates.some((query) => query.isFetching)
   const allInitialReadsFailed = queryStates.every((query) => query.isError && query.data === undefined)
   const anyReadFailed = queryStates.some((query) => query.isError)
@@ -90,7 +100,11 @@ export function MonitorPage() {
   function refreshAll() {
     setNotice(null)
     setActionError(null)
-    void Promise.all([serverQuery.refetch(), cacheQuery.refetch(), onlineQuery.refetch()])
+    void Promise.all([
+      ...(canReadServer ? [serverQuery.refetch()] : []),
+      ...(canRefreshCache ? [cacheQuery.refetch()] : []),
+      ...(canReadOnlineUsers ? [onlineQuery.refetch()] : []),
+    ])
   }
 
   async function forceLogout(session: SessionSummary) {
@@ -129,7 +143,7 @@ export function MonitorPage() {
         <section className="monitor-main">
           <Card className="trend-card">
             <CardHeader title="主机资源趋势" description="最近 30 分钟 · 页面打开期间采样" action={<div className="node-chip"><Server size={14} /> {node}</div>} />
-            <ResourceQueryFeedback title="主机信息" message="主机资源暂不可用；重试只会重新读取主机信息。" query={serverQuery} onRetry={() => void serverQuery.refetch()} />
+            <ResourceQueryFeedback title="主机信息" message="主机资源暂不可用；重试只会重新读取主机信息。" blocked={!canReadServer} query={serverQuery} onRetry={() => void serverQuery.refetch()} />
             {serverInfo ? <TrendChart data={memoryTrend} /> : null}
             <div className="trend-summary"><div><span className="line-key line-key-cyan" />CPU <strong>—</strong></div><div><span className="line-key line-key-indigo" />内存 <strong>{formatPercent(memory)}</strong></div><span className="threshold-note">关注阈值 80% · 来源：系统 API</span></div>
           </Card>
@@ -140,7 +154,7 @@ export function MonitorPage() {
           </div>
           <Card className="sessions-card">
             <CardHeader title="在线会话" description={onlineUsers ? `${sessions.length} 个活跃会话 · 仅展示当前节点` : '会话数据独立读取'} action={onlineUsers ? <Badge tone="success"><span className="tiny-dot" /> 在线</Badge> : null} />
-            <ResourceQueryFeedback title="在线会话" message="在线会话暂不可用；重试只会重新读取会话列表。" query={onlineQuery} onRetry={() => void onlineQuery.refetch()} />
+            <ResourceQueryFeedback title="在线会话" message="在线会话暂不可用；重试只会重新读取会话列表。" blocked={!canReadOnlineUsers} query={onlineQuery} onRetry={() => void onlineQuery.refetch()} />
             {onlineUsers && sessions.length === 0 ? <div className="session-list" role="status">暂无在线会话</div> : null}
             {sessions.length > 0 ? <div className="session-list">{sessions.map((session) => <SessionRow key={session.id} session={session} onSelect={setSelectedSession} />)}</div> : null}
           </Card>
@@ -153,7 +167,7 @@ export function MonitorPage() {
               <InfoRow icon={<Wifi size={16} />} label="网络入口" value="—" helper="出口 — · 系统 API 未提供" />
               <InfoRow icon={<Layers3 size={16} />} label="处理器" value={formatCount(serverInfo?.processors ?? null)} helper="系统 API 处理器数量" />
               <InfoRow icon={<Database size={16} />} label="活动会话" value={formatCount(cacheInfo?.activeSessions ?? null)} helper={cacheInfo ? `登录日志 ${formatCount(cacheInfo.loginLogEntries)} 条` : '缓存统计暂不可用'} />
-              <ResourceQueryFeedback title="缓存统计" message="缓存统计暂不可用；重试只会重新读取缓存信息。" query={cacheQuery} onRetry={() => void cacheQuery.refetch()} />
+              <ResourceQueryFeedback title="缓存统计" message="缓存统计暂不可用；重试只会重新读取缓存信息。" blocked={!canRefreshCache} query={cacheQuery} onRetry={() => void cacheQuery.refetch()} />
             </div>
           </Card>
           <Card className="beam-card">
@@ -164,19 +178,22 @@ export function MonitorPage() {
           </Card>
         </aside>
       </div>
-      {selectedSession ? <SessionSheet session={selectedSession} onClose={() => setSelectedSession(null)} onForceLogout={forceLogout} /> : null}
+      {selectedSession ? <SessionSheet session={selectedSession} canRevoke={canRevokeOnlineSession} onClose={() => setSelectedSession(null)} onForceLogout={forceLogout} /> : null}
       <MfaStepUpModal {...stepUp.modal} />
     </div>
   )
 }
 
 // 每个资源在自己的卡片内显示加载、首次失败或旧数据刷新失败状态。
-function ResourceQueryFeedback<T>({ title, message, query, onRetry }: {
+function ResourceQueryFeedback<T>({ title, message, blocked, query, onRetry }: {
   title: string
   message: string
+  blocked: boolean
   query: UseQueryResult<T, Error>
   onRetry: () => void
 }) {
+  if (blocked) return <div className="monitor-resource-blocked" role="status">当前账号没有读取{title}的权限。</div>
+
   if (query.isLoading) {
     return <div className="monitor-resource-loading"><Spinner label={`正在读取${title}`} /></div>
   }
@@ -208,6 +225,6 @@ function SessionRow({ session, onSelect }: { session: SessionSummary; onSelect: 
   return <button type="button" className="session-row" onClick={() => onSelect(session)}><span className="session-avatar">{session.user.slice(0, 1).toUpperCase()}</span><span className="session-user"><strong>{session.user}</strong><small>{session.role}</small></span><span className="session-ip">{session.ip}</span><span className="session-page">{session.currentPage}</span><span className="session-online"><span className="tiny-dot" />在线</span></button>
 }
 
-function SessionSheet({ session, onClose, onForceLogout }: { session: SessionSummary; onClose: () => void; onForceLogout: (session: SessionSummary) => Promise<void> }) {
-  return <div className="sheet-backdrop" role="presentation" onClick={onClose}><section className="session-sheet" role="dialog" aria-modal="true" aria-labelledby="session-sheet-title" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><div className="sheet-heading"><div><p className="eyebrow">SESSION DETAIL</p><h2 id="session-sheet-title">{session.user}</h2></div><Button variant="ghost" size="sm" onClick={onClose} aria-label="关闭会话详情">关闭</Button></div><div className="session-detail-list"><InfoRow icon={<UserRound size={16} />} label="角色" value={session.role} /><InfoRow icon={<Signal size={16} />} label="访问地址" value={session.ip} /><InfoRow icon={<Activity size={16} />} label="当前页面" value={session.currentPage} /><InfoRow icon={<RefreshCw size={16} />} label="最后活动" value={formatDateTime(session.lastSeen)} /></div><Button variant="danger" className="force-logout-button" onClick={() => onForceLogout(session)}>强制下线</Button></section></div>
+function SessionSheet({ session, canRevoke, onClose, onForceLogout }: { session: SessionSummary; canRevoke: boolean; onClose: () => void; onForceLogout: (session: SessionSummary) => Promise<void> }) {
+  return <div className="sheet-backdrop" role="presentation" onClick={onClose}><section className="session-sheet" role="dialog" aria-modal="true" aria-labelledby="session-sheet-title" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" /><div className="sheet-heading"><div><p className="eyebrow">SESSION DETAIL</p><h2 id="session-sheet-title">{session.user}</h2></div><Button variant="ghost" size="sm" onClick={onClose} aria-label="关闭会话详情">关闭</Button></div><div className="session-detail-list"><InfoRow icon={<UserRound size={16} />} label="角色" value={session.role} /><InfoRow icon={<Signal size={16} />} label="访问地址" value={session.ip} /><InfoRow icon={<Activity size={16} />} label="当前页面" value={session.currentPage} /><InfoRow icon={<RefreshCw size={16} />} label="最后活动" value={formatDateTime(session.lastSeen)} /></div>{canRevoke ? <Button variant="danger" className="force-logout-button" onClick={() => onForceLogout(session)}>强制下线</Button> : null}</section></div>
 }

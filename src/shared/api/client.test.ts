@@ -69,6 +69,34 @@ describe('Native API client', () => {
     expect(calls[1]?.init?.body).toContain('"refreshToken":"refresh-1"')
   })
 
+  it('读取已登录主体的权限和资源范围，不回退到 Mock', async () => {
+    const capabilities = {
+      permissions: ['user:read', 'server:read'],
+      resources: {
+        user: true, department: false, role: false, post: false, menu: false, config: false,
+        dictionary: false, notice: false, job: false, audit: false, session: true,
+        'api-key': false, profile: true,
+      },
+    }
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/auth/me/capabilities')
+      return ok(capabilities)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.getCapabilities()).resolves.toEqual(capabilities)
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('能力接口网络失败或缺少范围字段时不回退到 Mock', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'true')
+    vi.stubGlobal('fetch', vi.fn(async () => response({ success: false, data: null, message: 'unavailable', error: { code: 'service_unavailable' } }, 503)))
+    await expect(apiClient.getCapabilities()).rejects.toMatchObject({ status: 503, code: 'service_unavailable' })
+
+    vi.stubGlobal('fetch', vi.fn(async () => ok({ permissions: ['user:read'], resources: { user: true } })))
+    await expect(apiClient.getCapabilities()).rejects.toThrow()
+  })
+
   // 初始改密不需要已有会话，并且只返回更新状态。
   it('通过公开改密接口提交初始密码并解析更新结果', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {

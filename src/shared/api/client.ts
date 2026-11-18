@@ -45,6 +45,7 @@ import {
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
+  nativeCapabilitiesSchema,
   nativeMfaStepUpChallengeSchema,
   nativeMfaLoginChallengeSchema,
   nativeMfaStepUpResultSchema,
@@ -56,6 +57,7 @@ import {
   type NativeMfaStepUpChallenge,
   type NativeMfaLoginChallenge,
   type NativeMfaStepUpResult,
+  type NativeCapabilities,
   type NotificationsPage,
   type NativeUser,
   type NativeProfile,
@@ -118,6 +120,7 @@ let currentUser: User | null = null
 let currentSessionId: string | null = null
 let refreshPromise: Promise<string | null> | null = null
 let sessionExpiredHandler: (() => void) | null = null
+let accessTokenRefreshedHandler: ((requestPath: string) => void) | null = null
 
 async function listPostsRequest(): Promise<NativePost[]>
 async function listPostsRequest(filters: PostListFilters): Promise<NativePostsPage>
@@ -224,6 +227,9 @@ function serverApiError(envelope: ReturnType<typeof apiEnvelopeSchema.parse>, st
 export function setSessionExpiredHandler(handler: (() => void) | null): void {
   sessionExpiredHandler = handler
 }
+export function setAccessTokenRefreshedHandler(handler: ((requestPath: string) => void) | null): void {
+  accessTokenRefreshedHandler = handler
+}
 function unwrap<T>(body: unknown, status: number): T {
   const envelope = apiEnvelopeSchema.safeParse(body)
   if (!envelope.success) return body as T
@@ -254,7 +260,7 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
 
   const body = response.status === 204 ? null : await readJson(response)
   if (response.status === 401 && retry && path !== '/auth/refresh') {
-    const refreshed = await refreshAccessToken()
+    const refreshed = await refreshAccessToken(path)
     if (refreshed) return request<T>(path, init, false)
   }
 
@@ -281,7 +287,7 @@ async function requestFile(path: string, init: RequestInit = {}, retry = true): 
   }
 
   if (response.status === 401 && retry && path !== '/auth/refresh') {
-    const refreshed = await refreshAccessToken()
+    const refreshed = await refreshAccessToken(path)
     if (refreshed) return requestFile(path, init, false)
   }
 
@@ -306,7 +312,7 @@ function applyToken(token: ReturnType<typeof nativeTokenSchema.parse>): User {
   })
   return currentUser
 }
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(requestPath?: string): Promise<string | null> {
   if (!refreshToken) return null
   if (refreshPromise) return refreshPromise
   refreshPromise = request<unknown>('/auth/refresh', {
@@ -316,6 +322,8 @@ async function refreshAccessToken(): Promise<string | null> {
     .then((result) => {
       const token = nativeTokenSchema.parse(result)
       applyToken(token)
+      // 权限查询本身完成了重新验证；其他接口触发令牌刷新时，提示会话重新读取能力。
+      if (requestPath && requestPath !== '/auth/me/capabilities') accessTokenRefreshedHandler?.(requestPath)
       return token.accessToken
     })
     .catch(() => {
@@ -386,6 +394,11 @@ export const apiClient = {
   async restoreSession(): Promise<User | null> {
     const token = await refreshAccessToken()
     return token ? currentUser : null
+  },
+
+  /** 每次读取当前会话的有效权限和资源范围；失败时不使用 Mock 或默认权限。 */
+  async getCapabilities(): Promise<NativeCapabilities> {
+    return nativeCapabilitiesSchema.parse(await request<unknown>('/auth/me/capabilities'))
   },
 
   async logout(): Promise<void> {

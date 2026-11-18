@@ -4,6 +4,21 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { AdminShell } from './AdminShell'
 import { apiClient } from '../../shared/api/client'
+import type { NativeCapabilities } from '../../shared/api/schemas'
+import type { useCapabilities } from '../../shared/auth/useCapabilities'
+
+const allCapabilities: NativeCapabilities = {
+  permissions: ['user:read', 'role:read', 'department:read', 'post:read', 'menu:read', 'api-key:read', 'operation-log:read', 'login-log:read', 'job:read', 'config:read', 'dictionary:read', 'notice:read', 'server:read', 'user:update'],
+  resources: {
+    user: true, department: true, role: true, post: true, menu: true, config: true,
+    dictionary: true, notice: true, job: true, audit: true, session: true,
+    'api-key': true, profile: true,
+  },
+}
+
+function capabilityQuery(data: NativeCapabilities, isError = false): ReturnType<typeof useCapabilities> {
+  return { data, isError, isFetching: false, isLoading: false, refetch: vi.fn() } as unknown as ReturnType<typeof useCapabilities>
+}
 
 vi.mock('../../shared/api/client', () => ({
   apiClient: {
@@ -26,7 +41,7 @@ describe('AdminShell', () => {
     const { container } = render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
-          <AdminShell />
+          <AdminShell capabilitiesQuery={capabilityQuery(allCapabilities)} />
         </MemoryRouter>
       </QueryClientProvider>,
     )
@@ -37,13 +52,32 @@ describe('AdminShell', () => {
     expect(container.querySelector('.logout-button')).toHaveAttribute('aria-label', '退出')
   })
 
+  it('按账号能力过滤侧栏并仅在具有个人资料范围时显示头像入口', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const limitedCapabilities: NativeCapabilities = {
+      permissions: ['user:read'],
+      resources: {
+        user: true, department: false, role: false, post: false, menu: false, config: false,
+        dictionary: false, notice: false, job: false, audit: false, session: false,
+        'api-key': false, profile: false,
+      },
+    }
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell capabilitiesQuery={capabilityQuery(limitedCapabilities)} /></MemoryRouter></QueryClientProvider>)
+
+    expect(screen.getByRole('link', { name: '用户与权限' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '角色管理' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '运行监控' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '接口文档' })).toHaveAttribute('href', '/api/swagger')
+    expect(screen.queryByRole('button', { name: '打开个人资料' })).not.toBeInTheDocument()
+  })
+
   it('读取当前账号的通知并在查看时标记已读', async () => {
     const notice = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', type: 'api_key.created', title: '密钥已签发', content: '测试密钥已签发。', createdAt: '2026-11-18T01:00:00Z', readAt: null }
     let read = false
     vi.mocked(apiClient.listNotificationsPage).mockImplementation(async (page) => ({ items: [{ ...notice, readAt: read ? '2026-11-18T01:01:00Z' : null }], unreadCount: read ? 0 : 1, page, hasMore: false }))
     vi.mocked(apiClient.readNotification).mockImplementation(async () => { read = true; return { ...notice, readAt: '2026-11-18T01:01:00Z' } })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell capabilitiesQuery={capabilityQuery(allCapabilities)} /></MemoryRouter></QueryClientProvider>)
 
     fireEvent.click(await screen.findByRole('button', { name: '通知，1 条未读' }))
     fireEvent.click(await screen.findByRole('button', { name: /密钥已签发/ }))
@@ -60,7 +94,7 @@ describe('AdminShell', () => {
       .mockRejectedValueOnce(new Error('network error'))
       .mockResolvedValueOnce({ ...notice, readAt: '2026-11-18T01:01:00Z' })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell capabilitiesQuery={capabilityQuery(allCapabilities)} /></MemoryRouter></QueryClientProvider>)
 
     fireEvent.click(await screen.findByRole('button', { name: '通知，1 条未读' }))
     fireEvent.click(await screen.findByRole('button', { name: /密钥已签发/ }))
@@ -77,7 +111,7 @@ describe('AdminShell', () => {
     vi.mocked(apiClient.listNotificationsPage).mockResolvedValue({ items: [notice], unreadCount: 1, page: 1, hasMore: false })
     vi.mocked(apiClient.readNotification).mockReset().mockRejectedValue(new Error('not found'))
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell capabilitiesQuery={capabilityQuery(allCapabilities)} /></MemoryRouter></QueryClientProvider>)
 
     fireEvent.click(await screen.findByRole('button', { name: '通知，1 条未读' }))
     fireEvent.click(await screen.findByRole('button', { name: /已移除的通知/ }))
@@ -94,7 +128,7 @@ describe('AdminShell', () => {
     vi.mocked(apiClient.readNotification).mockReset()
     vi.mocked(apiClient.listNotificationsPage).mockImplementation(async (page) => ({ items: [page === 1 ? first : second], unreadCount: 3, page, hasMore: page === 1 }))
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell capabilitiesQuery={capabilityQuery(allCapabilities)} /></MemoryRouter></QueryClientProvider>)
 
     fireEvent.click(await screen.findByRole('button', { name: '通知，3 条未读' }))
     expect(await screen.findByRole('button', { name: /第一页通知/ })).toBeInTheDocument()
@@ -116,7 +150,7 @@ describe('AdminShell', () => {
       ? Promise.resolve({ items: [first], unreadCount: 5, page: 1, hasMore: true })
       : new Promise((resolve) => { resolveSecondPage = resolve }))
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell capabilitiesQuery={capabilityQuery(allCapabilities)} /></MemoryRouter></QueryClientProvider>)
 
     const bell = await screen.findByRole('button', { name: '通知，5 条未读' })
     expect(bell.querySelector('.notification-dot')).toBeInTheDocument()
@@ -141,7 +175,7 @@ describe('AdminShell', () => {
       return { items: [notice], unreadCount: 0, page: 1, hasMore: true }
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell /></MemoryRouter></QueryClientProvider>)
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><AdminShell capabilitiesQuery={capabilityQuery(allCapabilities)} /></MemoryRouter></QueryClientProvider>)
 
     fireEvent.click(await screen.findByRole('button', { name: '通知' }))
     expect(await screen.findByRole('button', { name: /当前通知/ })).toBeInTheDocument()

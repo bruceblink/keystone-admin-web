@@ -5,6 +5,8 @@ import { LoginPage } from '../pages/login/LoginPage'
 import { useSessionStore } from '../shared/state/session'
 import { Spinner } from '../shared/ui'
 import { NotFoundPage } from '../pages/not-found/NotFoundPage'
+import { CapabilityPage, DefaultCapabilityPage } from '../shared/auth/CapabilitiesRoutes'
+import { useCapabilities } from '../shared/auth/useCapabilities'
 
 // 管理页面按路由延迟加载，首屏只加载登录和管理外壳，避免所有业务页面进入同一个初始包。
 const MonitorPage = lazy(() => import('../pages/monitor/MonitorPage').then(({ MonitorPage }) => ({ default: MonitorPage })))
@@ -33,7 +35,8 @@ export function RequireAuth() {
 }
 
 function ProtectedLayout() {
-  return <AdminShell />
+  const capabilitiesQuery = useCapabilities()
+  return <AdminShell capabilitiesQuery={capabilitiesQuery} />
 }
 
 export function App() {
@@ -49,23 +52,23 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<RequireAuth />}>
           <Route element={<ProtectedLayout />}>
-            <Route index element={<Navigate to="/monitor" replace />} />
-            <Route path="/monitor" element={<MonitorPage />} />
+            <Route index element={<DefaultCapabilityPage />} />
+            <Route path="/monitor" element={<CapabilityPage path="/monitor">{(capabilities) => <MonitorPage capabilities={capabilities} />}</CapabilityPage>} />
             {/* 总览入口与运行监控共用当前实时快照，避免导航项落入通配回退。 */}
-            <Route path="/dashboard" element={<MonitorPage />} />
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/roles" element={<RolesPage />} />
-            <Route path="/departments" element={<DepartmentsPage />} />
-            <Route path="/posts" element={<PostsPage />} />
-            <Route path="/menus" element={<MenusPage />} />
-            <Route path="/api-keys" element={<ApiKeysPage />} />
-            <Route path="/audit/operations" element={<OperationsAuditPage />} />
-            <Route path="/audit/login" element={<LoginLogsPage />} />
-            <Route path="/jobs" element={<JobsPage />} />
-            <Route path="/configs" element={<ConfigsPage />} />
-            <Route path="/dictionaries" element={<DictionariesPage />} />
-            <Route path="/notices" element={<NoticesPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/dashboard" element={<CapabilityPage path="/dashboard">{(capabilities) => <MonitorPage capabilities={capabilities} />}</CapabilityPage>} />
+            <Route path="/users" element={<CapabilityPage path="/users"><UsersPage /></CapabilityPage>} />
+            <Route path="/roles" element={<CapabilityPage path="/roles"><RolesPage /></CapabilityPage>} />
+            <Route path="/departments" element={<CapabilityPage path="/departments"><DepartmentsPage /></CapabilityPage>} />
+            <Route path="/posts" element={<CapabilityPage path="/posts"><PostsPage /></CapabilityPage>} />
+            <Route path="/menus" element={<CapabilityPage path="/menus"><MenusPage /></CapabilityPage>} />
+            <Route path="/api-keys" element={<CapabilityPage path="/api-keys"><ApiKeysPage /></CapabilityPage>} />
+            <Route path="/audit/operations" element={<CapabilityPage path="/audit/operations"><OperationsAuditPage /></CapabilityPage>} />
+            <Route path="/audit/login" element={<CapabilityPage path="/audit/login"><LoginLogsPage /></CapabilityPage>} />
+            <Route path="/jobs" element={<CapabilityPage path="/jobs"><JobsPage /></CapabilityPage>} />
+            <Route path="/configs" element={<CapabilityPage path="/configs"><ConfigsPage /></CapabilityPage>} />
+            <Route path="/dictionaries" element={<CapabilityPage path="/dictionaries"><DictionariesPage /></CapabilityPage>} />
+            <Route path="/notices" element={<CapabilityPage path="/notices"><NoticesPage /></CapabilityPage>} />
+            <Route path="/profile" element={<CapabilityPage path="/profile"><ProfilePage /></CapabilityPage>} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>

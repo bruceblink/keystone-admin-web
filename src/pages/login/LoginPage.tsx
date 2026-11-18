@@ -8,6 +8,9 @@ import { useSessionStore } from '../../shared/state/session'
 import { getSafeReturnPath } from '../../shared/routing/safeReturnPath'
 import { Button, Card, Modal, Spinner } from '../../shared/ui'
 
+// 登录返回路径带此标记；若账号无权访问原路径，能力路由会打开首个可访问页面。
+const AUTH_RETURN_STATE = 'after-authentication'
+
 function isInitialPasswordChangeRequired(error: unknown): boolean {
   return error instanceof ApiError && (error.code === 'precondition_required' || error.status === 428)
 }
@@ -41,7 +44,7 @@ export function LoginPage() {
   const [isMfaSubmitting, setIsMfaSubmitting] = useState(false)
 
   useEffect(() => {
-    if (isHydrated && user) navigate(returnTo, { replace: true })
+    if (isHydrated && user) navigate(returnTo, { replace: true, state: AUTH_RETURN_STATE })
   }, [isHydrated, navigate, returnTo, user])
 
   async function submitLogin(forceLogin: boolean) {
@@ -53,7 +56,7 @@ export function LoginPage() {
       await login(username.trim(), password, forceLogin)
       setForceLoginOpen(false)
       setForceLoginMode(null)
-      navigate(returnTo, { replace: true })
+      navigate(returnTo, { replace: true, state: AUTH_RETURN_STATE })
     } catch (submitError) {
       const challenge = getMfaLoginChallenge(submitError)
       if (challenge) {
@@ -103,7 +106,7 @@ export function LoginPage() {
       await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim(), true)
       setForceLoginOpen(false)
       setForceLoginMode(null)
-      navigate(returnTo, { replace: true })
+      navigate(returnTo, { replace: true, state: AUTH_RETURN_STATE })
     } catch (submitError) {
       setMfaError(formatApiError(submitError, '二次认证失败，请重试'))
     } finally {
@@ -118,7 +121,7 @@ export function LoginPage() {
     setIsMfaSubmitting(true)
     try {
       await verifyMfaLogin(username.trim(), mfaChallenge.challengeId, mfaChallenge.clientId, mfaCode.trim(), mfaForceLogin)
-      navigate(returnTo, { replace: true })
+      navigate(returnTo, { replace: true, state: AUTH_RETURN_STATE })
     } catch (submitError) {
       if (isActiveSessionConflict(submitError)) {
         setForceLoginMode('mfa')

@@ -38,9 +38,11 @@ export function RolesPage() {
   const permissionCatalogQuery = useQuery({ queryKey: ['permission-catalog'], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000, enabled: modalMode !== null })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => stepUp.run(() => id ? apiClient.updateRole(id, input) : apiClient.createRole(input)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] }),
   })
   const permissionMutation = useMutation({
     mutationFn: ({ id, permissions }: { id: string; permissions: string[] }) => stepUp.run(() => apiClient.updateRolePermissions(id, permissions)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] }),
   })
   const allocatedMembersQuery = useQuery({
     queryKey: ['role-users', memberRole?.id, 'allocated'],
@@ -80,13 +82,17 @@ export function RolesPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['role-users', memberRole?.id, 'allocated'] }),
         queryClient.invalidateQueries({ queryKey: ['role-users', memberRole?.id, 'available'] }),
+        queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] }),
       ])
     },
   })
   const deleteMutation = useMutation({
     mutationFn: (ids: string[]) => stepUp.run(() => apiClient.deleteRoles(ids)),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['roles'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['roles'] }),
+        queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] }),
+      ])
       setUrlState({ page: 1 })
       setSelectedIds([])
       setDeleteOpen(false)

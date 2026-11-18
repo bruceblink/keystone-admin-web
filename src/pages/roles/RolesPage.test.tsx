@@ -176,7 +176,8 @@ describe('RolesPage', () => {
     ])
     const updateRole = vi.spyOn(apiClient, 'updateRole').mockResolvedValue(role)
     const updateRolePermissions = vi.spyOn(apiClient, 'updateRolePermissions').mockResolvedValue({ updated: true })
-    renderPage()
+    const { queryClient } = renderPage()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
 
     await screen.findByText('审计员')
     fireEvent.click(screen.getByRole('button', { name: '编辑' }))
@@ -188,6 +189,7 @@ describe('RolesPage', () => {
 
     await waitFor(() => expect(updateRole).toHaveBeenCalledWith(role.id, { code: role.code, name: role.name, enabled: role.enabled }))
     await waitFor(() => expect(updateRolePermissions).toHaveBeenCalledWith(role.id, ['role:update', 'user:read']))
+    expect(invalidateQueries).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['auth', 'capabilities'] }))
   })
 
   it('权限目录读取失败时阻止保存，重试成功后允许提交', async () => {
