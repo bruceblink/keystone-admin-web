@@ -58,6 +58,7 @@ describe('ApiError', () => {
 
   it.each([
     ['api_key_name_invalid', 'API Key 名称必须为 1 到 128 个字符。', 'API Key 名称缺失或超过 128 个字符'],
+    ['profile_display_name_required', '请输入个人资料展示名。', '个人资料展示名缺失或为空白'],
     ['api_key_expiry_invalid', 'API Key 到期时间格式无效，请重新选择时间。', 'API Key 到期时间格式无效'],
     ['api_key_expiry_out_of_range', 'API Key 到期时间必须晚于当前时间且不超过 90 天。', 'API Key 到期时间不在允许范围内'],
   ] as const)('API Key 错误码 %s 可反查为独立条件并保留 422', (code, message, meaning) => {

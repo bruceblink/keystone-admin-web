@@ -8,7 +8,7 @@ export const SERVER_ERROR_CODES = [
   'permission_denied', 'data_scope_denied', 'session_revoked', 'resource_not_found',
   'resource_conflict', 'role_has_members', 'role_protected', 'rate_limited', 'precondition_required', 'payload_too_large',
   'https_required', 'service_unavailable', 'authorization_unavailable', 'internal_error',
-  'validation_failed', 'api_key_name_invalid', 'api_key_expiry_invalid', 'api_key_expiry_out_of_range',
+  'validation_failed', 'api_key_name_invalid', 'api_key_expiry_invalid', 'api_key_expiry_out_of_range', 'profile_display_name_required',
 ] as const
 
 /** 客户端本地错误码，不应与后端业务错误码混用。 */
@@ -66,6 +66,7 @@ export const BUSINESS_ERROR_CATALOG: Record<ServerErrorCode, BusinessErrorDefini
   internal_error: { httpStatus: 500, meaning: '服务处理失败', retryable: true, messageKey: 'error.internal_error', safeMessage: false },
   validation_failed: { httpStatus: 422, meaning: '请求参数或业务规则校验失败', retryable: false, messageKey: 'error.validation_failed', safeMessage: true },
   api_key_name_invalid: { httpStatus: 422, meaning: 'API Key 名称缺失或超过 128 个字符', retryable: false, messageKey: 'error.api_key_name_invalid', safeMessage: true },
+  profile_display_name_required: { httpStatus: 422, meaning: '个人资料展示名缺失或为空白', retryable: false, messageKey: 'error.profile_display_name_required', safeMessage: true },
   api_key_expiry_invalid: { httpStatus: 422, meaning: 'API Key 到期时间格式无效', retryable: false, messageKey: 'error.api_key_expiry_invalid', safeMessage: true },
   api_key_expiry_out_of_range: { httpStatus: 422, meaning: 'API Key 到期时间不在允许范围内', retryable: false, messageKey: 'error.api_key_expiry_out_of_range', safeMessage: true },
 }
@@ -110,6 +111,7 @@ const errorMessages: Record<string, string> = {
   https_required: '请使用 HTTPS 访问系统', service_unavailable: '系统服务暂时不可用，请稍后重试', authorization_unavailable: '认证服务暂时不可用，请稍后重试',
   internal_error: '系统处理失败，请稍后重试', validation_failed: '提交的数据无效，请检查后重试',
   api_key_name_invalid: 'API Key 名称必须为 1 到 128 个字符。',
+  profile_display_name_required: '请输入个人资料展示名。',
   api_key_expiry_invalid: 'API Key 到期时间格式无效，请重新选择时间。',
   api_key_expiry_out_of_range: 'API Key 到期时间必须晚于当前时间且不超过 90 天。',
   network_error: '无法连接系统 API', invalid_response: '系统 API 返回了无效响应',
