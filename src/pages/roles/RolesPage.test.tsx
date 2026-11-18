@@ -4,14 +4,28 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RolesPage } from './RolesPage'
 import { apiClient } from '../../shared/api/client'
 import { ApiError } from '../../shared/api/errors'
+import type { NativeCapabilities } from '../../shared/api/schemas'
+import { useSessionStore } from '../../shared/state/session'
 
-function renderPage() {
+const fullRoleCapabilities: NativeCapabilities = {
+  permissions: ['role:read', 'role:create', 'role:update', 'role:delete', 'role:export', 'role:manage', 'role:assign', 'permission:read'],
+  resources: {
+    user: true, department: true, role: true, post: true, menu: true, config: true,
+    dictionary: true, notice: true, job: true, audit: true, session: true,
+    'api-key': true, profile: true,
+  },
+}
+
+function renderPage(capabilities = fullRoleCapabilities) {
+  useSessionStore.setState({ user: { id: 'test-user', username: 'role-admin', displayName: '角色管理员', role: 'admin' }, isHydrated: true, authRevision: 1 })
+  vi.spyOn(apiClient, 'getCapabilities').mockResolvedValue(capabilities)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return { ...render(<QueryClientProvider client={queryClient}><RolesPage /></QueryClientProvider>), queryClient }
 }
 
 afterEach(() => {
   vi.restoreAllMocks()
+  useSessionStore.setState({ user: null, isHydrated: false, authRevision: 0 })
   window.history.replaceState({}, '', '/')
 })
 
@@ -210,11 +224,9 @@ describe('RolesPage', () => {
     await waitFor(() => expect(within(dialog).getByRole('button', { name: '保存角色' })).toBeEnabled())
   })
 
-  it('角色已保存但权限保存失败时刷新列表并保留选择供重试', async () => {
+  it('角色资料已保存但权限失败时只重试权限写入', async () => {
     const role = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
-    let finishRefresh!: (roles: typeof role[]) => void
-    const pendingRefresh = new Promise<typeof role[]>((resolve) => { finishRefresh = resolve })
-    const listRoles = vi.spyOn(apiClient, 'listRoles').mockResolvedValueOnce([]).mockImplementationOnce(() => pendingRefresh).mockResolvedValue([role])
+    const listRoles = vi.spyOn(apiClient, 'listRoles').mockResolvedValueOnce([]).mockResolvedValue([role])
     vi.spyOn(apiClient, 'listPermissionCatalog').mockResolvedValue([
       { permission: 'user:read', resource: 'user', action: 'read', description: '读取用户', risk: 'low', registered: true, allowed: true },
     ])
@@ -234,16 +246,15 @@ describe('RolesPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '保存角色' }))
 
     expect(await within(dialog).findByText('角色权限保存失败')).toBeInTheDocument()
+    expect(within(dialog).getByRole('status')).toHaveTextContent('角色“审计员”资料已保存，但权限保存失败')
+    expect(within(dialog).getByRole('heading', { name: '编辑角色权限' })).toBeInTheDocument()
     await waitFor(() => expect(listRoles).toHaveBeenCalledTimes(2))
     expect(within(dialog).getByRole('checkbox', { name: /user:read/ })).toBeChecked()
-    expect(within(dialog).getByRole('button', { name: /保存/ })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: '取消' })).toBeDisabled()
-    finishRefresh([role])
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: '保存角色' })).toBeEnabled())
-    fireEvent.click(within(dialog).getByRole('button', { name: '保存角色' }))
-    await waitFor(() => expect(updateRole).toHaveBeenCalledWith(role.id, expect.objectContaining({ name: role.name })))
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '保存权限' })).toBeEnabled())
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存权限' }))
     await waitFor(() => expect(updatePermissions).toHaveBeenNthCalledWith(2, role.id, ['user:read']))
     expect(createRole).toHaveBeenCalledTimes(1)
+    expect(updateRole).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
