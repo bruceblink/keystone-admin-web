@@ -56,7 +56,8 @@ export function App() {
             <Route path="/monitor" element={<CapabilityPage path="/monitor">{(capabilities) => <MonitorPage capabilities={capabilities} />}</CapabilityPage>} />
             {/* 总览入口与运行监控共用当前实时快照，避免导航项落入通配回退。 */}
             <Route path="/dashboard" element={<CapabilityPage path="/dashboard">{(capabilities) => <MonitorPage capabilities={capabilities} />}</CapabilityPage>} />
-            <Route path="/users" element={<CapabilityPage path="/users"><UsersPage /></CapabilityPage>} />
+            {/* 用户页使用同一份账号能力控制页面内的增删改查操作。 */}
+            <Route path="/users" element={<CapabilityPage path="/users">{(capabilities) => <UsersPage capabilities={capabilities} />}</CapabilityPage>} />
             <Route path="/roles" element={<CapabilityPage path="/roles"><RolesPage /></CapabilityPage>} />
             <Route path="/departments" element={<CapabilityPage path="/departments"><DepartmentsPage /></CapabilityPage>} />
             <Route path="/posts" element={<CapabilityPage path="/posts"><PostsPage /></CapabilityPage>} />

@@ -5,7 +5,7 @@ import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
-import type { NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
+import type { NativeCapabilities, NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { UserFormModal } from './UserFormModal'
@@ -22,7 +22,18 @@ const emptyFilters: UserFilters = { username: '', displayName: '' }
 const urlDefaults = { username: '', displayName: '', page: 1 }
 const urlOptions = { namespace: 'users' }
 
-export function UsersPage() {
+export function UsersPage({ capabilities }: { capabilities: NativeCapabilities }) {
+  // 用户操作必须同时满足用户数据范围和具体操作权限。
+  const hasUserScope = capabilities.resources.user
+  const canCreateUser = hasUserScope && capabilities.permissions.includes('user:create')
+  const canImportUsers = hasUserScope && capabilities.permissions.includes('user:import')
+  const canExportUsers = hasUserScope && capabilities.permissions.includes('user:export')
+  const canDeleteUsers = hasUserScope && capabilities.permissions.includes('user:delete')
+  const canUpdateUsers = hasUserScope && capabilities.permissions.includes('user:update')
+  // 只有具备角色读取、分配权限和角色数据范围时，才读取目录并允许改角色。
+  const canAssignRoles = capabilities.resources.role
+    && capabilities.permissions.includes('role:read')
+    && capabilities.permissions.includes('role:assign')
   const queryClient = useQueryClient()
   const stepUp = useMfaStepUp()
   const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
@@ -41,7 +52,7 @@ export function UsersPage() {
     queryKey: ['user-role-options'],
     queryFn: () => apiClient.listRoles(),
     staleTime: 60_000,
-    enabled: modalMode !== null,
+    enabled: modalMode !== null && canAssignRoles,
   })
   const importMutation = useMutation({
     mutationFn: (file: File) => stepUp.run(() => apiClient.importUsers(file)),
@@ -83,6 +94,10 @@ export function UsersPage() {
   useEffect(() => {
     setSelectedIds([])
   }, [username, displayName, page])
+
+  useEffect(() => {
+    if (!canDeleteUsers) setSelectedIds([])
+  }, [canDeleteUsers])
 
   useEffect(() => {
     setFormFilters({ username, displayName })
@@ -141,6 +156,7 @@ export function UsersPage() {
   }
 
   async function exportUsers() {
+    if (!canExportUsers) return
     setExportError(null)
     setExporting(true)
     try {
@@ -165,10 +181,12 @@ export function UsersPage() {
   }
 
   function toggleUser(id: string, checked: boolean) {
+    if (!canDeleteUsers) return
     setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id))
   }
 
   function toggleAllUsers(checked: boolean) {
+    if (!canDeleteUsers) return
     setSelectedIds(checked ? users.map((user) => user.id) : [])
   }
 
@@ -182,6 +200,7 @@ export function UsersPage() {
   }
 
   function submitDelete() {
+    if (!canDeleteUsers) return
     void deleteMutation.mutateAsync(selectedIds).catch(() => undefined)
   }
 
@@ -192,6 +211,7 @@ export function UsersPage() {
   }
 
   async function submitUser(input: NativeUserWriteInput) {
+    if (editingUser ? !canUpdateUsers : !canCreateUser) return
     try {
       await saveMutation.mutateAsync({ id: editingUser?.id, input })
     } catch {
@@ -244,12 +264,12 @@ export function UsersPage() {
 
       <Card className="users-table-card">
         <ListToolbar>
-          <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增用户</Button>
-          <Button variant="secondary" size="sm" onClick={openImport} disabled={importMutation.isPending || exporting}><Upload size={15} />导入 Excel</Button>
-          <Button variant="secondary" size="sm" onClick={() => void exportUsers()} disabled={exporting || importMutation.isPending}>
+          {canCreateUser ? <Button size="sm" onClick={openCreate}><Plus size={15} /> 新增用户</Button> : null}
+          {canImportUsers ? <Button variant="secondary" size="sm" onClick={openImport} disabled={importMutation.isPending || exporting}><Upload size={15} />导入 Excel</Button> : null}
+          {canExportUsers ? <Button variant="secondary" size="sm" onClick={() => void exportUsers()} disabled={exporting || importMutation.isPending}>
             <Download size={15} className={exporting ? 'spin' : ''} />{exporting ? '导出中' : '导出 Excel'}
-          </Button>
-          <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除用户（{selectedIds.length}）</Button>
+          </Button> : null}
+          {canDeleteUsers ? <Button variant="danger" size="sm" onClick={openDelete} disabled={selectedIds.length === 0 || deleteMutation.isPending}>删除用户（{selectedIds.length}）</Button> : null}
           <Button variant="secondary" size="sm" onClick={refresh} disabled={query.isFetching}>
             <RefreshCw size={15} className={query.isFetching ? 'spin' : ''} /> 刷新列表
           </Button>
@@ -264,18 +284,18 @@ export function UsersPage() {
               <table className="users-table">
                 <thead>
                   <tr>
-                    <th scope="col"><input type="checkbox" aria-label="选择当前页用户" checked={allSelected} onChange={(event) => toggleAllUsers(event.target.checked)} disabled={deleteMutation.isPending} /></th>
+                    {canDeleteUsers ? <th scope="col"><input type="checkbox" aria-label="选择当前页用户" checked={allSelected} onChange={(event) => toggleAllUsers(event.target.checked)} disabled={deleteMutation.isPending} /></th> : null}
                     <th scope="col">用户</th>
                     <th scope="col">UUID</th>
                     <th scope="col">部门</th>
                     <th scope="col">岗位</th>
                     <th scope="col">角色</th>
                     <th scope="col">状态</th>
-                    <th scope="col">操作</th>
+                    {canUpdateUsers ? <th scope="col">操作</th> : null}
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => <UserRow key={user.id} user={user} selected={selectedIds.includes(user.id)} pending={deleteMutation.isPending} onSelect={toggleUser} onEdit={openEdit} />)}
+                  {users.map((user) => <UserRow key={user.id} user={user} selectable={canDeleteUsers} editable={canUpdateUsers} selected={selectedIds.includes(user.id)} pending={deleteMutation.isPending} onSelect={toggleUser} onEdit={openEdit} />)}
                 </tbody>
               </table>
             </div>
@@ -296,20 +316,22 @@ export function UsersPage() {
         </> : null}
       </Card>
       <UserImportModal
-        open={importOpen}
+        open={importOpen && canImportUsers}
         pending={importMutation.isPending}
         result={importResult}
         error={importMutation.error}
         onClose={closeImport}
         onSubmit={submitImport}
       />
-      <DeleteConfirmModal open={deleteOpen} resourceLabel="用户" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={submitDelete} />
+      {canDeleteUsers ? <DeleteConfirmModal open={deleteOpen} resourceLabel="用户" count={selectedIds.length} pending={deleteMutation.isPending} error={deleteMutation.error} onClose={closeDelete} onConfirm={submitDelete} /> : null}
       <UserFormModal
         open={modalMode !== null}
         mode={modalMode ?? 'create'}
         user={editingUser}
         pending={saveMutation.isPending}
         error={saveMutation.error}
+        canSubmit={modalMode === 'create' ? canCreateUser : canUpdateUsers}
+        canAssignRoles={canAssignRoles}
         roles={rolesQuery.data ?? []}
         rolesLoading={rolesQuery.isLoading || rolesQuery.isFetching}
         rolesError={rolesQuery.error}
@@ -322,10 +344,10 @@ export function UsersPage() {
   )
 }
 
-function UserRow({ user, selected, pending, onSelect, onEdit }: { user: NativeUser; selected: boolean; pending: boolean; onSelect: (id: string, checked: boolean) => void; onEdit: (user: NativeUser) => void }) {
+function UserRow({ user, selectable, editable, selected, pending, onSelect, onEdit }: { user: NativeUser; selectable: boolean; editable: boolean; selected: boolean; pending: boolean; onSelect: (id: string, checked: boolean) => void; onEdit: (user: NativeUser) => void }) {
   return (
     <tr>
-      <td><input type="checkbox" aria-label={`选择用户 ${user.username}`} checked={selected} onChange={(event) => onSelect(user.id, event.target.checked)} disabled={pending} /></td>
+      {selectable ? <td><input type="checkbox" aria-label={`选择用户 ${user.username}`} checked={selected} onChange={(event) => onSelect(user.id, event.target.checked)} disabled={pending} /></td> : null}
       <td>
         <div className="user-cell">
           <span className="user-cell-avatar">{user.displayName.slice(0, 1) || user.username.slice(0, 1)}</span>
@@ -337,7 +359,7 @@ function UserRow({ user, selected, pending, onSelect, onEdit }: { user: NativeUs
       <td>{user.postId ?? '—'}</td>
       <td>{user.roles.length > 0 ? user.roles.join('、') : '—'}</td>
       <td><Badge tone={user.enabled ? 'success' : 'neutral'}>{user.enabled ? '启用' : '停用'}</Badge></td>
-      <td><Button variant="ghost" size="sm" onClick={() => onEdit(user)}><Pencil size={14} /> 编辑</Button></td>
+      {editable ? <td><Button variant="ghost" size="sm" onClick={() => onEdit(user)}><Pencil size={14} /> 编辑</Button></td> : null}
     </tr>
   )
 }

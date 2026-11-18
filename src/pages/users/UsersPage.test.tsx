@@ -1,61 +1,8 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { UsersPage } from './UsersPage'
 import { ApiError, apiClient } from '../../shared/api/client'
-import type { NativeRole, NativeUsersPage } from '../../shared/api/schemas'
-
-const userPage: NativeUsersPage = {
-  items: [{
-    id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
-    username: 'operator',
-    displayName: '平台运维员',
-    deptId: 'dept-operations',
-    postId: 'post-owner',
-    enabled: true,
-    email: null,
-    phoneNumber: null,
-    sex: null,
-    avatar: null,
-    loginIp: null,
-    loginAt: null,
-    remark: null,
-    roles: ['系统管理员'],
-  }],
-  page: 1,
-  size: 20,
-  total: 21,
-}
-
-const roleCatalog: NativeRole[] = [
-  {
-    id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce',
-    code: '系统管理员',
-    name: '系统管理员',
-    enabled: true,
-    dataScope: 'ALL',
-    deptScope: null,
-    permissions: ['user:read'],
-  },
-  {
-    id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a',
-    code: 'auditor',
-    name: '审计员',
-    enabled: true,
-    dataScope: 'ALL',
-    deptScope: null,
-    permissions: ['audit:read'],
-  },
-]
-
-function mockRoleCatalog() {
-  return vi.spyOn(apiClient, 'listRoles').mockResolvedValue(roleCatalog)
-}
-
-function renderPage() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return { ...render(<QueryClientProvider client={queryClient}><UsersPage /></QueryClientProvider>), queryClient }
-}
+import type { NativeRole } from '../../shared/api/schemas'
+import { mockRoleCatalog, renderUsersPage as renderPage, roleCatalog, userPage } from './UsersPage.testSupport'
 
 afterEach(() => {
   vi.restoreAllMocks()
