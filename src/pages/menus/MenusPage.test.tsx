@@ -144,6 +144,54 @@ describe('MenusPage', () => {
     await waitFor(() => expect(assignMenuRoles).toHaveBeenCalledWith(created.id, ['admin', 'auditor']))
   })
 
+  it('绑定失败时保留新增菜单的角色选择，刷新列表并允许重试', async () => {
+    const created = { id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', parentId: null, code: 'audit', name: '审计中心', path: null, component: null, menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
+    let finishMenuRefresh!: (value: { menu: typeof created; children: [] }[]) => void
+    const delayedMenuRefresh = new Promise<{ menu: typeof created; children: [] }[]>((resolve) => { finishMenuRefresh = resolve })
+    const listMenus = vi.spyOn(apiClient, 'listMenus').mockResolvedValueOnce([]).mockImplementationOnce(() => delayedMenuRefresh).mockResolvedValue([{ menu: created, children: [] }])
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([
+      { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', code: 'admin', name: '系统管理员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+      { id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+    ])
+    vi.spyOn(apiClient, 'listRolesForMenu').mockResolvedValue({ roleCodes: [] })
+    const createMenu = vi.spyOn(apiClient, 'createMenu').mockResolvedValue(created)
+    const updateMenu = vi.spyOn(apiClient, 'updateMenu').mockResolvedValue(created)
+    const assignMenuRoles = vi.spyOn(apiClient, 'assignMenuRoles')
+      .mockRejectedValueOnce(new ApiError('角色绑定暂不可用', 503, 'service_unavailable'))
+      .mockResolvedValue({ updated: true })
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: '新增菜单' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('菜单名称'), { target: { value: created.name } })
+    fireEvent.change(within(dialog).getByLabelText('菜单编码'), { target: { value: created.code } })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /系统管理员/ }))
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /审计员/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存菜单' }))
+
+    expect(await within(dialog).findByText('菜单保存失败')).toBeInTheDocument()
+    await waitFor(() => expect(listMenus).toHaveBeenCalledTimes(2))
+    expect(within(dialog).getByRole('checkbox', { name: /系统管理员/ })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: /审计员/ })).toBeChecked()
+    expect(within(dialog).getByRole('button', { name: /保存/ })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: '取消' })).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: /保存/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(createMenu).toHaveBeenCalledTimes(1)
+    expect(assignMenuRoles).toHaveBeenCalledTimes(1)
+
+    finishMenuRefresh([{ menu: created, children: [] }])
+    expect(await screen.findByText(created.name)).toBeInTheDocument()
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: '保存菜单' })).not.toBeDisabled())
+    expect(within(dialog).getByRole('checkbox', { name: /系统管理员/ })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: /审计员/ })).toBeChecked()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存菜单' }))
+    await waitFor(() => expect(updateMenu).toHaveBeenCalledWith(created.id, expect.objectContaining({ code: created.code, name: created.name })))
+    await waitFor(() => expect(assignMenuRoles).toHaveBeenNthCalledWith(2, created.id, ['admin', 'auditor']))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
   it('角色目录读取失败时阻止保存并允许重试', async () => {
     const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
     vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu, children: [] }])

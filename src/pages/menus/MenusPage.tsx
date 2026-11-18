@@ -17,8 +17,10 @@ export function MenusPage() {
   const { keyword: appliedKeyword } = urlState
   const [keyword, setKeyword] = useState(appliedKeyword)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
+  const [modalSession, setModalSession] = useState(0)
   const [editingMenu, setEditingMenu] = useState<NativeMenu | null>(null)
   const [deletingMenu, setDeletingMenu] = useState<NativeMenu | null>(null)
+  const [menuSubmitPending, setMenuSubmitPending] = useState(false)
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: ['menus'], queryFn: () => apiClient.listMenus(), staleTime: 10_000 })
   const rolesQuery = useQuery({ queryKey: ['roles'], queryFn: () => apiClient.listRoles(), staleTime: 10_000 })
@@ -68,19 +70,29 @@ export function MenusPage() {
     setUrlState(urlDefaults)
   }
 
-  function openCreate() { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(null); setModalMode('create') }
-  function openEdit(menu: NativeMenu) { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(menu); setModalMode('edit') }
-  function closeModal() { if (saveMutation.isPending || roleAssignmentMutation.isPending) return; setModalMode(null); setEditingMenu(null) }
+  function openCreate() { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(null); setModalSession((session) => session + 1); setModalMode('create') }
+  function openEdit(menu: NativeMenu) { saveMutation.reset(); roleAssignmentMutation.reset(); setEditingMenu(menu); setModalSession((session) => session + 1); setModalMode('edit') }
+  function closeModal() { if (menuSubmitPending) return; setModalMode(null); setEditingMenu(null) }
   async function submitMenu(input: NativeMenuWriteInput, roleCodes: string[]) {
-    const saved = await saveMutation.mutateAsync({ id: editingMenu?.id, input })
-    // 创建成功后保留新 ID，角色绑定失败时用户可以在同一表单重试而不会重复创建。
-    setEditingMenu(saved)
-    setModalMode('edit')
-    await roleAssignmentMutation.mutateAsync({ id: saved.id, roleCodes })
-    await queryClient.invalidateQueries({ queryKey: ['menus'] })
-    await queryClient.invalidateQueries({ queryKey: ['menu-roles', saved.id] })
-    setModalMode(null)
-    setEditingMenu(null)
+    if (menuSubmitPending) return
+    setMenuSubmitPending(true)
+    let savedMenu: NativeMenu | null = null
+    try {
+      savedMenu = await saveMutation.mutateAsync({ id: editingMenu?.id, input })
+      // 新增成功后复用当前表单会话，让角色绑定失败时保留已选角色并支持重试。
+      setEditingMenu(savedMenu)
+      setModalMode('edit')
+      await roleAssignmentMutation.mutateAsync({ id: savedMenu.id, roleCodes })
+      await queryClient.invalidateQueries({ queryKey: ['menus'] })
+      await queryClient.invalidateQueries({ queryKey: ['menu-roles', savedMenu.id] })
+      setModalMode(null)
+      setEditingMenu(null)
+    } catch {
+      // 两步写入可能部分成功；刷新已保存菜单，并保留模态框和角色草稿供用户重试。
+      if (savedMenu) await queryClient.invalidateQueries({ queryKey: ['menus'] })
+    } finally {
+      setMenuSubmitPending(false)
+    }
   }
   function openDelete(menu: NativeMenu) { deleteMutation.reset(); setDeletingMenu(menu) }
   function closeDelete() { if (!deleteMutation.isPending) setDeletingMenu(null) }
@@ -116,6 +128,7 @@ export function MenusPage() {
         </> : null}
       </Card>
       <MenuFormModal
+        key={modalSession}
         open={modalMode !== null}
         mode={modalMode ?? 'create'}
         menu={editingMenu}
@@ -127,7 +140,7 @@ export function MenusPage() {
         menuRolesError={menuRolesQuery.isError ? menuRolesQuery.error : null}
         onRetryRoles={() => void rolesQuery.refetch()}
         onRetryMenuRoles={() => void menuRolesQuery.refetch()}
-        pending={saveMutation.isPending || roleAssignmentMutation.isPending}
+        pending={menuSubmitPending || saveMutation.isPending || roleAssignmentMutation.isPending}
         error={saveMutation.error ?? roleAssignmentMutation.error}
         onClose={closeModal}
         onSubmit={submitMenu}
