@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { apiClient } from '../api/client'
+import { apiClient, clearLocalAuthentication } from '../api/client'
 import { useSessionStore } from './session'
 
 /** 验证认证和静默刷新改变权限查询使用的认证代次。 */
@@ -17,6 +17,7 @@ function response(data: unknown, status = 200): Response {
 }
 
 afterEach(() => {
+  clearLocalAuthentication()
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -24,6 +25,157 @@ afterEach(() => {
 })
 
 describe('session capability lifecycle', () => {
+  it('能力读取触发过期令牌刷新时不发送旧认证头并只推进认证代次一次', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'false')
+    clearLocalAuthentication()
+    let capabilityReads = 0
+    const refreshHeaders: Headers[] = []
+    const capabilities = {
+      permissions: ['menu:read'],
+      resources: {
+        user: false, department: false, role: false, post: false, menu: true, config: false,
+        dictionary: false, notice: false, job: false, audit: false, session: false,
+        'api-key': false, profile: false,
+      },
+    }
+    const loginHeaders: Headers[] = []
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) {
+        loginHeaders.push(new Headers(init?.headers))
+        return response(token)
+      }
+      if (url.endsWith('/auth/refresh')) {
+        refreshHeaders.push(new Headers(init?.headers))
+        return response({ ...token, accessToken: 'access-b', refreshToken: 'refresh-b' })
+      }
+      if (url.endsWith('/auth/me/capabilities')) {
+        capabilityReads += 1
+        expect(new Headers(init?.headers).get('Authorization')).toBe(capabilityReads === 1 ? 'Bearer access-a' : 'Bearer access-b')
+        if (capabilityReads === 1) {
+          return new Response(JSON.stringify({ success: false, data: null, message: 'expired', error: { code: 'authentication_required' } }), { status: 401 })
+        }
+        return response(capabilities)
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await useSessionStore.getState().login('account-a', 'password')
+    const revisionAfterLogin = useSessionStore.getState().authRevision
+    const revisionChanges: number[] = []
+    const unsubscribe = useSessionStore.subscribe((state, previous) => {
+      if (state.authRevision !== previous.authRevision) revisionChanges.push(state.authRevision)
+    })
+    try {
+      await expect(apiClient.getCapabilities()).resolves.toEqual(capabilities)
+
+      expect(loginHeaders[0]?.has('Authorization')).toBe(false)
+      expect(refreshHeaders[0]?.has('Authorization')).toBe(false)
+      expect(capabilityReads).toBe(2)
+      expect(useSessionStore.getState().authRevision).toBe(revisionAfterLogin + 1)
+      expect(revisionChanges).toEqual([revisionAfterLogin + 1])
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it('能力请求作为并发刷新发起方时共享刷新只通知一次', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'false')
+    clearLocalAuthentication()
+    let startRefresh!: () => void
+    let releaseRefresh!: (value: Response) => void
+    let menuUnauthorized!: () => void
+    const refreshStarted = new Promise<void>((resolve) => { startRefresh = resolve })
+    const menuFirstAttempt = new Promise<void>((resolve) => { menuUnauthorized = resolve })
+    const refreshResponse = new Promise<Response>((resolve) => { releaseRefresh = resolve })
+    const refreshRequests: RequestInit[] = []
+    const menuAuthorizationHeaders: Array<string | null> = []
+    const capabilities = {
+      permissions: ['menu:read'],
+      resources: {
+        user: false, department: false, role: false, post: false, menu: true, config: false,
+        dictionary: false, notice: false, job: false, audit: false, session: false,
+        'api-key': false, profile: false,
+      },
+    }
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) return response(token)
+      if (url.endsWith('/auth/refresh')) {
+        refreshRequests.push(init ?? {})
+        startRefresh()
+        return refreshResponse
+      }
+      if (url.endsWith('/auth/me/capabilities')) {
+        if (new Headers(init?.headers).get('Authorization') === 'Bearer access-a') {
+          return new Response(JSON.stringify({ success: false, data: null, message: 'expired', error: { code: 'authentication_required' } }), { status: 401 })
+        }
+        return response(capabilities)
+      }
+      if (url.endsWith('/menus')) {
+        const authorization = new Headers(init?.headers).get('Authorization')
+        menuAuthorizationHeaders.push(authorization)
+        if (authorization === 'Bearer access-a') {
+          menuUnauthorized()
+          return new Response(JSON.stringify({ success: false, data: null, message: 'expired', error: { code: 'authentication_required' } }), { status: 401 })
+        }
+        return response([])
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await useSessionStore.getState().login('account-a', 'password')
+    const revisionAfterLogin = useSessionStore.getState().authRevision
+    const revisionChanges: number[] = []
+    const unsubscribe = useSessionStore.subscribe((state, previous) => {
+      if (state.authRevision !== previous.authRevision) revisionChanges.push(state.authRevision)
+    })
+    try {
+      const capabilitiesRead = apiClient.getCapabilities()
+      await refreshStarted
+      const menusRead = apiClient.listMenus()
+      await menuFirstAttempt
+      releaseRefresh(response({ ...token, accessToken: 'access-b', refreshToken: 'refresh-b' }))
+
+      await expect(Promise.all([capabilitiesRead, menusRead])).resolves.toEqual([capabilities, []])
+      expect(refreshRequests).toHaveLength(1)
+      expect(new Headers(refreshRequests[0]?.headers).has('Authorization')).toBe(false)
+      expect(menuAuthorizationHeaders).toEqual(['Bearer access-a', 'Bearer access-b'])
+      expect(useSessionStore.getState().authRevision).toBe(revisionAfterLogin + 1)
+      expect(revisionChanges).toEqual([revisionAfterLogin + 1])
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it('刷新令牌被拒绝时仍清理本地会话并保留认证错误', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'false')
+    clearLocalAuthentication()
+    const refreshHeaders: Headers[] = []
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/login')) return response(token)
+      if (url.endsWith('/auth/me/capabilities')) {
+        return new Response(JSON.stringify({ success: false, data: null, message: 'expired', error: { code: 'authentication_required' } }), { status: 401 })
+      }
+      if (url.endsWith('/auth/refresh')) {
+        refreshHeaders.push(new Headers(init?.headers))
+        return new Response(JSON.stringify({ success: false, data: null, message: 'refresh expired', error: { code: 'authentication_required' } }), { status: 401 })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await useSessionStore.getState().login('account-a', 'password')
+    await expect(apiClient.getCapabilities()).rejects.toMatchObject({ status: 401, code: 'authentication_required' })
+
+    expect(refreshHeaders[0]?.has('Authorization')).toBe(false)
+    expect(useSessionStore.getState().user).toBeNull()
+    expect(useSessionStore.getState().message).toBe('会话已失效，请重新登录')
+  })
+
   it('认证和静默刷新都更新会话代次，促使能力查询更换缓存键', async () => {
     vi.stubEnv('VITE_ENABLE_MOCK', 'false')
     let serverReads = 0

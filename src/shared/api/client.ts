@@ -259,7 +259,8 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   if (typeof init.body === 'string' && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
+  // 刷新请求只使用 refresh token，过期 access token 会使服务端先行拒绝刷新。
+  if (accessToken && path !== '/auth/refresh') headers.set('Authorization', `Bearer ${accessToken}`)
 
   let response: Response
   try {
@@ -332,8 +333,8 @@ async function refreshAccessToken(requestPath?: string): Promise<string | null> 
     .then((result) => {
       const token = nativeTokenSchema.parse(result)
       applyToken(token)
-      // 权限查询本身完成了重新验证；其他接口触发令牌刷新时，提示会话重新读取能力。
-      if (requestPath && requestPath !== '/auth/me/capabilities') accessTokenRefreshedHandler?.(requestPath)
+      // 共享刷新 Promise 只完成一次；包括权限查询在内的请求都通知页面更换授权缓存代次。
+      if (requestPath) accessTokenRefreshedHandler?.(requestPath)
       return token.accessToken
     })
     .catch(() => {
