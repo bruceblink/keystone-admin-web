@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -62,6 +62,62 @@ describe('MenusPage', () => {
     expect(await screen.findByText('系统管理')).toBeInTheDocument()
     expect(screen.getByText('用户管理')).toBeInTheDocument()
     expect(screen.getByText('user:read')).toBeInTheDocument()
+  })
+
+  it('令牌刷新后重新读取菜单，避免继续显示旧授权下的目录', async () => {
+    const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
+    const listMenus = vi.spyOn(apiClient, 'listMenus').mockResolvedValueOnce([{ menu, children: [] }]).mockResolvedValueOnce([])
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([])
+    renderPage()
+
+    await screen.findByText('系统管理')
+    // authRevision 变化代表令牌更新；菜单查询必须随新授权重新执行。
+    act(() => useSessionStore.setState({ authRevision: 8 }))
+
+    await waitFor(() => expect(listMenus).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText('系统管理')).not.toBeInTheDocument())
+  })
+
+  it('认证版本变化时关闭旧编辑并在重新打开后读取新角色绑定', async () => {
+    const menu = { id: '2a4f3bb4-79ec-4af1-a2ec-3f71bc63f4ce', parentId: null, code: 'system', name: '系统管理', path: '/system', component: 'SystemLayout', menuType: 'MENU', permission: null, sortOrder: 1, enabled: true }
+    vi.spyOn(apiClient, 'listMenus').mockResolvedValue([{ menu, children: [] }])
+    vi.spyOn(apiClient, 'listRoles').mockResolvedValue([
+      { id: 'role-admin', code: 'admin', name: '系统管理员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+      { id: 'role-auditor', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] },
+    ])
+    const listRolesForMenu = vi.spyOn(apiClient, 'listRolesForMenu').mockResolvedValueOnce({ roleCodes: ['admin'] }).mockResolvedValueOnce({ roleCodes: ['auditor'] })
+    const updateMenu = vi.spyOn(apiClient, 'updateMenu').mockResolvedValue({ ...menu, name: '系统平台' })
+    const assignMenuRoles = vi.spyOn(apiClient, 'assignMenuRoles')
+    renderPage()
+
+    await screen.findByText('系统管理')
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    const dialog = await screen.findByRole('dialog')
+    const adminRole = await within(dialog).findByRole('checkbox', { name: /系统管理员/ })
+    const auditorRole = within(dialog).getByRole('checkbox', { name: /审计员/ })
+    await waitFor(() => expect(adminRole).toBeChecked())
+    fireEvent.click(auditorRole)
+    expect(auditorRole).toBeChecked()
+
+    act(() => useSessionStore.setState({ authRevision: 8 }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(updateMenu).not.toHaveBeenCalled()
+    expect(assignMenuRoles).not.toHaveBeenCalled()
+
+    await screen.findByText('系统管理')
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    const refreshedDialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(listRolesForMenu).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(within(refreshedDialog).getByRole('checkbox', { name: /系统管理员/ })).not.toBeChecked())
+    expect(within(refreshedDialog).getByRole('checkbox', { name: /审计员/ })).toBeChecked()
+
+    fireEvent.change(within(refreshedDialog).getByLabelText('菜单名称'), { target: { value: '系统平台' } })
+    fireEvent.click(within(refreshedDialog).getByRole('button', { name: '保存菜单' }))
+
+    await waitFor(() => expect(updateMenu).toHaveBeenCalledTimes(1))
+    expect(assignMenuRoles).not.toHaveBeenCalled()
+    expect(await screen.findByRole('status')).toHaveTextContent('资料已更新；角色绑定保持不变')
   })
 
   it('刷新失败时保留菜单树并显示错误码，重试成功后清除反馈', async () => {

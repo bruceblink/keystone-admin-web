@@ -39,9 +39,9 @@ export function MenusPage() {
   const [partialSaveNotice, setPartialSaveNotice] = useState<string | null>(null)
   const [saveNotice, setSaveNotice] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const query = useQuery({ queryKey: ['menus'], queryFn: () => apiClient.listMenus(), staleTime: 10_000, enabled: canReadMenus })
+  const query = useQuery({ queryKey: ['menus', authRevision, username], queryFn: () => apiClient.listMenus(), staleTime: 10_000, enabled: canReadMenus })
   const rolesQuery = useQuery({ queryKey: ['menus', 'assignable-roles', authRevision, username], queryFn: () => apiClient.listRoles(), staleTime: 10_000, enabled: canManageMenuRoles && modalMode !== null })
-  const menuRolesQuery = useQuery({ queryKey: ['menu-roles', editingMenu?.id], queryFn: () => apiClient.listRolesForMenu(editingMenu!.id), enabled: canManageMenuRoles && modalMode === 'edit' && editingMenu !== null, staleTime: 10_000 })
+  const menuRolesQuery = useQuery({ queryKey: ['menu-roles', editingMenu?.id, authRevision, username], queryFn: () => apiClient.listRolesForMenu(editingMenu!.id), enabled: canManageMenuRoles && modalMode === 'edit' && editingMenu !== null, staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeMenuWriteInput }) => id ? apiClient.updateMenu(id, input) : apiClient.createMenu(input),
   })
