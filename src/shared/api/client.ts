@@ -42,6 +42,7 @@ import {
   nativeRoleSchema,
   nativeRoleUserIdsSchema,
   nativeRoleMembersResponseSchema,
+  nativeRoleMembersPageSchema,
   nativeOnlineUsersSchema,
   nativeServerInfoSchema,
   nativeTokenSchema,
@@ -92,6 +93,7 @@ import {
   type NativeRolesPage,
   type NativeRoleUserIds,
   type NativeRoleMember,
+  type NativeRoleMembersResult,
   type NativeRoleWriteInput,
   type NativeDepartmentWriteInput,
   type NativeSystemConfigWriteInput,
@@ -713,12 +715,22 @@ export const apiClient = {
     }
   },
 
-  /** 获取成员名称；旧版后端只返回 ID 时保留可操作的成员记录。 */
-  async listRoleMembers(id: string, allocated = true): Promise<NativeRoleMember[]> {
-    const query = new URLSearchParams({ allocated: String(allocated), include: 'identity' }).toString()
+  /** 显式分页时读取服务端分页；旧版后端返回数组时保留本地切片兼容。 */
+  async listRoleMembers(id: string, allocated = true, pagination?: { page: number; size: number }): Promise<NativeRoleMembersResult> {
+    const query = new URLSearchParams({
+      allocated: String(allocated),
+      include: 'identity',
+      ...(pagination ? { page: String(pagination.page), size: String(pagination.size) } : {}),
+    }).toString()
     try {
-      const members = nativeRoleMembersResponseSchema.parse(await request<unknown>(`/roles/${encodeURIComponent(id)}/users?${query}`))
-      return members.map((member) => typeof member === 'string' ? { id: member, username: null, displayName: null } : member)
+      const response = await request<unknown>(`/roles/${encodeURIComponent(id)}/users?${query}`)
+      const normalizeMembers = (members: Array<NativeRoleMember | string>): NativeRoleMember[] =>
+        members.map((member) => typeof member === 'string' ? { id: member, username: null, displayName: null } : member)
+      if (Array.isArray(response)) {
+        return normalizeMembers(nativeRoleMembersResponseSchema.parse(response))
+      }
+      const page = nativeRoleMembersPageSchema.parse(response)
+      return { ...page, items: normalizeMembers(page.items) }
     } catch (error) {
       if (error instanceof ApiError && error.status > 0 && error.status < 500) throw error
       if (!shouldMockFallback(error)) throw error

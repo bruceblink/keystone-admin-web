@@ -629,6 +629,30 @@ describe('Native API client', () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/roles/role-1/users?allocated=false&include=identity')
   })
 
+  it('按独立页码读取服务端角色成员并保留总数', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('/api/v1/roles/role-1/users?allocated=false&include=identity&page=2&size=8')
+      return ok({
+        items: [{ id: 'user-9', username: 'alice', displayName: '爱丽丝' }, 'user-10'],
+        page: 2,
+        size: 8,
+        total: 17,
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(apiClient.listRoleMembers('role-1', false, { page: 2, size: 8 })).resolves.toEqual({
+      items: [
+        { id: 'user-9', username: 'alice', displayName: '爱丽丝' },
+        { id: 'user-10', username: null, displayName: null },
+      ],
+      page: 2,
+      size: 8,
+      total: 17,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('发送菜单写入并只在 API Key 签发/轮换响应中接收明文', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)

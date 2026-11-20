@@ -233,6 +233,13 @@ export const nativeRoleMemberSchema = z.object({
   displayName: z.string().nullable(),
 })
 export const nativeRoleMembersResponseSchema = z.array(z.union([nativeRoleMemberSchema, z.string()]))
+/** Native 角色成员分页响应；仅显式分页请求返回当前页和筛选总数。 */
+export const nativeRoleMembersPageSchema = z.object({
+  items: nativeRoleMembersResponseSchema,
+  page: z.number().int().positive(),
+  size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+})
 export const nativeDepartmentsSchema = z.array(nativeDepartmentSchema)
 
 /** Native 岗位记录；岗位编码用于业务引用，排序和状态由管理页面维护。 */
@@ -561,6 +568,9 @@ export type NativeRole = z.infer<typeof nativeRoleSchema>
 export type NativeRolesPage = z.infer<typeof nativeRolesPageSchema>
 export type NativeRoleUserIds = z.infer<typeof nativeRoleUserIdsSchema>
 export type NativeRoleMember = z.infer<typeof nativeRoleMemberSchema>
+export type NativeRoleMembersPage = Omit<z.infer<typeof nativeRoleMembersPageSchema>, 'items'> & { items: NativeRoleMember[] }
+/** 新后端返回分页对象；旧后端数组由页面继续本地切片。 */
+export type NativeRoleMembersResult = NativeRoleMember[] | NativeRoleMembersPage
 export type NativeDepartment = z.infer<typeof nativeDepartmentSchema>
 export type NativePost = z.infer<typeof nativePostSchema>
 export type NativePostsPage = z.infer<typeof nativePostsPageSchema>
