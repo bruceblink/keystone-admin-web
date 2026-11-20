@@ -17,10 +17,9 @@ const fullRoleCapabilities: NativeCapabilities = {
   },
 }
 
-function renderPage(capabilities = fullRoleCapabilities) {
-  useSessionStore.setState({ user: { id: 'test-user', username: 'role-admin', displayName: '角色管理员', role: 'admin' }, isHydrated: true, authRevision: 1 })
+function renderPage(capabilities = fullRoleCapabilities, authRevision = 1, queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }), username = 'role-admin') {
+  useSessionStore.setState({ user: { id: `test-user-${username}`, username, displayName: '角色管理员', role: 'admin' }, isHydrated: true, authRevision })
   vi.spyOn(apiClient, 'getCapabilities').mockResolvedValue(capabilities)
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return { ...render(<BrowserRouter><QueryClientProvider client={queryClient}><RolesPage /></QueryClientProvider></BrowserRouter>), queryClient }
 }
 
@@ -691,5 +690,74 @@ describe('RolesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
     await waitFor(() => expect(listRoles).toHaveBeenCalledTimes(3))
     await waitFor(() => expect(screen.queryByText('数据刷新失败')).not.toBeInTheDocument())
+  })
+
+  it('权限读取挂起时隐藏成员面板并停止成员请求，恢复后重新查询', async () => {
+    const role = { id: 'refresh-role', code: 'auditor', name: '审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    let resolveCapabilities!: (capabilities: NativeCapabilities) => void
+    const pendingCapabilities = new Promise<NativeCapabilities>((resolve) => { resolveCapabilities = resolve })
+    const getCapabilities = vi.spyOn(apiClient, 'getCapabilities').mockResolvedValue(fullRoleCapabilities)
+    const listRoles = vi.spyOn(apiClient, 'listRoles').mockResolvedValue([role])
+    const listRoleMembers = vi.spyOn(apiClient, 'listRoleMembers').mockResolvedValue([{ id: 'member-1', username: '旧会话成员', displayName: null }])
+    renderPage()
+
+    expect(await screen.findByText('审计员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '成员' }))
+    expect(await screen.findAllByText('旧会话成员')).toHaveLength(2)
+    expect(listRoleMembers).toHaveBeenCalledTimes(2)
+
+    getCapabilities.mockImplementationOnce(() => pendingCapabilities)
+    act(() => useSessionStore.setState({ authRevision: 2 }))
+    expect(screen.queryByText('角色成员：审计员')).not.toBeInTheDocument()
+    expect(screen.queryByText('审计员')).not.toBeInTheDocument()
+    expect(listRoleMembers).toHaveBeenCalledTimes(2)
+    expect(listRoles).toHaveBeenCalledTimes(1)
+
+    await act(async () => resolveCapabilities(fullRoleCapabilities))
+    expect(await screen.findByText('角色成员：审计员')).toBeInTheDocument()
+    await waitFor(() => expect(listRoleMembers).toHaveBeenCalledTimes(4))
+    expect(listRoles).toHaveBeenCalledTimes(2)
+  })
+
+  it('重新挂载到新认证身份后重新读取角色、成员和权限目录', async () => {
+    const oldRole = { id: 'shared-role', code: 'auditor', name: '旧身份审计员', enabled: true, dataScope: 'ALL', deptScope: null, permissions: [] }
+    const freshRole = { ...oldRole, name: '新身份审计员' }
+    const permission = (name: string) => ({ permission: name, resource: 'user', action: 'read', description: '读取用户', risk: 'low', registered: true, allowed: true })
+    const listRoles = vi.spyOn(apiClient, 'listRoles').mockResolvedValueOnce([oldRole]).mockResolvedValueOnce([freshRole])
+    const listRoleMembers = vi.spyOn(apiClient, 'listRoleMembers')
+      .mockResolvedValueOnce([{ id: 'old-member', username: '旧身份成员', displayName: null }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'new-member', username: '新身份成员', displayName: null }])
+      .mockResolvedValueOnce([])
+    const listPermissionCatalog = vi.spyOn(apiClient, 'listPermissionCatalog')
+      .mockResolvedValueOnce([permission('old:read')])
+      .mockResolvedValueOnce([permission('new:read')])
+    const firstPage = renderPage()
+
+    expect(await screen.findByText('旧身份审计员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '成员' }))
+    expect(await screen.findByText('旧身份成员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    expect(await screen.findByText('old:read')).toBeInTheDocument()
+
+    act(() => useSessionStore.setState({
+      user: { id: 'test-user-role-admin-next', username: 'role-admin-next', displayName: '新账号管理员', role: 'admin' },
+      isHydrated: true,
+      authRevision: 2,
+    }))
+    expect(await screen.findByText('新身份审计员')).toBeInTheDocument()
+    expect(listRoles).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('旧身份审计员')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '成员' }))
+    expect(await screen.findByText('新身份成员')).toBeInTheDocument()
+    expect(listRoleMembers).toHaveBeenCalledTimes(4)
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    expect(await screen.findByText('new:read')).toBeInTheDocument()
+    expect(screen.queryByText('old:read')).not.toBeInTheDocument()
+    expect(listPermissionCatalog).toHaveBeenCalledTimes(2)
+    firstPage.unmount()
   })
 })

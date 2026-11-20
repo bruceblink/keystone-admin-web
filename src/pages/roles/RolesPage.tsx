@@ -10,6 +10,7 @@ import type { NativeCapabilities, NativeRole, NativeRoleMember, NativeRoleMember
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Modal, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
 import { RoleFormModal, type RoleFormSubmission } from './RoleFormModal'
+import { useSessionStore } from '../../shared/state/session'
 
 const PAGE_SIZE = 20
 const MEMBER_PAGE_SIZE = 8
@@ -19,6 +20,13 @@ const urlDefaults = { keyword: '', status: 'all', page: 1 }
 const urlOptions = { namespace: 'roles' }
 
 export function RolesPage() {
+  const username = useSessionStore((state) => state.user?.username ?? null)
+  const authRevision = useSessionStore((state) => state.authRevision)
+  // 账号切换时重建页面，清除旧身份的表单和弹窗状态。
+  return <RolesPageSession key={username ?? ''} username={username} authRevision={authRevision} />
+}
+
+function RolesPageSession({ username, authRevision }: { username: string | null; authRevision: number }) {
   const capabilitiesQuery = useCapabilities()
   const capabilities = capabilitiesQuery.data
   const hasRoleScope = capabilities?.resources.role === true
@@ -46,8 +54,9 @@ export function RolesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
-  const query = useQuery({ queryKey: ['roles', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listRoles({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000, placeholderData: (previousData) => previousData, enabled: canReadRoles })
-  const permissionCatalogQuery = useQuery({ queryKey: ['permission-catalog'], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000, enabled: modalMode !== null && canManageRolePermissions })
+  // 角色数据按当前账号和认证版本隔离，令牌刷新或账号切换后不会展示旧授权下的结果。
+  const query = useQuery({ queryKey: ['roles', authRevision, username, appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listRoles({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000, placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === authRevision && previousQuery.queryKey[2] === username ? previousData : undefined, enabled: canReadRoles })
+  const permissionCatalogQuery = useQuery({ queryKey: ['permission-catalog', authRevision, username], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000, enabled: modalMode !== null && canManageRolePermissions })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => stepUp.run(() => id ? apiClient.updateRole(id, input) : apiClient.createRole(input)),
   })
@@ -55,15 +64,15 @@ export function RolesPage() {
     mutationFn: ({ id, permissions }: { id: string; permissions: string[] }) => stepUp.run(() => apiClient.updateRolePermissions(id, permissions)),
   })
   const allocatedMembersQuery = useQuery({
-    queryKey: ['role-users', memberRole?.id, 'allocated', memberPages.allocated, MEMBER_PAGE_SIZE],
+    queryKey: ['role-users', memberRole?.id, 'allocated', authRevision, username, memberPages.allocated, MEMBER_PAGE_SIZE],
     queryFn: () => apiClient.listRoleMembers(memberRole!.id, true, { page: memberPages.allocated, size: MEMBER_PAGE_SIZE }),
-    enabled: memberRole !== null,
+    enabled: memberRole !== null && canReadRoles,
     staleTime: 10_000,
   })
   const availableMembersQuery = useQuery({
-    queryKey: ['role-users', memberRole?.id, 'available', memberPages.available, MEMBER_PAGE_SIZE],
+    queryKey: ['role-users', memberRole?.id, 'available', authRevision, username, memberPages.available, MEMBER_PAGE_SIZE],
     queryFn: () => apiClient.listRoleMembers(memberRole!.id, false, { page: memberPages.available, size: MEMBER_PAGE_SIZE }),
-    enabled: memberRole !== null,
+    enabled: memberRole !== null && canReadRoles,
     staleTime: 10_000,
   })
   const allocatedMembers = roleMemberItems(allocatedMembersQuery.data)
@@ -356,7 +365,7 @@ export function RolesPage() {
         {totalPages > 1 ? <div className="roles-pagination"><span>第 {rolePage.page} / {totalPages} 页</span><div><Button variant="ghost" size="sm" disabled={rolePage.page <= 1 || query.isFetching} onClick={() => setUrlState({ page: page - 1 }, { history: 'push' })}>上一页</Button><Button variant="secondary" size="sm" disabled={rolePage.page >= totalPages || query.isFetching} onClick={() => setUrlState({ page: page + 1 }, { history: 'push' })}>下一页</Button></div></div> : null}
         </> : null}
       </Card>
-      {memberRole ? <RoleMembersPanel
+      {memberRole && canReadRoles ? <RoleMembersPanel
         role={memberRole}
         allocatedMembers={allocatedMembersQuery.data}
         availableMembers={availableMembersQuery.data}
