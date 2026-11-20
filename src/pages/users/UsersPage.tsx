@@ -8,6 +8,7 @@ import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
 import type { NativeCapabilities, NativeUser, NativeUserImportResult, NativeUserWriteInput } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
 import { useUrlQueryState } from '../../shared/navigation/useUrlQueryState'
+import { useSessionStore } from '../../shared/state/session'
 import { UserFormModal } from './UserFormModal'
 import { UserImportModal } from './UserImportModal'
 
@@ -34,6 +35,8 @@ export function UsersPage({ capabilities }: { capabilities: NativeCapabilities }
   const canAssignRoles = capabilities.resources.role
     && capabilities.permissions.includes('role:read')
     && capabilities.permissions.includes('role:assign')
+  const sessionUsername = useSessionStore((state) => state.user?.username ?? null)
+  const authRevision = useSessionStore((state) => state.authRevision)
   const queryClient = useQueryClient()
   const stepUp = useMfaStepUp()
   const [urlState, setUrlState] = useUrlQueryState(urlDefaults, urlOptions)
@@ -49,7 +52,7 @@ export function UsersPage({ capabilities }: { capabilities: NativeCapabilities }
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
   const rolesQuery = useQuery({
-    queryKey: ['user-role-options'],
+    queryKey: ['user-role-options', authRevision, sessionUsername],
     queryFn: () => apiClient.listRoles(),
     staleTime: 60_000,
     enabled: modalMode !== null && canAssignRoles,
@@ -62,9 +65,10 @@ export function UsersPage({ capabilities }: { capabilities: NativeCapabilities }
     },
   })
   const query = useQuery({
-    queryKey: ['users', filters, page],
+    queryKey: ['users', authRevision, sessionUsername, filters, page],
     queryFn: () => apiClient.listUsers({ ...filters, page, size: PAGE_SIZE }),
     staleTime: 10_000,
+    enabled: sessionUsername !== null,
   })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeUserWriteInput }) => stepUp.run(() => id ? apiClient.updateUser(id, input) : apiClient.createUser(input)),

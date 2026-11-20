@@ -4,6 +4,7 @@ import { render } from '@testing-library/react'
 import { vi } from 'vitest'
 import type { NativeCapabilities, NativeRole, NativeUsersPage } from '../../shared/api/schemas'
 import { apiClient } from '../../shared/api/client'
+import { useSessionStore } from '../../shared/state/session'
 import { UsersPage } from './UsersPage'
 
 // 页面交互测试共用的用户数据，避免各测试重复实现接口结构。
@@ -63,8 +64,13 @@ export function mockRoleCatalog() {
   return vi.spyOn(apiClient, 'listRoles').mockResolvedValue(roleCatalog)
 }
 
-export function renderUsersPage(capabilities = allUserCapabilities) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+export function renderUsersPage(capabilities = allUserCapabilities, authRevision = 1, existingQueryClient?: QueryClient) {
+  useSessionStore.setState({
+    user: { id: 'users-test-user', username: 'users-test-operator', displayName: '用户测试管理员', role: 'admin' },
+    isHydrated: true,
+    authRevision,
+  })
+  const queryClient = existingQueryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const view = render(<BrowserRouter><QueryClientProvider client={queryClient}><UsersPage capabilities={capabilities} /></QueryClientProvider></BrowserRouter>)
   return { ...view, queryClient }
 }

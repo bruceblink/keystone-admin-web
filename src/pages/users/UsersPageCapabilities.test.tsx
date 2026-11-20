@@ -2,10 +2,12 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../../shared/api/client'
 import type { NativeCapabilities } from '../../shared/api/schemas'
+import { useSessionStore } from '../../shared/state/session'
 import { allUserCapabilities, renderUsersPage, userPage } from './UsersPage.testSupport'
 
 afterEach(() => {
   vi.restoreAllMocks()
+  useSessionStore.setState({ user: null, isHydrated: false, authRevision: 0 })
   window.history.replaceState({}, '', '/')
 })
 

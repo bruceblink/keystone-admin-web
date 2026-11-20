@@ -2,10 +2,12 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiClient } from '../../shared/api/client'
 import type { NativeRole } from '../../shared/api/schemas'
-import { mockRoleCatalog, renderUsersPage as renderPage, roleCatalog, userPage } from './UsersPage.testSupport'
+import { useSessionStore } from '../../shared/state/session'
+import { allUserCapabilities, mockRoleCatalog, renderUsersPage as renderPage, roleCatalog, userPage } from './UsersPage.testSupport'
 
 afterEach(() => {
   vi.restoreAllMocks()
+  useSessionStore.setState({ user: null, isHydrated: false, authRevision: 0 })
   window.history.replaceState({}, '', '/')
 })
 
@@ -18,6 +20,69 @@ describe('UsersPage', () => {
     expect(screen.getByLabelText('用户名')).toHaveValue('alice')
     expect(screen.getByLabelText('展示名')).toHaveValue('Alice')
     await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith({ username: 'alice', displayName: 'Alice', page: 2, size: 20 }))
+  })
+
+  it('认证版本变化并重新挂载后读取新用户范围，不保留旧选择', async () => {
+    const refreshedUser = { ...userPage.items[0], id: 'refreshed-user', displayName: '新授权用户' }
+    const refreshedPage = { ...userPage, items: [refreshedUser], total: 1 }
+    const listUsers = vi.spyOn(apiClient, 'listUsers').mockResolvedValueOnce(userPage).mockResolvedValueOnce(refreshedPage)
+    const firstPage = renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('选择用户 operator'))
+    expect(screen.getByRole('button', { name: '删除用户（1）' })).toBeEnabled()
+
+    // 能力刷新会卸载并重新挂载页面；测试复用同一个 QueryClient 检查缓存隔离。
+    firstPage.unmount()
+    const refreshedView = renderPage(allUserCapabilities, 2, firstPage.queryClient)
+
+    expect(await screen.findByText('新授权用户')).toBeInTheDocument()
+    await waitFor(() => expect(listUsers).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('平台运维员')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除用户（0）' })).toBeDisabled()
+    refreshedView.unmount()
+  })
+
+  it('认证版本变化后丢弃旧用户表单草稿和错误，并重新读取角色目录', async () => {
+    const refreshedUser = { ...userPage.items[0], displayName: '新权限用户', roles: ['auditor'] }
+    const refreshedPage = { ...userPage, items: [refreshedUser], total: 1 }
+    const refreshedRoles = [{ ...roleCatalog[1], id: 'fresh-auditor', name: '新范围审计员' }]
+    const listUsers = vi.spyOn(apiClient, 'listUsers').mockResolvedValueOnce(userPage).mockResolvedValueOnce(refreshedPage)
+    const listRoles = vi.spyOn(apiClient, 'listRoles').mockResolvedValueOnce(roleCatalog).mockResolvedValueOnce(refreshedRoles)
+    const updateUser = vi.spyOn(apiClient, 'updateUser').mockRejectedValueOnce(new ApiError('temporary failure', 503, 'service_unavailable'))
+    const firstPage = renderPage()
+
+    expect(await screen.findByText('平台运维员')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const oldDialog = await screen.findByRole('dialog')
+    const adminRole = await within(oldDialog).findByRole('checkbox', { name: /系统管理员/ })
+    const auditorRole = within(oldDialog).getByRole('checkbox', { name: /审计员/ })
+    fireEvent.change(within(oldDialog).getByLabelText('展示名 *'), { target: { value: '旧授权草稿' } })
+    fireEvent.click(adminRole)
+    fireEvent.click(auditorRole)
+    fireEvent.click(within(oldDialog).getByRole('button', { name: '保存用户' }))
+
+    expect(await within(oldDialog).findByText(/service_unavailable · 服务暂不可用/)).toBeInTheDocument()
+    expect(within(oldDialog).getByLabelText('展示名 *')).toHaveValue('旧授权草稿')
+    expect(auditorRole).toBeChecked()
+
+    // 实际能力刷新会销毁旧页面实例；保留 QueryClient 可验证列表和角色目录不会串用。
+    firstPage.unmount()
+    const refreshedView = renderPage(allUserCapabilities, 2, firstPage.queryClient)
+    expect(await screen.findByText('新权限用户')).toBeInTheDocument()
+    expect(listUsers).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }))
+    const newDialog = await screen.findByRole('dialog')
+    const refreshedRole = await within(newDialog).findByRole('checkbox', { name: /新范围审计员/ })
+    expect(refreshedRole).toBeChecked()
+    expect(within(newDialog).queryByRole('checkbox', { name: /系统管理员/ })).not.toBeInTheDocument()
+    expect(within(newDialog).getByLabelText('展示名 *')).toHaveValue('新权限用户')
+    expect(within(newDialog).queryByText(/service_unavailable/)).not.toBeInTheDocument()
+    expect(listRoles).toHaveBeenCalledTimes(2)
+    expect(updateUser).toHaveBeenCalledTimes(1)
+    refreshedView.unmount()
   })
 
   // 最后一页数据被删除后，应按新总数请求有效页并保留筛选条件。
