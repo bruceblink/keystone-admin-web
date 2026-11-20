@@ -88,4 +88,17 @@ describe('ApiError', () => {
     expect(lookupBusinessError(error.code)).toMatchObject({ httpStatus: 409, meaning: '已过期的 API Key 不能轮换' })
     expect(formatApiError(error)).toBe('API Key 已过期，请新建密钥。')
   })
+
+  // 保持 HTTP 状态、重试属性、用户提示和可复制的诊断含义一致。
+  it('通过可重试错误码提示 API Key 列表变化并要求刷新', () => {
+    const error = new ApiError('服务端消息', 409, 'api_key_page_changed')
+
+    expect(lookupBusinessError(error.code)).toMatchObject({
+      httpStatus: 409,
+      retryable: true,
+      meaning: 'API Key 分页回退期间结果再次变化，无法确认有效页码',
+    })
+    expect(formatApiError(error)).toBe('API Key 列表已变化，请刷新后重试。')
+    expect(errorDiagnostic(error)).toContain('api_key_page_changed · API Key 分页回退期间结果再次变化，无法确认有效页码')
+  })
 })
