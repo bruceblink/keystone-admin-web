@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Megaphone, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import type { NativeNotice, NativeNoticeWriteInput } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
@@ -22,7 +23,7 @@ export function NoticesPage() {
   const [editingNotice, setEditingNotice] = useState<NativeNotice | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const query = useQuery({ queryKey: ['notices', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listNoticesPage({ keyword: appliedKeyword, status: appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000 })
+  const query = useCapabilityQuery({ queryKey: ['notices', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listNoticesPage({ keyword: appliedKeyword, status: appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const saveMutation = useMutation({ mutationFn: ({ id, input }: { id?: string; input: NativeNoticeWriteInput }) => id ? apiClient.updateNotice(id, input) : apiClient.createNotice(input), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['notices'] }); setUrlState({ page: 1 }); setModalMode(null); setEditingNotice(null) } })
   const publishMutation = useMutation({ mutationFn: ({ id, published }: { id: string; published: boolean }) => apiClient.publishNotice(id, published), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['notices'] }); setUrlState({ page: 1 }) } })
   const deleteMutation = useMutation({ mutationFn: (ids: string[]) => apiClient.deleteNotices(ids), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['notices'] }); setUrlState({ page: 1 }); setSelectedIds([]); setDeleteOpen(false) } })

@@ -5,6 +5,7 @@ import { MonitorPage } from './MonitorPage'
 import { apiClient } from '../../shared/api/client'
 import { ApiError } from '../../shared/api/errors'
 import type { NativeCapabilities } from '../../shared/api/schemas'
+import { useSessionStore } from '../../shared/state/session'
 
 vi.mock('../../widgets/monitor/TrendChart', () => ({
   TrendChart: ({ data }: { data: Array<{ timestamp: string; cpu: number | null; memory: number }> }) => (
@@ -53,6 +54,7 @@ const allMonitorCapabilities: NativeCapabilities = {
 }
 
 function renderPage(capabilities = allMonitorCapabilities) {
+  useSessionStore.setState({ user: { id: 'operator-1', username: 'operator', displayName: '管理员', role: 'admin' }, isHydrated: true, sessionRevision: 1 })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={queryClient}><MonitorPage capabilities={capabilities} /></QueryClientProvider>)
 }
@@ -65,6 +67,7 @@ function mockMonitorReads() {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  useSessionStore.setState({ user: null, isHydrated: false, authRevision: 0, sessionRevision: 0, pendingActionNotice: null })
 })
 
 describe('MonitorPage', () => {

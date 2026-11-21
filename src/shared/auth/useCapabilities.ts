@@ -13,6 +13,8 @@ export function useCapabilities() {
     enabled: username !== null,
     staleTime: 0,
     retry: false,
+    // 外壳和当前页面会订阅同一份权限；仅首次读取和显式焦点/网络恢复触发刷新。
+    refetchOnMount: false,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   })

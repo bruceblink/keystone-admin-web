@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Download, FileClock, RefreshCw, Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeLoginLog } from '../../shared/api/schemas'
@@ -27,7 +28,7 @@ export function LoginLogsPage() {
   const [formFilters, setFormFilters] = useState<LoginFilters>(() => filters)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
-  const query = useQuery({ queryKey: ['login-logs', filters, page], queryFn: () => apiClient.listLoginLogs({ ...filters, page, size: PAGE_SIZE }), staleTime: 10_000 })
+  const query = useCapabilityQuery({ queryKey: ['login-logs', filters, page], queryFn: () => apiClient.listLoginLogs({ ...filters, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const logs = query.data?.items ?? []
   const total = query.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))

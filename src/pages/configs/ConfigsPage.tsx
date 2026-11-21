@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Pencil, Plus, RefreshCw, Search, Settings2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import type { NativeSystemConfig, NativeSystemConfigWriteInput } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
@@ -27,7 +28,7 @@ export function ConfigsPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingConfig, setEditingConfig] = useState<NativeSystemConfig | null>(null)
   const [deletingConfig, setDeletingConfig] = useState<NativeSystemConfig | null>(null)
-  const query = useQuery({ queryKey: ['system-configs', appliedKeyword, page], queryFn: () => apiClient.listSystemConfigsPage({ keyword: appliedKeyword, page, size: PAGE_SIZE }), staleTime: 10_000 })
+  const query = useCapabilityQuery({ queryKey: ['system-configs', appliedKeyword, page], queryFn: () => apiClient.listSystemConfigsPage({ keyword: appliedKeyword, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ key, input }: { key?: string; input: NativeSystemConfigWriteInput }) => key ? apiClient.updateSystemConfig(key, input) : apiClient.createSystemConfig(input),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['system-configs'] }); setUrlState({ page: 1 }); setModalMode(null); setEditingConfig(null) },

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BookOpen, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeDictionaryItem, NativeDictionaryItemWriteInput, NativeDictionaryItemsPage, NativeDictionaryType, NativeDictionaryTypeWriteInput } from '../../shared/api/schemas'
@@ -29,7 +30,7 @@ export function DictionariesPage() {
   const selectedCode = urlState.selected
   const itemPage = urlState.itemPage
   const appliedItemKeyword = urlState.itemKeyword
-  const typesQuery = useQuery({ queryKey: ['dictionary-types'], queryFn: () => apiClient.listDictionaryTypes(), staleTime: 10_000 })
+  const typesQuery = useCapabilityQuery({ queryKey: ['dictionary-types'], queryFn: () => apiClient.listDictionaryTypes(), staleTime: 10_000 })
   const types = useMemo(() => {
     const normalized = appliedKeyword.toLocaleLowerCase()
     return (typesQuery.data ?? []).filter((type) => !normalized || `${type.code} ${type.name}`.toLocaleLowerCase().includes(normalized))
@@ -40,7 +41,7 @@ export function DictionariesPage() {
     if (types.length === 0 && selectedCode !== '') setUrlState({ selected: '', itemPage: 1, itemKeyword: '' })
   }, [selectedCode, setUrlState, types])
 
-  const itemsQuery = useQuery({ queryKey: ['dictionary-items', selectedCode, appliedItemKeyword, itemPage], queryFn: () => apiClient.listDictionaryItemsPage(selectedCode, { keyword: appliedItemKeyword, page: itemPage, size: PAGE_SIZE }), enabled: Boolean(selectedCode), staleTime: 10_000 })
+  const itemsQuery = useCapabilityQuery({ queryKey: ['dictionary-items', selectedCode, appliedItemKeyword, itemPage], queryFn: () => apiClient.listDictionaryItemsPage(selectedCode, { keyword: appliedItemKeyword, page: itemPage, size: PAGE_SIZE }), enabled: Boolean(selectedCode), staleTime: 10_000 })
   const typeMutation = useMutation({ mutationFn: ({ code, input }: { code?: string; input: NativeDictionaryTypeWriteInput }) => code ? apiClient.updateDictionaryType(code, input) : apiClient.createDictionaryType(input), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['dictionary-types'] }); setTypeModalMode(null); setEditingType(null) } })
   const itemMutation = useMutation({ mutationFn: ({ id, typeCode, input }: { id?: string; typeCode: string; input: NativeDictionaryItemWriteInput }) => id ? apiClient.updateDictionaryItem(id, input) : apiClient.createDictionaryItem(typeCode, input), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['dictionary-items', selectedCode] }); setUrlState({ itemPage: 1 }); setItemModalMode(null); setEditingItem(null) } })
   const deleteTypeMutation = useMutation({

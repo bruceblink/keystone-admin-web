@@ -129,4 +129,29 @@ describe('CapabilitiesRoutes', () => {
     act(() => focusManager.setFocused(true))
     await waitFor(() => expect(fetchCapabilities).toHaveBeenCalledTimes(2))
   })
+
+  // 权限刷新期间把焦点移到状态提示，恢复后返回原有页面控件。
+  it('权限重新确认完成后恢复页面焦点', async () => {
+    useSessionStore.setState({ user: { id: '', username: 'account-a', displayName: '账号 A', role: 'A' }, isHydrated: true, authRevision: 10 })
+    let resolveRefresh!: (value: typeof capabilities) => void
+    const pendingRefresh = new Promise<typeof capabilities>((resolve) => { resolveRefresh = resolve })
+    const fetchCapabilities = vi.spyOn(apiClient, 'getCapabilities')
+      .mockResolvedValueOnce(capabilities)
+      .mockImplementationOnce(() => pendingRefresh)
+    renderRoutes('/users', (
+      <Route element={<CapabilitiesBoundary />}>
+        <Route path="/users" element={<button type="button">用户筛选框</button>} />
+      </Route>
+    ))
+
+    const filter = await screen.findByRole('button', { name: '用户筛选框' })
+    filter.focus()
+    expect(filter).toHaveFocus()
+    act(() => useSessionStore.setState({ authRevision: 11 }))
+    await waitFor(() => expect(fetchCapabilities).toHaveBeenCalledTimes(2))
+    expect(document.querySelector('.capability-status-page')).toHaveFocus()
+
+    await act(async () => resolveRefresh(capabilities))
+    await waitFor(() => expect(filter).toHaveFocus())
+  })
 })

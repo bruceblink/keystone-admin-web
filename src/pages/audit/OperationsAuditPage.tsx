@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Download, RefreshCw, Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeOperationLog } from '../../shared/api/schemas'
@@ -33,7 +34,7 @@ export function OperationsAuditPage() {
   const [formFilters, setFormFilters] = useState<OperationFilters>(() => filters)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
-  const query = useQuery({
+  const query = useCapabilityQuery({
     queryKey: ['operation-logs', filters, page],
     queryFn: () => apiClient.listOperationLogs({ ...filters, page, size: PAGE_SIZE }),
     staleTime: 10_000,

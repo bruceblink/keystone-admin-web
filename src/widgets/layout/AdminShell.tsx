@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { Activity, Bell, BookOpen, BriefcaseBusiness, Building2, ChevronDown, FileClock, FileText, KeyRound, ListChecks, ListTree, LogOut, Megaphone, Menu, Settings2, ShieldCheck, UserRoundCog, UsersRound, X } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../../shared/state/session'
 import { apiClient } from '../../shared/api/client'
 import { canAccessCapabilityPage } from '../../shared/auth/capabilityRules'
-import { CapabilitiesContent } from '../../shared/auth/CapabilitiesRoutes'
+import { CapabilitiesContent, isCapabilitiesConfirmed } from '../../shared/auth/CapabilitiesRoutes'
 import { useCapabilities } from '../../shared/auth/useCapabilities'
 import { Button } from '../../shared/ui'
 import { NotificationPopover } from './NotificationPopover'
@@ -28,9 +29,13 @@ const navItems = [
 ]
 
 export function AdminShell({ capabilitiesQuery }: { capabilitiesQuery: ReturnType<typeof useCapabilities> }) {
-  const capabilities = capabilitiesQuery.isError ? undefined : capabilitiesQuery.data
+  const capabilitiesReady = isCapabilitiesConfirmed(capabilitiesQuery)
+  const capabilities = capabilitiesReady ? capabilitiesQuery.data : undefined
   const user = useSessionStore((state) => state.user)
   const logout = useSessionStore((state) => state.logout)
+  const sessionRevision = useSessionStore((state) => state.sessionRevision)
+  const pendingActionNotice = useSessionStore((state) => state.pendingActionNotice)
+  const dismissPendingActionNotice = useSessionStore((state) => state.dismissPendingActionNotice)
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
@@ -40,7 +45,7 @@ export function AdminShell({ capabilitiesQuery }: { capabilitiesQuery: ReturnTyp
   const [lastKnownUnread, setLastKnownUnread] = useState({ username: user?.username, count: 0 })
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const notificationsQuery = useQuery({ queryKey: ['notifications', user?.username, notificationPage], queryFn: () => apiClient.listNotificationsPage(notificationPage), staleTime: 30_000, refetchInterval: 30_000 })
+  const notificationsQuery = useCapabilityQuery({ queryKey: ['notifications', user?.username, notificationPage], queryFn: () => apiClient.listNotificationsPage(notificationPage), staleTime: 30_000, refetchInterval: 30_000, enabled: capabilitiesReady })
   const readNotification = useMutation({ mutationFn: (id: string) => apiClient.readNotification(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications', user?.username] }) })
   const currentUnreadCount = notificationsQuery.data?.unreadCount
   const unreadCount = currentUnreadCount
@@ -81,11 +86,14 @@ export function AdminShell({ capabilitiesQuery }: { capabilitiesQuery: ReturnTyp
       {mobileOpen ? <button className="sidebar-scrim" aria-label="关闭导航" onClick={() => setMobileOpen(false)} /> : null}
       <div className="shell-content">
         <header className="topbar">
-          <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu size={20} /></button>
+          <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="打开导航" disabled={!capabilitiesReady}><Menu size={20} /></button>
           <div className="topbar-context"><span className="context-kicker">Keystone</span><span className="context-separator">/</span></div>
-          <div className="topbar-actions"><div className="notification-menu"><button className="icon-button" type="button" aria-label={unreadCount ? `通知，${unreadCount} 条未读` : '通知'} aria-expanded={notificationOpen} onClick={toggleNotifications}><Bell size={18} />{unreadCount ? <span className="notification-dot" /> : null}</button>{notificationOpen ? <NotificationPopover notices={notificationsQuery.data?.items ?? []} page={notificationPage} hasMore={notificationsQuery.data?.hasMore ?? false} loading={notificationsQuery.isLoading} error={!notificationsQuery.data && notificationsQuery.isError ? '无法读取站内通知' : null} refreshError={notificationsQuery.data && notificationsQuery.isError ? '通知刷新失败' : null} selected={notificationsQuery.data?.items.find((notice) => notice.id === selectedNotificationId) ?? null} readError={readNotification.isError ? '无法标记已读，请重试' : null} onSelect={(notice) => { setSelectedNotificationId(notice.id); if (!notice.readAt || readNotification.isError) readNotification.mutate(notice.id) }} onBack={() => { setSelectedNotificationId(null); readNotification.reset() }} onPageChange={(page) => { setNotificationPage(page); setSelectedNotificationId(null); readNotification.reset() }} onRetry={() => void notificationsQuery.refetch()} onClose={() => { setNotificationOpen(false); setSelectedNotificationId(null); readNotification.reset() }} /> : null}</div>{capabilities && canAccessCapabilityPage('/profile', capabilities) ? <button className="user-menu user-menu-button" type="button" aria-label="打开个人资料" onClick={() => navigate('/profile')}><div className="avatar">{user?.displayName.slice(0, 1) ?? 'U'}</div><div className="user-copy"><strong>{user?.displayName ?? '未登录'}</strong><span>{user?.role ?? '管理员'}</span></div><ChevronDown size={15} /></button> : null}{/* 移动端隐藏文字时仍提供退出按钮名称。 */}<Button variant="ghost" size="sm" className="logout-button" aria-label="退出" onClick={handleLogout}><LogOut size={16} /><span>退出</span></Button></div>
+          <div className="topbar-actions"><div className="notification-menu"><button className="icon-button" type="button" aria-label={unreadCount ? `通知，${unreadCount} 条未读` : '通知'} aria-expanded={notificationOpen && capabilitiesReady} disabled={!capabilitiesReady} onClick={toggleNotifications}><Bell size={18} />{unreadCount ? <span className="notification-dot" /> : null}</button>{notificationOpen && capabilitiesReady ? <NotificationPopover notices={notificationsQuery.data?.items ?? []} page={notificationPage} hasMore={notificationsQuery.data?.hasMore ?? false} loading={notificationsQuery.isLoading} error={!notificationsQuery.data && notificationsQuery.isError ? '无法读取站内通知' : null} refreshError={notificationsQuery.data && notificationsQuery.isError ? '通知刷新失败' : null} selected={notificationsQuery.data?.items.find((notice) => notice.id === selectedNotificationId) ?? null} readError={readNotification.isError ? '无法标记已读，请重试' : null} onSelect={(notice) => { setSelectedNotificationId(notice.id); if (!notice.readAt || readNotification.isError) readNotification.mutate(notice.id) }} onBack={() => { setSelectedNotificationId(null); readNotification.reset() }} onPageChange={(page) => { setNotificationPage(page); setSelectedNotificationId(null); readNotification.reset() }} onRetry={() => void notificationsQuery.refetch()} onClose={() => { setNotificationOpen(false); setSelectedNotificationId(null); readNotification.reset() }} /> : null}</div>{capabilities && canAccessCapabilityPage('/profile', capabilities) ? <button className="user-menu user-menu-button" type="button" aria-label="打开个人资料" onClick={() => navigate('/profile')}><div className="avatar">{user?.displayName.slice(0, 1) ?? 'U'}</div><div className="user-copy"><strong>{user?.displayName ?? '未登录'}</strong><span>{user?.role ?? '管理员'}</span></div><ChevronDown size={15} /></button> : null}{/* 移动端隐藏文字时仍提供退出按钮名称。 */}<Button variant="ghost" size="sm" className="logout-button" aria-label="退出" onClick={handleLogout}><LogOut size={16} /><span>退出</span></Button></div>
         </header>
-        <main className="shell-main"><CapabilitiesContent query={capabilitiesQuery} /></main>
+        <main className="shell-main">
+          {pendingActionNotice && pendingActionNotice.username === user?.username && pendingActionNotice.sessionRevision === sessionRevision ? <div className="error-panel" role="alert"><div><strong>操作结果需要确认</strong><p>{pendingActionNotice.message}</p></div><Button variant="ghost" size="sm" onClick={dismissPendingActionNotice}>关闭</Button></div> : null}
+          <CapabilitiesContent query={capabilitiesQuery} />
+        </main>
       </div>
     </div>
   )

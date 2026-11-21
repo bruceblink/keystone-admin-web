@@ -6,7 +6,7 @@ import { RequireAuth } from './App'
 import { useSessionStore } from '../shared/state/session'
 import { AdminShell } from '../widgets/layout/AdminShell'
 import { apiClient } from '../shared/api/client'
-import type { useCapabilities } from '../shared/auth/useCapabilities'
+import * as capabilitiesHook from '../shared/auth/useCapabilities'
 import type { NativeCapabilities } from '../shared/api/schemas'
 import { CapabilityPage, DefaultCapabilityPage } from '../shared/auth/CapabilitiesRoutes'
 
@@ -37,8 +37,8 @@ const noPageCapabilities: NativeCapabilities = {
   },
 }
 
-function capabilityQuery(data: NativeCapabilities, isError = false): ReturnType<typeof useCapabilities> {
-  return { data, isError, isFetching: false, isLoading: false, refetch: vi.fn() } as unknown as ReturnType<typeof useCapabilities>
+function capabilityQuery(data: NativeCapabilities, isError = false): ReturnType<typeof capabilitiesHook.useCapabilities> {
+  return { data, isError, isFetching: false, isLoading: false, refetch: vi.fn() } as unknown as ReturnType<typeof capabilitiesHook.useCapabilities>
 }
 
 describe('RequireAuth', () => {
@@ -79,6 +79,8 @@ describe('RequireAuth', () => {
     useSessionStore.setState({ user: { id: '', username: 'limited', displayName: '只读用户', role: '审计员' }, isHydrated: true, authRevision: 2 })
     vi.spyOn(apiClient, 'logout').mockResolvedValue()
     vi.spyOn(apiClient, 'listNotificationsPage').mockResolvedValue({ items: [], unreadCount: 0, page: 1, hasMore: false })
+    // 壳层和嵌套页面必须读取同一份能力结果，模拟真实会话权限查询。
+    vi.spyOn(capabilitiesHook, 'useCapabilities').mockReturnValue(query)
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
     render(

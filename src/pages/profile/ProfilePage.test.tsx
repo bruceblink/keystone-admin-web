@@ -25,7 +25,7 @@ function deferred<T>() {
 
 afterEach(() => {
   vi.restoreAllMocks()
-  useSessionStore.setState({ user: null, isHydrated: false, message: null })
+  useSessionStore.setState({ user: null, isHydrated: false, message: null, authRevision: 0, sessionRevision: 0, pendingActionNotice: null })
 })
 
 describe('ProfilePage', () => {
@@ -142,7 +142,7 @@ describe('ProfilePage', () => {
     updatePassword.resolve({ updated: true })
     await waitFor(() => expect(useSessionStore.getState().user).toBeNull())
     expect(useSessionStore.getState().message).toBe('密码已更新，请使用新密码重新登录')
-    expect(screen.getByLabelText('新密码 *')).toHaveValue('')
+    expect(screen.queryByLabelText('新密码 *')).not.toBeInTheDocument()
   })
 
   it('密码更新被拒绝时保留登录状态和输入', async () => {

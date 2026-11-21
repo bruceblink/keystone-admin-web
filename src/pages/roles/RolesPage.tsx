@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { AlertTriangle, Download, Pencil, Plus, RefreshCw, Search, ShieldCheck, UsersRound, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CapabilityAvailabilityContext, getCapabilityQueryScope, sessionCapabilityScope, useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
@@ -54,22 +55,24 @@ function RolesPageSession({ username, authRevision }: { username: string | null;
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
-  // 角色数据按当前账号和认证版本隔离，令牌刷新或账号切换后不会展示旧授权下的结果。
-  const query = useQuery({ queryKey: ['roles', authRevision, username, appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listRoles({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000, placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === authRevision && previousQuery.queryKey[2] === username ? previousData : undefined, enabled: canReadRoles })
-  const permissionCatalogQuery = useQuery({ queryKey: ['permission-catalog', authRevision, username], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000, enabled: modalMode !== null && canManageRolePermissions })
+  const capabilityAvailability = useContext(CapabilityAvailabilityContext)
+  const currentCapabilityScope = sessionCapabilityScope(username, authRevision, capabilityAvailability.cacheScope)
+  // 筛选和分页可以暂用旧结果；权限重新确认后必须等待当前范围的列表返回。
+  const query = useCapabilityQuery({ queryKey: ['roles', authRevision, username, appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listRoles({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000, placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === authRevision && previousQuery.queryKey[2] === username && getCapabilityQueryScope(previousQuery.queryKey) === currentCapabilityScope ? previousData : undefined, enabled: canReadRoles })
+  const permissionCatalogQuery = useCapabilityQuery({ queryKey: ['permission-catalog', authRevision, username], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 60_000, enabled: modalMode !== null && canManageRolePermissions })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeRoleWriteInput }) => stepUp.run(() => id ? apiClient.updateRole(id, input) : apiClient.createRole(input)),
   })
   const permissionMutation = useMutation({
     mutationFn: ({ id, permissions }: { id: string; permissions: string[] }) => stepUp.run(() => apiClient.updateRolePermissions(id, permissions)),
   })
-  const allocatedMembersQuery = useQuery({
+  const allocatedMembersQuery = useCapabilityQuery({
     queryKey: ['role-users', memberRole?.id, 'allocated', authRevision, username, memberPages.allocated, MEMBER_PAGE_SIZE],
     queryFn: () => apiClient.listRoleMembers(memberRole!.id, true, { page: memberPages.allocated, size: MEMBER_PAGE_SIZE }),
     enabled: memberRole !== null && canReadRoles,
     staleTime: 10_000,
   })
-  const availableMembersQuery = useQuery({
+  const availableMembersQuery = useCapabilityQuery({
     queryKey: ['role-users', memberRole?.id, 'available', authRevision, username, memberPages.available, MEMBER_PAGE_SIZE],
     queryFn: () => apiClient.listRoleMembers(memberRole!.id, false, { page: memberPages.available, size: MEMBER_PAGE_SIZE }),
     enabled: memberRole !== null && canReadRoles,
@@ -122,10 +125,8 @@ function RolesPageSession({ username, authRevision }: { username: string | null;
   const deleteMutation = useMutation({
     mutationFn: (ids: string[]) => stepUp.run(() => apiClient.deleteRoles(ids)),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['roles'] }),
-        queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] }),
-      ])
+      // 权限重新确认会创建新资源查询键并重新读取角色列表，避免同时刷新旧、新缓存两次。
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] })
       setUrlState({ page: 1 })
       setSelectedIds([])
       setDeleteOpen(false)
@@ -284,10 +285,8 @@ function RolesPageSession({ username, authRevision }: { username: string | null;
     }
   }
   async function finishRoleWrite() {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['roles'] }),
-      queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] }),
-    ])
+    // 权限响应确认后会换角色列表缓存键并触发一次新读取。
+    await queryClient.invalidateQueries({ queryKey: ['auth', 'capabilities'] })
     setUrlState({ page: 1 })
     setModalMode(null)
     setEditingRole(null)

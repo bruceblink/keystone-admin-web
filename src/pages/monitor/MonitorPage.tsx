@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { Activity, ArrowDownToLine, ArrowUpFromLine, CircleHelp, Database, HardDrive, Layers3, MemoryStick, RefreshCw, Server, Signal, UserRound, Wifi } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
 import type { NativeCapabilities } from '../../shared/api/schemas'
@@ -28,9 +29,9 @@ export function MonitorPage({ capabilities }: { capabilities: NativeCapabilities
   const canReadOnlineUsers = canReadMonitorResource('online-session:read', capabilities)
   const canRevokeOnlineSession = capabilities.resources.session && capabilities.permissions.includes('online-session:revoke')
   // 每类资源按自身权限启用查询；无权限时不发送请求，也不生成 Mock 成功状态。
-  const serverQuery = useQuery({ queryKey: ['monitor', 'server-info'], queryFn: apiClient.getMonitorServerInfo, enabled: canReadServer, refetchInterval: 15_000, staleTime: 10_000 })
-  const cacheQuery = useQuery({ queryKey: ['monitor', 'cache-info'], queryFn: apiClient.getMonitorCacheInfo, enabled: canRefreshCache, refetchInterval: 15_000, staleTime: 10_000 })
-  const onlineQuery = useQuery({ queryKey: ['monitor', 'online-users', 1, 100], queryFn: apiClient.listMonitorOnlineUsers, enabled: canReadOnlineUsers, refetchInterval: 15_000, staleTime: 10_000 })
+  const serverQuery = useCapabilityQuery({ queryKey: ['monitor', 'server-info'], queryFn: apiClient.getMonitorServerInfo, enabled: canReadServer, refetchInterval: 15_000, staleTime: 10_000 })
+  const cacheQuery = useCapabilityQuery({ queryKey: ['monitor', 'cache-info'], queryFn: apiClient.getMonitorCacheInfo, enabled: canRefreshCache, refetchInterval: 15_000, staleTime: 10_000 })
+  const onlineQuery = useCapabilityQuery({ queryKey: ['monitor', 'online-users', 1, 100], queryFn: apiClient.listMonitorOnlineUsers, enabled: canReadOnlineUsers, refetchInterval: 15_000, staleTime: 10_000 })
 
   useEffect(() => {
     const result = serverQuery.data

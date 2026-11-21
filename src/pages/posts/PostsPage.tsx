@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Download, Pencil, Plus, RefreshCw, Search, BriefcaseBusiness } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import type { NativePost, NativePostWriteInput } from '../../shared/api/schemas'
 import { ActionError, InitialQueryError, Badge, Button, Card, CardHeader, DeleteConfirmModal, ListToolbar, Spinner, StaleQueryError } from '../../shared/ui'
@@ -31,7 +32,7 @@ export function PostsPage() {
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<unknown>(null)
   const [deletingPost, setDeletingPost] = useState<NativePost | null>(null)
-  const query = useQuery({ queryKey: ['posts', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listPosts({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000 })
+  const query = useCapabilityQuery({ queryKey: ['posts', appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listPosts({ keyword: appliedKeyword, status: appliedStatus === 'all' ? '' : appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativePostWriteInput }) => id ? apiClient.updatePost(id, input) : apiClient.createPost(input),
     onSuccess: async () => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ClipboardList, Eye, Pencil, Play, Plus, Power, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeJob, NativeJobLog, NativeJobLogsPage, NativeJobWriteInput } from '../../shared/api/schemas'
@@ -28,7 +29,7 @@ export function JobsPage() {
   const [editingJob, setEditingJob] = useState<NativeJob | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const query = useQuery({ queryKey: ['jobs', appliedKeyword, jobPage], queryFn: () => apiClient.listJobs({ keyword: appliedKeyword, page: jobPage, size: PAGE_SIZE }), staleTime: 10_000 })
+  const query = useCapabilityQuery({ queryKey: ['jobs', appliedKeyword, jobPage], queryFn: () => apiClient.listJobs({ keyword: appliedKeyword, page: jobPage, size: PAGE_SIZE }), staleTime: 10_000 })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeJobWriteInput }) => id ? apiClient.updateJob(id, input) : apiClient.createJob(input),
     onSuccess: async () => {
@@ -74,9 +75,9 @@ export function JobsPage() {
   const selectedJobForRoute = selectedJobId
     ? jobs.find((job) => job.id === selectedJobId) ?? (selectedJob?.id === selectedJobId ? selectedJob : null)
     : null
-  const selectedJobQuery = useQuery({ queryKey: ['job', selectedJobId], queryFn: () => apiClient.getJob(selectedJobId), enabled: Boolean(selectedJobId) && !selectedJobForRoute, staleTime: 10_000 })
+  const selectedJobQuery = useCapabilityQuery({ queryKey: ['job', selectedJobId], queryFn: () => apiClient.getJob(selectedJobId), enabled: Boolean(selectedJobId) && !selectedJobForRoute, staleTime: 10_000 })
   const activeJob = selectedJobForRoute ?? selectedJobQuery.data ?? null
-  const logsQuery = useQuery({ queryKey: ['job-logs', activeJob?.id, logPage], queryFn: () => apiClient.listJobLogs({ jobId: activeJob?.id, page: logPage, size: PAGE_SIZE }), enabled: Boolean(activeJob), staleTime: 10_000 })
+  const logsQuery = useCapabilityQuery({ queryKey: ['job-logs', activeJob?.id, logPage], queryFn: () => apiClient.listJobLogs({ jobId: activeJob?.id, page: logPage, size: PAGE_SIZE }), enabled: Boolean(activeJob), staleTime: 10_000 })
   const total = logsQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const jobTotalPages = Math.max(1, Math.ceil(jobTotal / PAGE_SIZE))

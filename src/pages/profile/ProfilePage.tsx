@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { LockKeyhole, RefreshCw, Save } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import type { NativeProfile, NativeProfileWriteInput } from '../../shared/api/schemas'
@@ -13,7 +14,7 @@ const emptyProfile: NativeProfileWriteInput = { displayName: '', email: '', phon
 
 export function ProfilePage() {
   const queryClient = useQueryClient()
-  const profileQuery = useQuery({ queryKey: ['profile'], queryFn: () => apiClient.getProfile(), staleTime: 10_000 })
+  const profileQuery = useCapabilityQuery({ queryKey: ['profile'], queryFn: () => apiClient.getProfile(), staleTime: 10_000 })
   const [form, setForm] = useState<NativeProfileWriteInput>(emptyProfile)
   const [formDirty, setFormDirty] = useState(false)
   const formDirtyRef = useRef(false)
@@ -59,7 +60,7 @@ export function ProfilePage() {
     setSaving(true)
     try {
       const updatedProfile = await apiClient.updateProfile(form)
-      queryClient.setQueryData(['profile'], updatedProfile)
+      queryClient.setQueriesData({ queryKey: ['profile'] }, updatedProfile)
       setForm(toWriteInput(updatedProfile))
       updateDirtyState(false)
       await queryClient.invalidateQueries({ queryKey: ['profile'] })

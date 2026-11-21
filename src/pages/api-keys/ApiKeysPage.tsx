@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, KeyRound, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import { MfaStepUpModal } from '../../shared/auth/MfaStepUpModal'
 import { useMfaStepUp } from '../../shared/auth/useMfaStepUp'
@@ -39,8 +40,8 @@ export function ApiKeysPage() {
   const activeExpiryRetry = useRef<{ queryKey: string; attemptedIds: Set<string> }>({ queryKey: activeExpiryQueryKey, attemptedIds: new Set() })
   const stepUp = useMfaStepUp()
   const queryClient = useQueryClient()
-  const query = useQuery({ queryKey: ['api-keys', authRevision, username, appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listApiKeysPage({ keyword: appliedKeyword, status: appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000, enabled: canRead })
-  const scopeQuery = useQuery({ queryKey: ['permission-catalog', authRevision, username], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 0, enabled: canIssue, refetchOnWindowFocus: 'always', refetchOnReconnect: 'always' })
+  const query = useCapabilityQuery({ queryKey: ['api-keys', authRevision, username, appliedKeyword, appliedStatus, page], queryFn: () => apiClient.listApiKeysPage({ keyword: appliedKeyword, status: appliedStatus, page, size: PAGE_SIZE }), staleTime: 10_000, enabled: canRead })
+  const scopeQuery = useCapabilityQuery({ queryKey: ['permission-catalog', authRevision, username], queryFn: () => apiClient.listPermissionCatalog(), staleTime: 0, enabled: canIssue, refetchOnWindowFocus: 'always', refetchOnReconnect: 'always' })
   const issueMutation = useMutation({ mutationFn: (input: { name: string; scopes: string[]; expiresAt?: string | null }) => stepUp.run(() => apiClient.issueApiKey(input)), onSuccess: async (key) => { await Promise.all([queryClient.invalidateQueries({ queryKey: ['api-keys'] }), queryClient.invalidateQueries({ queryKey: ['notifications'] })]); setUrlState({ page: 1 }); setIssuedKey(key); setIssueOpen(false) } })
   const rotateMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.rotateApiKey(id)), onSuccess: async (key) => { await Promise.all([queryClient.invalidateQueries({ queryKey: ['api-keys'] }), queryClient.invalidateQueries({ queryKey: ['notifications'] })]); setUrlState({ page: 1 }); setIssuedKey(key) } })
   const revokeMutation = useMutation({ mutationFn: (id: string) => stepUp.run(() => apiClient.revokeApiKey(id)), onSuccess: async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: ['api-keys'] }), queryClient.invalidateQueries({ queryKey: ['notifications'] })]); setUrlState({ page: 1 }); setRevokingKey(null) } })

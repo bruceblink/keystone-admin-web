@@ -1,5 +1,6 @@
-import { useEffect, useId, type PropsWithChildren, type ReactNode } from 'react'
+import { useContext, useEffect, useId, type PropsWithChildren, type ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { CapabilityAvailabilityContext } from '../auth/CapabilityAvailability'
 
 type ModalProps = PropsWithChildren<{
   open: boolean
@@ -10,24 +11,39 @@ type ModalProps = PropsWithChildren<{
   size?: 'md' | 'lg'
 }>
 
+const bodyLockTokens = new Set<symbol>()
+let bodyOverflowBeforeLock = ''
+
+/** 多层对话框共用页面滚动锁，最后一个对话框关闭时才恢复原样式。 */
+function lockBodyScroll(): () => void {
+  const token = Symbol('modal-body-lock')
+  if (bodyLockTokens.size === 0) bodyOverflowBeforeLock = document.body.style.overflow
+  bodyLockTokens.add(token)
+  document.body.style.overflow = 'hidden'
+  return () => {
+    bodyLockTokens.delete(token)
+    document.body.style.overflow = bodyLockTokens.size === 0 ? bodyOverflowBeforeLock : 'hidden'
+  }
+}
+
 /** 通用管理表单模态框；负责遮罩、Escape 关闭和页面滚动锁定。 */
 export function Modal({ open, title, description, onClose, footer, size = 'md', children }: ModalProps) {
   const titleId = useId()
+  const capabilityAvailable = useContext(CapabilityAvailabilityContext)
   useEffect(() => {
-    if (!open) return
-    const previousOverflow = document.body.style.overflow
+    if (!open || !capabilityAvailable.available) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
-    document.body.style.overflow = 'hidden'
+    const unlockBody = lockBodyScroll()
     document.addEventListener('keydown', handleKeyDown)
     return () => {
-      document.body.style.overflow = previousOverflow
+      unlockBody()
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose, open])
+  }, [capabilityAvailable.available, onClose, open])
 
-  if (!open) return null
+  if (!open || !capabilityAvailable.available) return null
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>

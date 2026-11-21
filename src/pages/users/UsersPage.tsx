@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { Download, Pencil, Plus, RefreshCw, Search, Upload, UsersRound } from 'lucide-react'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
@@ -51,7 +52,7 @@ export function UsersPage({ capabilities }: { capabilities: NativeCapabilities }
   const [exporting, setExporting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const rolesQuery = useQuery({
+  const rolesQuery = useCapabilityQuery({
     queryKey: ['user-role-options', authRevision, sessionUsername],
     queryFn: () => apiClient.listRoles(),
     staleTime: 60_000,
@@ -64,7 +65,7 @@ export function UsersPage({ capabilities }: { capabilities: NativeCapabilities }
       await queryClient.invalidateQueries({ queryKey: ['users'] })
     },
   })
-  const query = useQuery({
+  const query = useCapabilityQuery({
     queryKey: ['users', authRevision, sessionUsername, filters, page],
     queryFn: () => apiClient.listUsers({ ...filters, page, size: PAGE_SIZE }),
     staleTime: 10_000,

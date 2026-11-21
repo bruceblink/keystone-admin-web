@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Building2, Pencil, Plus, RefreshCw, Search } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCapabilityQuery } from '../../shared/auth/CapabilityAvailability'
 import { apiClient } from '../../shared/api/client'
 import { formatApiError } from '../../shared/api/errors'
 import { useCapabilities } from '../../shared/auth/useCapabilities'
@@ -28,7 +29,7 @@ export function DepartmentsPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [editingDepartment, setEditingDepartment] = useState<NativeDepartment | null>(null)
   const [deletingDepartment, setDeletingDepartment] = useState<NativeDepartment | null>(null)
-  const query = useQuery({ queryKey: ['departments'], queryFn: () => apiClient.listDepartments(), staleTime: 10_000, enabled: canReadDepartments })
+  const query = useCapabilityQuery({ queryKey: ['departments'], queryFn: () => apiClient.listDepartments(), staleTime: 10_000, enabled: canReadDepartments })
   const saveMutation = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: NativeDepartmentWriteInput }) => id ? apiClient.updateDepartment(id, input) : apiClient.createDepartment(input),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['departments'] }); setModalMode(null); setEditingDepartment(null) },
