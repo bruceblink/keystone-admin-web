@@ -68,6 +68,7 @@ describe('ApiError', () => {
     ['password_missing_digit', '密码必须包含数字。', '密码缺少数字'],
     ['password_missing_special', '密码必须包含特殊字符。', '密码缺少特殊字符'],
     ['api_key_name_invalid', 'API Key 名称必须为 1 到 128 个字符。', 'API Key 名称缺失或超过 128 个字符'],
+    ['permission_not_found', '权限标识不存在或已停用，请刷新权限目录后重试。', '权限标识不存在或已停用'],
     ['notice_type_invalid', '公告类型不能超过 32 个字符。', '公告类型超过 32 个 Unicode 码点'],
     ['notice_published_invalid', '公告发布状态无效，请重试。', '公告发布状态必须是布尔值'],
     ['notice_ids_invalid', '公告编号无效，请重新选择后重试。', '公告编号列表缺失或包含无效编号'],
