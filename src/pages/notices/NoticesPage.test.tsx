@@ -51,6 +51,21 @@ describe('NoticesPage', () => {
     await waitFor(() => expect(screen.queryByText('公告状态更新失败')).not.toBeInTheDocument())
   })
 
+  it('发布参数无效时显示专用错误码和提示', async () => {
+    vi.spyOn(apiClient, 'listNoticesPage').mockResolvedValue(page())
+    vi.spyOn(apiClient, 'publishNotice').mockRejectedValue(new ApiError('published must be boolean', 422, 'notice_published_invalid'))
+    renderPage()
+
+    await screen.findByText('平台维护通知')
+    fireEvent.click(screen.getByRole('button', { name: '取消发布' }))
+
+    const error = await screen.findByRole('alert')
+    expect(error).toHaveTextContent('公告状态更新失败')
+    expect(error).toHaveTextContent('公告发布状态无效，请重试。')
+    expect(error).toHaveTextContent('notice_published_invalid')
+    expect(error).toHaveTextContent('公告发布状态必须是布尔值')
+  })
+
   it('刷新失败时保留旧公告并提供带错误码语义的重试入口', async () => {
     const staleNotice = { ...notice, id: 'notice-2', title: '例行维护', published: false, publishAt: null }
     const listNotices = vi.spyOn(apiClient, 'listNoticesPage')
