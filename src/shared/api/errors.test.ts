@@ -70,6 +70,7 @@ describe('ApiError', () => {
     ['api_key_name_invalid', 'API Key 名称必须为 1 到 128 个字符。', 'API Key 名称缺失或超过 128 个字符'],
     ['notice_type_invalid', '公告类型不能超过 32 个字符。', '公告类型超过 32 个 Unicode 码点'],
     ['notice_published_invalid', '公告发布状态无效，请重试。', '公告发布状态必须是布尔值'],
+    ['notice_ids_invalid', '公告编号无效，请重新选择后重试。', '公告编号列表缺失或包含无效编号'],
     ['profile_display_name_required', '请输入个人资料展示名。', '个人资料展示名缺失或为空白'],
     ['profile_avatar_required', '请输入头像地址。', '个人资料头像地址缺失或为空白'],
     ['api_key_expiry_invalid', 'API Key 到期时间格式无效，请重新选择时间。', 'API Key 到期时间格式无效'],
