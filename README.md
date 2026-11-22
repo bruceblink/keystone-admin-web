@@ -23,6 +23,8 @@ pnpm test:run
 pnpm build
 ```
 
+推送 `vX.Y.Z` 标签会触发 `.github/workflows/release.yml`。工作流执行全量测试、类型检查和生产构建，将 `dist` 打包为 `keystone-admin-web-X.Y.Z.tar.gz`，生成 SHA-256 校验和，并创建 GitHub Release。发布前仍需使用同一版本产物完成 Native/Phoenix 后端切换验收。
+
 本地联调默认代理到 Native `http://localhost:8080`。连接 Phoenix 时设置
 `VITE_API_PROXY_TARGET=http://localhost:4000 VITE_ENABLE_MOCK=false pnpm dev`；两种后端都必须使用同一份 `/api/v1` 页面契约。
 
