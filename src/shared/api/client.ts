@@ -945,7 +945,9 @@ export const apiClient = {
       const keyword = filters.keyword?.toLocaleLowerCase() ?? ''
       const filtered = createMockApiKeys().filter((key) => {
         const matchesKeyword = !keyword || `${key.name} ${key.prefix} ${key.scopes.join(' ')}`.toLocaleLowerCase().includes(keyword)
-        const matchesStatus = !filters.status || filters.status === 'all' || (filters.status === 'revoked' ? Boolean(key.revokedAt) : !key.revokedAt)
+        const expired = Boolean(key.expiresAt && Date.parse(key.expiresAt) <= Date.now())
+        // Mock fallback 也必须遵守服务端 active 的撤销和到期边界。
+        const matchesStatus = !filters.status || filters.status === 'all' || (filters.status === 'revoked' ? Boolean(key.revokedAt) : !key.revokedAt && !expired)
         return matchesKeyword && matchesStatus
       })
       const start = (filters.page - 1) * filters.size

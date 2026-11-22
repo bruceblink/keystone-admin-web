@@ -502,6 +502,17 @@ describe('Native API client', () => {
     await expect(apiClient.listPosts()).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ code: 'operator' })]))
   })
 
+  it('开发环境下 API Key active Mock 筛选会排除已过期密钥', async () => {
+    vi.stubEnv('VITE_ENABLE_MOCK', 'true')
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('network unavailable') }))
+
+    const result = await apiClient.listApiKeysPage({ status: 'active', page: 1, size: 20 })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]?.name).toBe('本地开发客户端')
+    expect(result.total).toBe(1)
+  })
+
   it('开发环境下保留岗位接口 5xx 错误', async () => {
     vi.stubEnv('VITE_ENABLE_MOCK', 'true')
     vi.stubGlobal('fetch', vi.fn(async () => response({ success: false, data: null, message: 'proxy unavailable', error: null }, 502)))

@@ -265,6 +265,10 @@ export function createMockApiKeys(): NativeApiKey[] {
     id: '4f47c1d4-0a7f-4c9c-96d9-0e2d36518d2f', name: '本地开发客户端', prefix: 'dev_7x2m',
     scopes: ['user:read', 'monitor:read'], expiresAt: null, revokedAt: null,
     lastUsedAt: new Date().toISOString(), createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+  }, {
+    id: '8d30e3aa-0c16-4d66-bf42-9b2f84f5a51a', name: '已过期开发客户端', prefix: 'expired_1x2y',
+    scopes: ['user:read'], expiresAt: new Date(Date.now() - 86_400_000).toISOString(), revokedAt: null,
+    lastUsedAt: null, createdAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
   }]
 }
 
