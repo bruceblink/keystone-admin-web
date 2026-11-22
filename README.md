@@ -14,6 +14,16 @@ Keystone 的通用管理后台前端。前端可以连接 Native 或 Phoenix 后
 发布工作流会在 `vX.Y.Z` 标签上运行全量测试、类型检查和生产构建，然后生成压缩包和校验和。
 发布包应与同一版本的 Native 或 Phoenix 后端一起完成登录、权限、查询、写操作、错误反馈和窄屏布局验收。
 
+### 生产部署关系
+
+admin-web 只提供管理界面，不能单独作为生产系统运行。生产部署必须将本项目与一个已发布且版本兼容的后端绑定：
+
+- 标准配套为 `admin-web v1.0.0 + Native v1.0.0`。该组合提供完整的生产 API、数据库迁移和后台服务。
+- `admin-web v1.0.0 + Phoenix v1.0.0` 是可替换的后端组合。启用前必须完成相同版本的接口、权限、错误码和页面闭环验收。
+- 仅部署 admin-web，或只部署 Native/Phoenix 而不提供 admin-web，均不构成可用的生产管理系统。
+
+部署时需要把前端 API 代理或 API 基地址指向选定后端，并使用该后端对应的数据库、密钥和运行时配置。前端构建包、后端镜像和数据库迁移必须来自同一发布验收批次。
+
 技术选型和实现边界见 [`docs/01-technology-selection.md`](docs/01-technology-selection.md)。当前方案
 采用 React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + shadcn/ui 风格的项目内组件。
 
