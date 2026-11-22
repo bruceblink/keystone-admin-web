@@ -1,7 +1,18 @@
 # Keystone Admin Web
 
-Keystone Native 后端的现代化管理后台前端。项目从空目录开始实现，不迁移旧版
-`keystone-frontend` 的页面、状态树或接口封装。
+Keystone 的通用管理后台前端。前端可以连接 Native 或 Phoenix 后端，并使用同一份页面、权限和
+`/api/v1` 接口约定。项目从空目录开始实现，不迁移旧版 `keystone-frontend` 的页面、状态树或接口封装。
+
+## 1.0.0 发布
+
+`v1.0.0` 已发布，可从 [GitHub Release](https://github.com/bruceblink/keystone-admin-web/releases/tag/v1.0.0)
+下载生产构建包。Release 包含以下资产：
+
+- `keystone-admin-web-1.0.0.tar.gz`，生产 `dist` 文件。
+- `keystone-admin-web-1.0.0.tar.gz.sha256`，生产包的 SHA-256 校验和。
+
+发布工作流会在 `vX.Y.Z` 标签上运行全量测试、类型检查和生产构建，然后生成压缩包和校验和。
+发布包应与同一版本的 Native 或 Phoenix 后端一起完成登录、权限、查询、写操作、错误反馈和窄屏布局验收。
 
 技术选型和实现边界见 [`docs/01-technology-selection.md`](docs/01-technology-selection.md)。当前方案
 采用 React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + shadcn/ui 风格的项目内组件。
@@ -23,10 +34,12 @@ pnpm test:run
 pnpm build
 ```
 
-推送 `vX.Y.Z` 标签会触发 `.github/workflows/release.yml`。工作流执行全量测试、类型检查和生产构建，将 `dist` 打包为 `keystone-admin-web-X.Y.Z.tar.gz`，生成 SHA-256 校验和，并创建 GitHub Release。发布前仍需使用同一版本产物完成 Native/Phoenix 后端切换验收。
+推送 `vX.Y.Z` 标签会触发 `.github/workflows/release.yml`。工作流执行全量测试、类型检查和生产构建，将 `dist` 打包为 `keystone-admin-web-X.Y.Z.tar.gz`，生成 SHA-256 校验和，并创建 GitHub Release。
 
 本地联调默认代理到 Native `http://localhost:8080`。连接 Phoenix 时设置
-`VITE_API_PROXY_TARGET=http://localhost:4000 VITE_ENABLE_MOCK=false pnpm dev`；两种后端都必须使用同一份 `/api/v1` 页面契约。
+`VITE_API_PROXY_TARGET=http://localhost:4000 VITE_ENABLE_MOCK=false pnpm dev`。连接 Native 时可使用
+`VITE_API_PROXY_TARGET=http://localhost:8080 VITE_ENABLE_MOCK=false pnpm dev`。两种后端都必须使用同一份
+`/api/v1` 页面契约，切换后应重新验证登录、权限、查询、分页、写操作和错误反馈。
 
 管理页面使用路由级懒加载。生产构建的初始 JavaScript 包保持在 Vite 默认警告阈值以内，各业务页面按路由独立加载。
 
